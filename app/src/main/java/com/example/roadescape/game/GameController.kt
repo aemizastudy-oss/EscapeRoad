@@ -9,17 +9,24 @@ import com.example.roadescape.model.GamePackage
 import com.example.roadescape.model.GameSession
 import com.example.roadescape.model.LockInput
 import com.example.roadescape.model.ParkingState
+import com.example.roadescape.model.TourMode
 
 data class PlayEnvironment(
     val foreground: Boolean,
     val parking: ParkingState,
     val storageReady: Boolean = true,
     val busy: Boolean = false,
+    val mode: TourMode = TourMode.MOCK,
+    val carUxAllowed: Boolean = true,
+    val stationary: Boolean = true,
+    val tourGate: GateReason? = null,
+    val arrivalVerified: Boolean = false,
 )
 
 enum class GateReason {
     READY, BACKGROUND, PARKING_UNKNOWN, DRIVING, STORAGE_ERROR, BUSY,
     ARRIVAL_REQUIRED, COMPLETED, NOT_CURRENT, STALE_EVENT,
+    TOUR_REQUIRED, UX_RESTRICTED, MODE_MISMATCH,
 }
 
 enum class GameFeedback {
@@ -46,7 +53,7 @@ data class GameTransition(
 
 /** A deterministic reducer. Callers serialize events and persist before publishing a transition. */
 object GameController {
-    fun newSession(content: GamePackage, sessionId: String): GameSession {
+    fun newSession(content: GamePackage, sessionId: String, mode: TourMode = TourMode.MOCK): GameSession {
         require(sessionId.isNotBlank()) { "세션 ID가 필요합니다." }
         require(ContentValidator.validate(content).isEmpty()) { "검증되지 않은 콘텐츠입니다." }
         return GameSession(
@@ -54,6 +61,7 @@ object GameController {
             packageId = content.id,
             contentVersion = content.contentVersion,
             progress = content.checkpoints.map { CheckpointProgress(it.id) },
+            sourceMode = mode,
         )
     }
 
@@ -71,13 +79,19 @@ object GameController {
         if (!environment.storageReady) return GateReason.STORAGE_ERROR
         if (environment.busy) return GateReason.BUSY
         if (!environment.foreground) return GateReason.BACKGROUND
+        if (session.sourceMode != environment.mode) return GateReason.MODE_MISMATCH
+        if (!environment.carUxAllowed) return GateReason.UX_RESTRICTED
         when (environment.parking) {
             ParkingState.DRIVING -> return GateReason.DRIVING
             ParkingState.UNKNOWN -> return GateReason.PARKING_UNKNOWN
             ParkingState.PARKED -> Unit
         }
+        if (!environment.stationary) return GateReason.PARKING_UNKNOWN
         val checkpoint = currentCheckpoint(content, session) ?: return GateReason.COMPLETED
         if (puzzleId != null && checkpoint.puzzleId != puzzleId) return GateReason.NOT_CURRENT
+        if (content.requiresTour && environment.tourGate != GateReason.READY) {
+            return environment.tourGate ?: GateReason.TOUR_REQUIRED
+        }
         val progress = session.progress.firstOrNull { it.checkpointId == checkpoint.id }
             ?: return GateReason.STORAGE_ERROR
         if (progress.arrivedAt == null) return GateReason.ARRIVAL_REQUIRED
@@ -100,10 +114,15 @@ object GameController {
         if (!environment.storageReady) return blocked(GateReason.STORAGE_ERROR)
         if (environment.busy) return blocked(GateReason.BUSY)
         if (!environment.foreground) return blocked(GateReason.BACKGROUND)
+        if (session.sourceMode != environment.mode) return blocked(GateReason.MODE_MISMATCH)
         val checkpoint = currentCheckpoint(content, session) ?: return blocked(GateReason.COMPLETED)
         val progress = session.progress.firstOrNull { it.checkpointId == checkpoint.id }
             ?: return blocked(GateReason.STORAGE_ERROR)
         if (command is GameCommand.Arrive) {
+            if (content.requiresTour && (!environment.arrivalVerified ||
+                    environment.parking != ParkingState.PARKED || !environment.stationary || !environment.carUxAllowed)) {
+                return blocked(GateReason.TOUR_REQUIRED)
+            }
             if (command.checkpointId != checkpoint.id) return blocked(GateReason.NOT_CURRENT)
             if (command.arrivedAt < 0) return GameTransition(session, GameFeedback.INVALID_INPUT)
             if (progress.arrivedAt != null) return GameTransition(session, GameFeedback.NO_CHANGE)

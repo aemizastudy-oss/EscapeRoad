@@ -11,6 +11,7 @@ import com.example.roadescape.model.CheckpointStatus
 import com.example.roadescape.model.GameSession
 import com.example.roadescape.model.LockInput
 import com.example.roadescape.model.ParkingState
+import com.example.roadescape.model.TourMode
 import com.example.roadescape.platform.SimulatedParkingProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -44,7 +45,7 @@ class GameViewModelOrderingTest {
             viewModel.setForeground(true)
         }
         val previous = await { !it.loading && it.error == null }.session?.sessionId
-        onMain { viewModel.newGameConfirmed() }
+        onMain { viewModel.newGameConfirmed("demo_package", TourMode.MOCK) }
         val fresh = await { !it.saving && it.session != null && it.session.sessionId != previous }
         onMain { parking.simulate(ParkingState.PARKED) }
         await { it.parking == ParkingState.PARKED }

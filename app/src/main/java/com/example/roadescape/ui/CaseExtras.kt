@@ -1,6 +1,7 @@
 package com.example.roadescape.ui
 
 import com.example.roadescape.R
+import com.example.roadescape.model.TourMode
 
 import androidx.compose.ui.res.stringResource
 
@@ -59,7 +60,7 @@ fun CaseSolutionScreen(state: GameUiState, onHome: () -> Unit, onRating: () -> U
         CaseHeading("The Solution", "사건 해설")
         if (content == null || session == null || !isComplete(content, session)) {
             CasePanel {
-                Text("세 경유지를 모두 처리하면 해설이 열립니다.", fontFamily = CaseFonts.Serif, color = CaseColors.Cream)
+                Text("모든 경유지를 처리하면 해설이 열립니다.", fontFamily = CaseFonts.Serif, color = CaseColors.Cream)
                 Text("아직 완료하지 않은 퍼즐의 정답은 여기에 표시하지 않습니다.", color = CaseColors.MutedGold)
             }
             EscapeButton("사건으로 돌아가기", "solution-home", onHome)
@@ -222,7 +223,7 @@ fun CaseCertificateScreen(state: GameUiState, onHome: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("screen-certificate"), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         CaseHeading("Certificate of Completion", "완주 기념카드")
         if (session == null || content == null || !isComplete(content, session)) {
-            CasePanel { Text("세 경유지를 모두 처리하면 현재 게임의 기념카드가 열립니다.", color = CaseColors.Cream) }
+            CasePanel { Text("모든 경유지를 처리하면 현재 게임의 기념카드가 열립니다.", color = CaseColors.Cream) }
             EscapeButton(stringResource(R.string.nav_lobby_return), "certificate-home", onHome)
             return@Column
         }
@@ -234,16 +235,17 @@ fun CaseCertificateScreen(state: GameUiState, onHome: () -> Unit) {
             hints = session.progress.sumOf { it.revealedHintCount },
             answers = session.progress.count { it.answerRevealed },
             date = LocalDate.now(ZoneId.of("Asia/Seoul")).toString(),
+            simulation = session.sourceMode == TourMode.MOCK,
         )
         PaperSheet {
             Text("Escape Road", color = CaseColors.Burgundy, fontFamily = CaseFonts.Serif, fontSize = 38.sp)
             Text("CERTIFICATE OF COMPLETION", color = CaseColors.Ink, fontFamily = CaseFonts.Serif, letterSpacing = 3.sp)
             CaseArtwork(CaseArt.ENVELOPE, Modifier.fillMaxWidth().height(160.dp))
-            Text("세 번의 정차, 세 개의 단서", color = CaseColors.Burgundy, style = MaterialTheme.typography.headlineMedium, fontFamily = CaseFonts.Serif)
+            Text("정차 후 이어가는 여행의 단서", color = CaseColors.Burgundy, style = MaterialTheme.typography.headlineMedium, fontFamily = CaseFonts.Serif)
             Text(export.title, color = CaseColors.Ink, style = MaterialTheme.typography.titleLarge)
             Text("해결 ${export.solved} · 건너뛰기 ${export.skipped} · 힌트 ${export.hints} · 정답 공개 ${export.answers}", color = CaseColors.Ink)
             Text("발급일 (KST) ${export.date} · 세션 ${export.sessionId.take(8)}", color = CaseColors.Ink, style = MaterialTheme.typography.bodySmall)
-            Text("개발용 시뮬레이션의 완료 기록입니다.", color = CaseColors.Burgundy)
+            Text(if(export.simulation)"개발용 시뮬레이션의 완료 기록입니다."else"실제 SDK 입력 모드의 앱 기록 · 실차 방문 인증과 구분합니다.", color = CaseColors.Burgundy)
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             EscapeButton(if (busy) "이미지 저장 중" else "이미지로 저장", "certificate-export", {
@@ -378,19 +380,19 @@ private class LocalCaseNotes(context: Context) {
     }
 }
 
-private data class CertificateExport(val title: String, val sessionId: String, val solved: Int, val skipped: Int, val hints: Int, val answers: Int, val date: String)
+private data class CertificateExport(val title: String, val sessionId: String, val solved: Int, val skipped: Int, val hints: Int, val answers: Int, val date: String, val simulation:Boolean=true)
 
 private val CertificateExportSaver = listSaver<CertificateExport?, Any>(
     save = { export ->
         if (export == null) emptyList() else listOf(
             export.title, export.sessionId, export.solved, export.skipped,
-            export.hints, export.answers, export.date,
+            export.hints, export.answers, export.date, export.simulation,
         )
     },
     restore = { values ->
-        if (values.size != 7) null else CertificateExport(
+        if (values.size !in 7..8) null else CertificateExport(
             values[0] as String, values[1] as String, values[2] as Int,
-            values[3] as Int, values[4] as Int, values[5] as Int, values[6] as String,
+            values[3] as Int, values[4] as Int, values[5] as Int, values[6] as String, values.getOrNull(7) as? Boolean ?: true,
         )
     },
 )
@@ -417,11 +419,11 @@ private fun createCertificateBitmap(export: CertificateExport, typeface: Typefac
     val width = envelope.width * scale; val height = envelope.height * scale
     try { canvas.drawBitmap(envelope, null, RectF(800f-width/2, 415f-height/2, 800f+width/2, 415f+height/2), paint) }
     finally { envelope.recycle() }
-    text("세 번의 정차, 세 개의 단서", 655f, 53f, CaseColors.Burgundy, true)
+    text("정차 후 이어가는 여행의 단서", 655f, 53f, CaseColors.Burgundy, true)
     val title = if (export.title.length <= 28) export.title else export.title.take(27) + "…"
     text(title, 730f, 39f)
     text("해결 ${export.solved} · 건너뛰기 ${export.skipped} · 힌트 ${export.hints} · 정답 공개 ${export.answers}", 810f, 35f)
     text("발급일 (KST) ${export.date}  |  세션 ${export.sessionId.take(8)}", 900f, 29f)
-    text("개발용 시뮬레이션 완료 기록 · 이 기기에서 생성", 966f, 28f, CaseColors.Burgundy)
+    text(if(export.simulation)"개발용 시뮬레이션 완료 기록 · 이 기기에서 생성"else"실제 SDK 모드 앱 기록 · 실차 방문 인증 아님", 966f, 28f, CaseColors.Burgundy)
     return bitmap
 }

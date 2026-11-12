@@ -8,6 +8,7 @@ plugins {
 android {
     namespace = "com.example.roadescape"
     compileSdk = 36
+    useLibrary("android.car")
     defaultConfig {
         applicationId = "com.example.roadescape"
         minSdk = 28
@@ -37,6 +38,11 @@ dependencies {
     implementation(libs.datastore)
     implementation(libs.serialization.json)
     implementation(libs.coroutines.android)
+    implementation(libs.pleos.vehicle)
+    implementation(libs.pleos.location)
+    implementation(libs.pleos.navigation)
+    implementation(libs.pleos.tts)
+    implementation(libs.pleos.stt)
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
     androidTestImplementation(platform(libs.compose.bom))

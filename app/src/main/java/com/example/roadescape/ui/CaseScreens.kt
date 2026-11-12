@@ -43,6 +43,8 @@ fun LobbyScreen(
     onArchive: () -> Unit,
     onCasebook: () -> Unit,
     onResume: () -> Unit,
+    onTour: () -> Unit = {},
+    onSdk: () -> Unit = {},
 ) {
     BoxWithConstraints(Modifier.fillMaxSize().testTag("screen-lobby")) {
         val wide = maxWidth >= 900.dp
@@ -64,6 +66,8 @@ fun LobbyScreen(
                     CText("내 차로 떠나는 방탈출 여행", size = 23, weight = FontWeight.Bold)
                     CText("오늘 맡으실 사건을 고르시면, 첫 번째 단서를 건네드리겠습니다.", color = CaseColors.Cream.copy(alpha = .8f), modifier = Modifier.widthIn(max = 720.dp), align = TextAlign.Center)
                     FlowRow(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        EscapeButton("수원 관광 코스 · 5챕터", "open-suwon-tour", onTour)
+                        EscapeButton("SDK 연결 상태", "open-sdk-status", onSdk, secondary = true)
                         EscapeButton("사건 고르기", "open-cases", onCases)
                         EscapeButton("사건 기록부", "lobby-casebook", onCasebook, secondary = true)
                         EscapeButton("저장된 수사", "lobby-archive", onArchive, secondary = true)
@@ -271,7 +275,7 @@ fun CaseCheckpointScreen(state: GameUiState, onOpen: (String) -> Unit, onComplet
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val map: @Composable () -> Unit = {
                 PaperSheet(Modifier.fillMaxWidth()) {
-                    CText("세 개의 테스트 경유지", size = 22, color = CaseColors.Ink, weight = FontWeight.Bold)
+                    CText("${content.checkpoints.size}개 경유지", size = 22, color = CaseColors.Ink, weight = FontWeight.Bold)
                     CText("실제 지도가 아닌 경유지 진행도입니다.", size = 14, color = CaseColors.Ink.copy(alpha = .6f))
                     RouteDiagram(state)
                 }
@@ -310,8 +314,9 @@ private fun RouteDiagram(state: GameUiState) {
     val content = state.content ?: return
     val session = state.session ?: return
     val currentId = GameController.currentCheckpoint(content, session)?.id
-    val checkpoints = content.checkpoints.take(3)
-    val positions = listOf(.12f to .80f, .44f to .48f, .75f to .18f).take(checkpoints.size)
+    val checkpoints = content.checkpoints.take(5)
+    val positions = if(checkpoints.size<=3)listOf(.12f to .80f,.44f to .48f,.75f to .18f).take(checkpoints.size)
+        else listOf(.08f to .83f,.26f to .65f,.44f to .47f,.63f to .29f,.81f to .12f).take(checkpoints.size)
     BoxWithConstraints(Modifier.fillMaxWidth().height(350.dp)) {
         Canvas(Modifier.fillMaxSize()) {
             val points = positions.map { Offset(size.width * it.first, size.height * it.second) }
@@ -507,14 +512,14 @@ fun CaseCompletionScreen(state: GameUiState, onNew: () -> Unit, onSolution: () -
     if (!state.canReadContent) { CasePausedScreen(state); return }
     val session = state.session ?: return
     if (session.progress.any { !it.status.isComplete }) {
-        CText("세 경유지를 모두 처리하면 완료 내역을 볼 수 있습니다.")
+        CText("모든 경유지를 처리하면 완료 내역을 볼 수 있습니다.")
         return
     }
     val allSolved = session.progress.all { it.status == CheckpointStatus.SOLVED }
     Box(Modifier.fillMaxSize().testTag("screen-completion")) {
     Column(Modifier.fillMaxSize().testTag("completion").verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         Text("Case Closed", fontFamily = FontFamily.Cursive, fontSize = 37.sp, color = CaseColors.Gold)
-        CText("세 개의 경유지를 모두 지났어요", size = 34, weight = FontWeight.Bold)
+        CText("${session.progress.size}개 경유지의 진행을 모두 마쳤어요", size = 34, weight = FontWeight.Bold)
         CText("이번 테스트 사건의 진행을 기기에 저장했습니다. 해결한 퍼즐과 건너뛴 퍼즐은 각각의 기록으로 남습니다.", color = CaseColors.Cream.copy(alpha = .8f))
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val results: @Composable () -> Unit = {

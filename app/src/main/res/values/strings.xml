@@ -64,4 +64,7 @@
     <string name="direction_right">오른쪽</string>
     <string name="direction_down">아래</string>
     <string name="direction_left">왼쪽</string>
+    <string name="gate_tour">관광 시간과 현재 위치를 확인해 주세요</string>
+    <string name="gate_ux">차량에서 게임 화면 사용을 허용하지 않았습니다</string>
+    <string name="gate_mode">저장된 게임과 입력 모드가 다릅니다</string>
 </resources>
