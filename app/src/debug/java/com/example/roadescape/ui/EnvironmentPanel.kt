@@ -7,6 +7,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import com.example.roadescape.R
 import com.example.roadescape.game.GameController
@@ -21,7 +22,7 @@ fun EnvironmentPanel(viewModel: GameViewModel, state: GameUiState) {
     val session = state.session
     val current = if (content != null && session != null) GameController.currentCheckpoint(content, session) else null
     Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ParkingState.entries.forEach { parking ->
                     EscapeButton(parking.name, "parking-${parking.name}", {
@@ -37,7 +38,6 @@ fun EnvironmentPanel(viewModel: GameViewModel, state: GameUiState) {
             if (content != null && session != null) {
                 val gate = GameController.gate(content, session, state.environment)
                 Text(stringResource(R.string.dev_gate, stringResource(gateLabel(gate))), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.secondary)
-                Text(stringResource(R.string.dev_session, session.sessionId.take(8), current?.id ?: "—"), style = MaterialTheme.typography.labelMedium)
             } else Text(stringResource(R.string.dev_empty), style = MaterialTheme.typography.labelMedium)
         }
     }

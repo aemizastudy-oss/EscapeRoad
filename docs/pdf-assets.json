@@ -1,0 +1,814 @@
+{
+  "source_pdf": "docs\\Escape Road 화면 디자인.pdf",
+  "source_pdf_sha256": "5d8c53f91f601ddcdf526ce4bd3129b94944bf5e49b295eb65fca43de83fe78d",
+  "script": "tools/extract_pdf_assets.py",
+  "script_sha256": "556f018efb4f1575e61d13ef784c3763723d602a123faf0a6798576b91485036",
+  "tools": {
+    "pymupdf": "2.0",
+    "pillow": "13.0.0"
+  },
+  "method": "Original embedded JPEG xref -> source-resolution rectangular crop -> documented alpha selection -> optional downscale -> PNG. No AI generation, new artwork or whole-screen UI images.",
+  "mask_limitations": "The PDF contains composited JPEGs, not transparent original sprites. Alpha is recovered approximately by colour/brightness selection; original anti-aliased pixels can retain a small background fringe. RGB pixels are not repainted. The paper, wallpaper, brass material and lighthouse crop remain opaque intentionally.",
+  "inventory": [
+    {
+      "page": 1,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        6
+      ]
+    },
+    {
+      "page": 2,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        9
+      ]
+    },
+    {
+      "page": 3,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        12
+      ]
+    },
+    {
+      "page": 4,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        15
+      ]
+    },
+    {
+      "page": 5,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        18
+      ]
+    },
+    {
+      "page": 6,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        21
+      ]
+    },
+    {
+      "page": 7,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        24
+      ]
+    },
+    {
+      "page": 8,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        27
+      ]
+    },
+    {
+      "page": 9,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        30
+      ]
+    },
+    {
+      "page": 10,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        33
+      ]
+    },
+    {
+      "page": 11,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        36
+      ]
+    },
+    {
+      "page": 12,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        39
+      ]
+    },
+    {
+      "page": 13,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        42
+      ]
+    },
+    {
+      "page": 14,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        45
+      ]
+    },
+    {
+      "page": 15,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        48
+      ]
+    },
+    {
+      "page": 16,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        51
+      ]
+    },
+    {
+      "page": 17,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        54
+      ]
+    },
+    {
+      "page": 18,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        57
+      ]
+    },
+    {
+      "page": 19,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        60
+      ]
+    },
+    {
+      "page": 20,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        63
+      ]
+    },
+    {
+      "page": 21,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        66
+      ]
+    },
+    {
+      "page": 22,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        69
+      ]
+    },
+    {
+      "page": 23,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        72
+      ]
+    },
+    {
+      "page": 24,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        75
+      ]
+    },
+    {
+      "page": 25,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        78
+      ]
+    },
+    {
+      "page": 26,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        81
+      ]
+    },
+    {
+      "page": 27,
+      "image_count": 1,
+      "vector_paths": 0,
+      "xrefs": [
+        84
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "name": "pdf_wallpaper.png",
+      "source_page": 12,
+      "source_xref": 39,
+      "source_image_size": [
+        3840,
+        2160
+      ],
+      "source_image_sha256": "c99ad20ff4c7a98a12b6f36cbd77f8da43b53c2c733b7310ffc9af11033aa024",
+      "preview_size": [
+        1104,
+        621
+      ],
+      "preview_crop_px_ltrb": [
+        25,
+        135,
+        520,
+        390
+      ],
+      "source_crop_px_ltrb": [
+        86,
+        469,
+        1809,
+        1357
+      ],
+      "crop_size_before_resize": [
+        1723,
+        888
+      ],
+      "mask": "none",
+      "fill_enclosed_source_details_below_preview_y": null,
+      "output_size": [
+        1400,
+        722
+      ],
+      "output_mode": "RGB",
+      "output_bytes": 326501,
+      "output_sha256": "3be7ffd54ee5148d3a38d0ce6e3ebb0f7b0892d1a552e8a9734a70356957dc5b",
+      "alpha": false,
+      "notes": "Text-free burgundy textile/spade patch. Opaque texture; not a complete page or a seamless tile."
+    },
+    {
+      "name": "pdf_paper.png",
+      "source_page": 3,
+      "source_xref": 12,
+      "source_image_size": [
+        3840,
+        2160
+      ],
+      "source_image_sha256": "181dd281f5b6b21369499fc182f6fc101109aaee98378211bf7967028a5ae22b",
+      "preview_size": [
+        1104,
+        621
+      ],
+      "preview_crop_px_ltrb": [
+        85,
+        330,
+        575,
+        510
+      ],
+      "source_crop_px_ltrb": [
+        295,
+        1147,
+        2000,
+        1774
+      ],
+      "crop_size_before_resize": [
+        1705,
+        627
+      ],
+      "mask": "none",
+      "fill_enclosed_source_details_below_preview_y": null,
+      "output_size": [
+        1024,
+        377
+      ],
+      "output_mode": "RGB",
+      "output_bytes": 118780,
+      "output_sha256": "8c97297b6129f769f4084e48c4aac3932de157218a5b44920ba76345bf45a4a2",
+      "alpha": false,
+      "notes": "Text-free interior parchment patch; excludes the letter, signature, seal and borders."
+    },
+    {
+      "name": "pdf_logo.png",
+      "source_page": 1,
+      "source_xref": 6,
+      "source_image_size": [
+        3840,
+        2160
+      ],
+      "source_image_sha256": "1cd70366cc292dcdcdb864f70198acb844d0167c55a5b6874e2171ef933f257e",
+      "preview_size": [
+        1104,
+        621
+      ],
+      "preview_crop_px_ltrb": [
+        386,
+        125,
+        715,
+        319
+      ],
+      "source_crop_px_ltrb": [
+        1342,
+        434,
+        2487,
+        1110
+      ],
+      "crop_size_before_resize": [
+        1145,
+        676
+      ],
+      "mask": "cream",
+      "fill_enclosed_source_details_below_preview_y": null,
+      "output_size": [
+        1100,
+        649
+      ],
+      "output_mode": "RGBA",
+      "output_bytes": 353180,
+      "output_sha256": "281be73a9adce993c0b1fc001c9fa807a46c156e4d7efac4956e2f470188de51",
+      "alpha": true,
+      "notes": "ESCAPE ROAD wordmark only. Excludes welcome text, tagline, buttons and framing."
+    },
+    {
+      "name": "pdf_envelope.png",
+      "source_page": 4,
+      "source_xref": 15,
+      "source_image_size": [
+        3840,
+        2160
+      ],
+      "source_image_sha256": "ddbcccc420400cf72c163e14449e4012bc0c07b2df0913f396e6e6e483380745",
+      "preview_size": [
+        1104,
+        621
+      ],
+      "preview_crop_px_ltrb": [
+        496,
+        179,
+        608,
+        257
+      ],
+      "source_crop_px_ltrb": [
+        1725,
+        622,
+        2115,
+        894
+      ],
+      "crop_size_before_resize": [
+        390,
+        272
+      ],
+      "mask": "light",
+      "fill_enclosed_source_details_below_preview_y": 179,
+      "output_size": [
+        390,
+        272
+      ],
+      "output_mode": "RGBA",
+      "output_bytes": 44341,
+      "output_sha256": "529af910a8d28e1b5e889f064beee92eda288e6c10eec7af521c8011bf41c906",
+      "alpha": true,
+      "notes": "Envelope plus its wax seal. Enclosed dark details retain their original RGB pixels."
+    },
+    {
+      "name": "pdf_clock.png",
+      "source_page": 21,
+      "source_xref": 66,
+      "source_image_size": [
+        3840,
+        2160
+      ],
+      "source_image_sha256": "91054a5b502a0bbb8ab5a850da3dd6a3b364090951f38e416d25b0a1f6c01a69",
+      "preview_size": [
+        1104,
+        621
+      ],
+      "preview_crop_px_ltrb": [
+        510,
+        128,
+        594,
+        219
+      ],
+      "source_crop_px_ltrb": [
+        1773,
+        445,
+        2067,
+        762
+      ],
+      "crop_size_before_resize": [
+        294,
+        317
+      ],
+      "mask": "light",
+      "fill_enclosed_source_details_below_preview_y": null,
+      "output_size": [
+        294,
+        317
+      ],
+      "output_mode": "RGBA",
+      "output_bytes": 90504,
+      "output_sha256": "43c043da358291c507e77e594d9162c52d1d97db209229bb1b4d140332181019",
+      "alpha": true,
+      "notes": "Stopwatch icon only; transparent interior, hands and rings retained."
+    },
+    {
+      "name": "pdf_key.png",
+      "source_page": 7,
+      "source_xref": 24,
+      "source_image_size": [
+        5760,
+        2700
+      ],
+      "source_image_sha256": "0ce70b41fef5997abe5d114d594277bae2b2fe54da125d7b442617c423850f26",
+      "preview_size": [
+        1656,
+        777
+      ],
+      "preview_crop_px_ltrb": [
+        1373,
+        430,
+        1474,
+        465
+      ],
+      "source_crop_px_ltrb": [
+        4775,
+        1494,
+        5127,
+        1616
+      ],
+      "crop_size_before_resize": [
+        352,
+        122
+      ],
+      "mask": "light",
+      "fill_enclosed_source_details_below_preview_y": null,
+      "output_size": [
+        352,
+        122
+      ],
+      "output_mode": "RGBA",
+      "output_bytes": 32259,
+      "output_sha256": "c5932dd57cea1482db4c7300780647fcf4e6ed8c84f66d5ac50c2025b255d851",
+      "alpha": true,
+      "notes": "Gold key only. Excludes the adjacent owned-key label."
+    },
+    {
+      "name": "pdf_book.png",
+      "source_page": 18,
+      "source_xref": 57,
+      "source_image_size": [
+        3840,
+        2160
+      ],
+      "source_image_sha256": "452663061e8e05f87fdd9b79d82176d33573f90f393d53cc38993ed8e85ec9d9",
+      "preview_size": [
+        1104,
+        621
+      ],
+      "preview_crop_px_ltrb": [
+        106,
+        159,
+        143,
+        202
+      ],
+      "source_crop_px_ltrb": [
+        368,
+        553,
+        498,
+        703
+      ],
+      "crop_size_before_resize": [
+        130,
+        150
+      ],
+      "mask": "light",
+      "fill_enclosed_source_details_below_preview_y": null,
+      "output_size": [
+        130,
+        150
+      ],
+      "output_mode": "RGBA",
+      "output_bytes": 9419,
+      "output_sha256": "0f457c073b33a79c251276cfedc053f9660d231d60f558fa3dd92def8ef73c33",
+      "alpha": true,
+      "notes": "The PDF has no separate book illustration: this is its text-free paper-fragment icon."
+    },
+    {
+      "name": "pdf_lock.png",
+      "source_page": 7,
+      "source_xref": 24,
+      "source_image_size": [
+        5760,
+        2700
+      ],
+      "source_image_sha256": "0ce70b41fef5997abe5d114d594277bae2b2fe54da125d7b442617c423850f26",
+      "preview_size": [
+        1656,
+        777
+      ],
+      "preview_crop_px_ltrb": [
+        1388,
+        220,
+        1534,
+        415
+      ],
+      "source_crop_px_ltrb": [
+        4827,
+        764,
+        5336,
+        1443
+      ],
+      "crop_size_before_resize": [
+        509,
+        679
+      ],
+      "mask": "light",
+      "fill_enclosed_source_details_below_preview_y": 309,
+      "output_size": [
+        450,
+        600
+      ],
+      "output_mode": "RGBA",
+      "output_bytes": 97273,
+      "output_sha256": "aed884a8d29dbce84ca9b97e121ab790756ed990c8da4c8cf304801ecab6a3ce",
+      "alpha": true,
+      "notes": "Keyhole padlock only. No digits, words, example inputs or controls are baked in."
+    },
+    {
+      "name": "pdf_compass.png",
+      "source_page": 13,
+      "source_xref": 42,
+      "source_image_size": [
+        3840,
+        2160
+      ],
+      "source_image_sha256": "488f27f8d8de442b615a244cbc6e78f37803572153b49f5525275e858128ed62",
+      "preview_size": [
+        1104,
+        621
+      ],
+      "preview_crop_px_ltrb": [
+        600,
+        404,
+        687,
+        511
+      ],
+      "source_crop_px_ltrb": [
+        2086,
+        1405,
+        2390,
+        1778
+      ],
+      "crop_size_before_resize": [
+        304,
+        373
+      ],
+      "mask": "compass",
+      "fill_enclosed_source_details_below_preview_y": null,
+      "output_size": [
+        304,
+        373
+      ],
+      "output_mode": "RGBA",
+      "output_bytes": 82142,
+      "output_sha256": "89b0841624d752fc3dd75d2ba59d6c94ef8273dadc34f8bc9f053529c47fbecc",
+      "alpha": true,
+      "notes": "Map compass rose and N orientation mark, selected from parchment. Fine original map lines within the rose remain."
+    },
+    {
+      "name": "pdf_wax.png",
+      "source_page": 4,
+      "source_xref": 15,
+      "source_image_size": [
+        3840,
+        2160
+      ],
+      "source_image_sha256": "ddbcccc420400cf72c163e14449e4012bc0c07b2df0913f396e6e6e483380745",
+      "preview_size": [
+        1104,
+        621
+      ],
+      "preview_crop_px_ltrb": [
+        532,
+        203,
+        572,
+        245
+      ],
+      "source_crop_px_ltrb": [
+        1850,
+        706,
+        1990,
+        853
+      ],
+      "crop_size_before_resize": [
+        140,
+        147
+      ],
+      "mask": "wax",
+      "fill_enclosed_source_details_below_preview_y": null,
+      "output_size": [
+        140,
+        147
+      ],
+      "output_mode": "RGBA",
+      "output_bytes": 20938,
+      "output_sha256": "4696c181fd6eee692e64e26c1d35d0a55392f726bf5af74be6924c6f3218d2f1",
+      "alpha": true,
+      "notes": "The circular red seal from the envelope. No status checkmark or completion text is invented."
+    },
+    {
+      "name": "pdf_lighthouse.png",
+      "source_page": 12,
+      "source_xref": 39,
+      "source_image_size": [
+        3840,
+        2160
+      ],
+      "source_image_sha256": "c99ad20ff4c7a98a12b6f36cbd77f8da43b53c2c733b7310ffc9af11033aa024",
+      "preview_size": [
+        1104,
+        621
+      ],
+      "preview_crop_px_ltrb": [
+        540,
+        58,
+        976,
+        400
+      ],
+      "source_crop_px_ltrb": [
+        1878,
+        201,
+        3395,
+        1392
+      ],
+      "crop_size_before_resize": [
+        1517,
+        1191
+      ],
+      "mask": "none",
+      "fill_enclosed_source_details_below_preview_y": null,
+      "output_size": [
+        1200,
+        942
+      ],
+      "output_mode": "RGB",
+      "output_bytes": 376533,
+      "output_sha256": "b404f567e49ebf525401d25d6b935d36d9887dc19af8ae6b62eb8f69494b57da",
+      "alpha": false,
+      "notes": "Lighthouse, moon and hillside crop with its original background. The skip button and all narrative text are excluded; the beam is cropped at the right edge."
+    },
+    {
+      "name": "pdf_direction_lock.png",
+      "source_page": 7,
+      "source_xref": 24,
+      "source_image_size": [
+        5760,
+        2700
+      ],
+      "source_image_sha256": "0ce70b41fef5997abe5d114d594277bae2b2fe54da125d7b442617c423850f26",
+      "preview_size": [
+        1656,
+        777
+      ],
+      "preview_crop_px_ltrb": [
+        761,
+        220,
+        895,
+        417
+      ],
+      "source_crop_px_ltrb": [
+        2646,
+        764,
+        3114,
+        1450
+      ],
+      "crop_size_before_resize": [
+        468,
+        686
+      ],
+      "mask": "light",
+      "fill_enclosed_source_details_below_preview_y": 287,
+      "output_size": [
+        409,
+        600
+      ],
+      "output_mode": "RGBA",
+      "output_bytes": 147994,
+      "output_sha256": "e8016f0aca3b3b2da79836804619817fa9c53953d8e18fe789422c84c1c75483",
+      "alpha": true,
+      "notes": "Direction padlock with its four fixed direction triangles, no entered sequence or other text. Live hit targets/sequence remain native controls."
+    },
+    {
+      "name": "pdf_lock_shackle.png",
+      "source_page": 7,
+      "source_xref": 24,
+      "source_image_size": [
+        5760,
+        2700
+      ],
+      "source_image_sha256": "0ce70b41fef5997abe5d114d594277bae2b2fe54da125d7b442617c423850f26",
+      "preview_size": [
+        1656,
+        777
+      ],
+      "preview_crop_px_ltrb": [
+        144,
+        220,
+        248,
+        309
+      ],
+      "source_crop_px_ltrb": [
+        500,
+        764,
+        863,
+        1074
+      ],
+      "crop_size_before_resize": [
+        363,
+        310
+      ],
+      "mask": "silver",
+      "fill_enclosed_source_details_below_preview_y": null,
+      "output_size": [
+        363,
+        310
+      ],
+      "output_mode": "RGBA",
+      "output_bytes": 56583,
+      "output_sha256": "6da86d4712e11c5002374ec7b70de8df4715a61bf9d40559a088a54a3c6a56e7",
+      "alpha": true,
+      "notes": "Silver shackle from numeric lock only; colour mask excludes its brass body and all example digits."
+    },
+    {
+      "name": "pdf_brass_plate.png",
+      "source_page": 7,
+      "source_xref": 24,
+      "source_image_size": [
+        5760,
+        2700
+      ],
+      "source_image_sha256": "0ce70b41fef5997abe5d114d594277bae2b2fe54da125d7b442617c423850f26",
+      "preview_size": [
+        1656,
+        777
+      ],
+      "preview_crop_px_ltrb": [
+        1403,
+        322,
+        1438,
+        382
+      ],
+      "source_crop_px_ltrb": [
+        4880,
+        1118,
+        5002,
+        1328
+      ],
+      "crop_size_before_resize": [
+        122,
+        210
+      ],
+      "mask": "none",
+      "fill_enclosed_source_details_below_preview_y": null,
+      "output_size": [
+        122,
+        210
+      ],
+      "output_mode": "RGB",
+      "output_bytes": 2427,
+      "output_sha256": "a461b68ae212904f9ec9322c246eaaa8acaa5c78e69080143847d380f7a6ec59",
+      "alpha": false,
+      "notes": "Opaque, text-free brass material patch from the left side of the keyhole lock. Does not contain a keyhole, frame, digit or button."
+    }
+  ],
+  "missing": [
+    {
+      "name": "pdf_car.png",
+      "reason": "The PDF has no car illustration. Page 25 contains only a labelled photograph placeholder; no substitute drawing was generated."
+    }
+  ],
+  "total_output_bytes": 1758874,
+  "originals_modified": false
+}
