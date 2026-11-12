@@ -416,6 +416,9 @@ class GameFlowTest {
         }
     }
 
-    private fun exists(tag: String): Boolean =
+    private fun exists(tag: String): Boolean = try {
         rule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+    } catch (error: IllegalStateException) {
+        if (error.message?.startsWith("No compose hierarchies found") == true) false else throw error
+    }
 }

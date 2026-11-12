@@ -12,12 +12,17 @@ import androidx.compose.ui.unit.dp
 import com.example.roadescape.R
 import com.example.roadescape.game.GameController
 import com.example.roadescape.model.ParkingState
+import com.example.roadescape.model.TourMode
 import com.example.roadescape.platform.ArrivalEvent
 import com.example.roadescape.platform.SimulatedArrivalProvider
 import com.example.roadescape.platform.SimulatedParkingProvider
 
 @Composable
 fun EnvironmentPanel(viewModel: GameViewModel, state: GameUiState) {
+    if(state.mode==TourMode.LIVE){
+        Text("실제 SDK 입력 · 모의 주차·도착 버튼을 사용하지 않습니다",style=MaterialTheme.typography.labelMedium,color=CaseColors.MutedGold)
+        return
+    }
     val content = state.content
     val session = state.session
     val current = if (content != null && session != null) GameController.currentCheckpoint(content, session) else null

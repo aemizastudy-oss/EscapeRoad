@@ -185,4 +185,5 @@ fun CasePausedScreen(state: GameUiState, reason: GateReason? = null) {
     GateReason.READY->R.string.gate_ready;GateReason.BACKGROUND->R.string.gate_background;GateReason.PARKING_UNKNOWN->R.string.gate_unknown
     GateReason.DRIVING->R.string.gate_driving;GateReason.STORAGE_ERROR->R.string.gate_storage;GateReason.BUSY->R.string.gate_busy
     GateReason.ARRIVAL_REQUIRED->R.string.gate_arrival;GateReason.COMPLETED->R.string.gate_completed;GateReason.NOT_CURRENT->R.string.gate_not_current;GateReason.STALE_EVENT->R.string.gate_stale
+    GateReason.TOUR_REQUIRED->R.string.gate_tour;GateReason.UX_RESTRICTED->R.string.gate_ux;GateReason.MODE_MISMATCH->R.string.gate_mode
 }

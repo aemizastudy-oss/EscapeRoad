@@ -11,6 +11,7 @@ data class GamePackage(
     val checkpoints: List<CheckpointDefinition>,
     val puzzles: List<PuzzleDefinition>,
     val clues: List<ClueDefinition>,
+    val requiresTour: Boolean = false,
 )
 
 @Serializable
@@ -76,6 +77,7 @@ data class GameSession(
     val contentVersion: Int,
     val progress: List<CheckpointProgress>,
     val acquiredClues: List<AcquiredClue> = emptyList(),
+    val sourceMode: TourMode = TourMode.MOCK,
 ) {
     companion object { const val CURRENT_SCHEMA_VERSION = 1 }
 }

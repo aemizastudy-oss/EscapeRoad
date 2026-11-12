@@ -20,15 +20,17 @@ import com.example.roadescape.BuildConfig
 import com.example.roadescape.R
 import com.example.roadescape.game.*
 import com.example.roadescape.model.CheckpointStatus
+import com.example.roadescape.model.TourMode
 
-private enum class ConfirmType { NEW_GAME, ANSWER, SKIP }
-private data class PendingConfirm(val type:ConfirmType,val sessionId:String="",val puzzleId:String="")
+private enum class ConfirmType { NEW_GAME, NEW_TRIP, ANSWER, SKIP }
+private data class PendingConfirm(val type:ConfirmType,val sessionId:String="",val puzzleId:String="",val mode:TourMode=TourMode.MOCK)
 
 @Composable
-fun RoadEscapeApp(vm:GameViewModel,state:GameUiState) {
+fun RoadEscapeApp(vm:GameViewModel,state:GameUiState,onPermissions:()->Unit={}) {
     val nav=rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val route=entry?.destination?.route?:"start"
+    val legacyPreview=state.copy(content=state.legacyPreview?:state.content)
     var confirm by remember {mutableStateOf<PendingConfirm?>(null)}
     var menu by remember {mutableStateOf(false)}
     var wrong by remember {mutableStateOf(false)}
@@ -36,12 +38,14 @@ fun RoadEscapeApp(vm:GameViewModel,state:GameUiState) {
     fun go(destination:String){nav.navigate(destination){launchSingleTop=true}}
     val home:()->Unit={nav.navigate("start"){popUpTo("start"){inclusive=true};launchSingleTop=true}}
     val back:()->Unit={if(!nav.popBackStack())home()}
-    val begin:()->Unit={if(state.session==null&&state.error==null)vm.newGameConfirmed()else confirm=PendingConfirm(ConfirmType.NEW_GAME)}
+    val begin:()->Unit={if(state.session==null&&state.error==null)vm.newGameConfirmed("demo_package",TourMode.MOCK)else confirm=PendingConfirm(ConfirmType.NEW_GAME)}
     fun answer(id:String){confirm=PendingConfirm(ConfirmType.ANSWER,state.session?.sessionId.orEmpty(),id)}
     fun skip(id:String){confirm=PendingConfirm(ConfirmType.SKIP,state.session?.sessionId.orEmpty(),id)}
     LaunchedEffect(vm){vm.navigation.collect{nav.navigate(it){popUpTo("start");launchSingleTop=true}}}
-    LaunchedEffect(state.canReadContent,state.session?.sessionId){
-        if(!state.canReadContent){if(confirm?.type!=ConfirmType.NEW_GAME)confirm=null;wrong=false}
+    LaunchedEffect(state.canReadContent,state.session?.sessionId,state.tourGate){
+        if(!state.canReadContent||(state.content?.requiresTour==true&&state.tourGate!=TourGate.READY)){
+            if(confirm?.type==ConfirmType.ANSWER||confirm?.type==ConfirmType.SKIP)confirm=null;wrong=false
+        }
     }
     LaunchedEffect(state.feedback,state.session,route){
         val key="${state.session?.sessionId}:${state.session?.progress?.sumOf{it.wrongAttempts}}"
@@ -56,21 +60,30 @@ fun RoadEscapeApp(vm:GameViewModel,state:GameUiState) {
                 Box(Modifier.weight(1f).fillMaxWidth().padding(top=12.dp)){
                     val ready=!state.loading&&state.error==null
                     NavHost(nav,startDestination="start"){
-                        composable("start"){if(ready)LobbyScreen(state,{go("cases")},{go("archive")},{go("casebook")},{go("checkpoints")})}
-                        composable("cases"){if(ready)CaseBoardScreen(state,back,{go("case-detail")})}
-                        composable("case-detail"){if(ready)CaseDetailScreen(state,back,{go("rules")})}
+                        composable("start"){if(ready)LobbyScreen(state,{go("cases")},{go("archive")},{go("casebook")},{go("checkpoints")},{go("tour-setup")},{go("sdk-status")})}
+                        composable("tour-setup"){if(ready)TourSetupScreen(state,{mode->
+                            if(state.session==null)vm.startSuwonTour(mode)else confirm=PendingConfirm(ConfirmType.NEW_TRIP,mode=mode)
+                        },onPermissions,back)}
+                        composable("sdk-status"){SdkStatusScreen(vm,state,onPermissions,back)}
+                        composable("cases"){if(ready)CaseBoardScreen(legacyPreview,back,{go("case-detail")})}
+                        composable("case-detail"){if(ready)CaseDetailScreen(legacyPreview,back,{go("rules")})}
                         composable("rules"){if(ready)DetectiveRulesScreen(back,{go("party")})}
                         composable("party"){if(ready)PartyScreen(back,{go("prologue")})}
-                        composable("prologue"){if(ready)PrologueScreen(state,back,begin)}
-                        composable("checkpoints"){if(ready)CaseCheckpointScreen(state,{id->
+                        composable("prologue"){if(ready)PrologueScreen(legacyPreview,back,begin)}
+                        composable("checkpoints"){if(ready)Column(Modifier.fillMaxSize()){
+                            if(state.content?.requiresTour==true)Box(Modifier.fillMaxWidth().heightIn(max=360.dp).verticalScroll(rememberScrollState())){TourProgressPanel(vm,state)}
+                            Box(Modifier.weight(1f)){CaseCheckpointScreen(state,{id->
                             val session=state.session;val content=state.content
                             val checkpoint=content?.checkpoints?.find{it.puzzleId==id}
                             val progress=session?.progress?.find{it.checkpointId==checkpoint?.id}
                             val gate=if(session!=null&&content!=null)GameController.gate(content,session,state.environment,id)else null
                             go(if(gate==GateReason.READY&&progress?.status==CheckpointStatus.NOT_STARTED)"arrival/$id" else "puzzle/$id")
-                        },{go("completion")})}
+                        },{go("completion")})}}}
                         composable("arrival/{puzzleId}"){p->if(ready)ArrivalScreen(state,p.arguments?.getString("puzzleId").orEmpty()){go("puzzle/${p.arguments?.getString("puzzleId")}")}}
-                        composable("puzzle/{puzzleId}"){p->if(ready){val id=p.arguments?.getString("puzzleId").orEmpty();CasePuzzleScreen(state,id,vm::command,{go("hints/$id")},{answer(id)},{skip(id)},{go("checkpoints")})}}
+                        composable("puzzle/{puzzleId}"){p->if(ready){val id=p.arguments?.getString("puzzleId").orEmpty();Column(Modifier.fillMaxSize()){
+                            if(state.mode==TourMode.LIVE&&state.canReadContent)TourVoiceControls(vm,state)
+                            Box(Modifier.weight(1f)){CasePuzzleScreen(state,id,vm::command,{go("hints/$id")},{answer(id)},{skip(id)},{go("checkpoints")})}
+                        }}}
                         composable("hints/{puzzleId}"){p->if(ready){val id=p.arguments?.getString("puzzleId").orEmpty();CaseHintsScreen(state,id,vm::command,{answer(id)},back)}}
                         composable("clues"){if(ready)SatchelScreen(state){go("clue/$it")}}
                         composable("clue/{clueId}"){p->if(ready)ClueDetailScreen(state,p.arguments?.getString("clueId").orEmpty(),back)}
@@ -90,20 +103,21 @@ fun RoadEscapeApp(vm:GameViewModel,state:GameUiState) {
         }
     }}
     if(menu)CaseDialog("The Detective's Desk","탐정의 책상",{menu=false}){
-        listOf("notebook" to "수첩","archive" to "저장된 수사","casebook" to "사건 기록부","locks" to "자물쇠 도감","save" to "저장 확인","rules" to "탐정 수칙").chunked(2).forEach{row->
+        listOf("tour-setup" to "수원 관광 코스","sdk-status" to "SDK 연결 상태","notebook" to "수첩","archive" to "저장된 수사","casebook" to "사건 기록부","locks" to "자물쇠 도감","save" to "저장 확인","rules" to "탐정 수칙").chunked(2).forEach{row->
             Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){row.forEach{(path,label)->EscapeButton(label,"menu-$path",{menu=false;go(path)},enabled=state.session!=null||path !in setOf("notebook","save"),modifier=Modifier.weight(1f),secondary=true)}}
         }
         EscapeButton(stringResource(R.string.close),"menu-close",{menu=false},modifier=Modifier.align(Alignment.End))
     }
     confirm?.let{pending->
-        val title=when(pending.type){ConfirmType.NEW_GAME->R.string.confirm_new_title;ConfirmType.ANSWER->R.string.confirm_answer_title;ConfirmType.SKIP->R.string.confirm_skip_title}
-        val body=when(pending.type){ConfirmType.NEW_GAME->R.string.confirm_new_body;ConfirmType.ANSWER->R.string.confirm_answer_body;ConfirmType.SKIP->R.string.confirm_skip_body}
+        val title=when(pending.type){ConfirmType.NEW_GAME,ConfirmType.NEW_TRIP->R.string.confirm_new_title;ConfirmType.ANSWER->R.string.confirm_answer_title;ConfirmType.SKIP->R.string.confirm_skip_title}
+        val body=when(pending.type){ConfirmType.NEW_GAME,ConfirmType.NEW_TRIP->R.string.confirm_new_body;ConfirmType.ANSWER->R.string.confirm_answer_body;ConfirmType.SKIP->R.string.confirm_skip_body}
         CaseDialog(if(pending.type==ConfirmType.SKIP)"Leave This Lock Unsolved?"else"A Note Before You Continue",stringResource(title),{confirm=null}){
             Text(stringResource(body),color=CaseColors.MutedGold,style=MaterialTheme.typography.bodyLarge)
             FlowRow(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                 EscapeButton(stringResource(R.string.cancel),"confirmation-cancel",{confirm=null},secondary=true)
                 EscapeButton(stringResource(R.string.confirm),"confirmation-confirm",{confirm=null;when(pending.type){
-                    ConfirmType.NEW_GAME->vm.newGameConfirmed()
+                    ConfirmType.NEW_GAME->vm.newGameConfirmed("demo_package",TourMode.MOCK)
+                    ConfirmType.NEW_TRIP->vm.startSuwonTour(pending.mode)
                     ConfirmType.ANSWER->vm.command(GameCommand.RevealAnswer(pending.sessionId,pending.puzzleId))
                     ConfirmType.SKIP->vm.command(GameCommand.Skip(pending.sessionId,pending.puzzleId))
                 }})
@@ -128,7 +142,7 @@ fun RoadEscapeApp(vm:GameViewModel,state:GameUiState) {
                 if(route!="start"){EscapeButton("‹","nav-back",onBack,secondary=true);EscapeButton(stringResource(R.string.nav_lobby),"nav-home",onHome,secondary=true)}
                 if(!compact||route=="start")Column(Modifier.weight(1f)){
                     Text("ESCAPE ROAD",fontFamily=CaseFonts.Serif,fontSize=16.sp,letterSpacing=3.sp,color=CaseColors.Gold)
-                    Text(stringResource(if(BuildConfig.DEBUG)R.string.simulation_badge else R.string.release_badge),fontSize=11.sp,color=CaseColors.MutedGold)
+                    Text(inputModeBadge(state),fontSize=11.sp,color=CaseColors.MutedGold)
                 }else Spacer(Modifier.weight(1f))
                 if(!compact){if(state.session!=null){EscapeButton(stringResource(R.string.nav_case_route),"tab-checkpoints",onMap,secondary=true);EscapeButton(stringResource(R.string.nav_satchel),"tab-clues",onClues,secondary=true)};EscapeButton(stringResource(R.string.nav_more),"open-menu",onMenu,secondary=true)}
                 Text(stringResource(parkingLabel(state.parking)),color=CaseColors.Gold,style=MaterialTheme.typography.labelMedium)
@@ -136,12 +150,14 @@ fun RoadEscapeApp(vm:GameViewModel,state:GameUiState) {
             if(compact)FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
                 if(state.session!=null){EscapeButton(stringResource(R.string.nav_case_route),"tab-checkpoints",onMap,secondary=true);EscapeButton(stringResource(R.string.nav_satchel),"tab-clues",onClues,secondary=true)}
                 EscapeButton(stringResource(R.string.nav_more),"open-menu",onMenu,secondary=true)
-                if(route!="start")Text(stringResource(if(BuildConfig.DEBUG)R.string.simulation_badge else R.string.release_badge),fontSize=11.sp,color=CaseColors.MutedGold)
+                if(route!="start")Text(inputModeBadge(state),fontSize=11.sp,color=CaseColors.MutedGold)
             }
             HorizontalDivider(color=CaseColors.Gold.copy(alpha=.35f))
         }
     }
 }
+
+private fun inputModeBadge(state:GameUiState)=if(state.mode==TourMode.LIVE)"Pleos 실제 SDK · 수신 상태 확인"else if(BuildConfig.DEBUG)"개발용 시뮬레이션"else"시연 저장 · 실제 SDK 코스를 시작하세요"
 
 @Composable fun CaseDialog(english:String,title:String,onDismiss:()->Unit,content:@Composable ColumnScope.()->Unit){
     Dialog(onDismissRequest=onDismiss,properties=DialogProperties(usePlatformDefaultWidth=false)){
