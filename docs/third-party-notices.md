@@ -9,7 +9,33 @@
 - SHA-256: `7ed9e8653a8ed04285d51dc343ffea6eb3d9c73afc27383ea8929ee4ffd03205`
 - 앱에 포함한 고지 전문: [OFL-NanumMyeongjo.txt](../app/src/main/assets/licenses/OFL-NanumMyeongjo.txt)
 
-앱 실행 시 글꼴 다운로드나 네트워크 접근은 필요하지 않습니다. 영문 장식 제목은 Android의 cursive 서체를 사용합니다.
+앱 실행 시 글꼴 다운로드나 네트워크 접근은 필요하지 않습니다.
+
+## 디자인 캔버스 글꼴 (2026-11-14 추가)
+
+claude.ai 디자인 캔버스 「Escape Road 화면 디자인」에 지정된 글꼴을 Google Fonts 저장소(`google/fonts`의 `ofl/`)에서 받아 포함했습니다. 모두 SIL Open Font License 1.1이며 고지 전문은 `app/src/main/assets/licenses/OFL-*.txt`에 있습니다. 이전의 Android cursive 대체는 Pinyon Script로 바꿨습니다.
+
+| 파일 | 용도 | 크기(bytes) | 가공 | SHA-256 |
+| --- | --- | --- | --- | --- |
+| `nanum_myeongjo_bold.ttf` | 제목 700 | 3,074,720 | 없음 | `bc9ed8e6…fe3f3` |
+| `nanum_myeongjo_extrabold.ttf` | 제목 800 | 3,180,888 | 없음 | `60c0077f…46db7` |
+| `noto_serif_kr_regular.ttf` | 본문 400 | 1,483,156 | 가변 글꼴을 400으로 고정하고 KS X 1001 한글 2,350자·앱 문구 글자만 남긴 부분집합 | `c00deb8d…494b3` |
+| `noto_serif_kr_bold.ttf` | 본문 700 | 1,485,876 | 위와 같음(700) | `f517eff8…9d3db` |
+| `pinyon_script.ttf` | 영문 필기체 제목 | 151,412 | 없음 | `4aab130a…1ac29a` |
+| `cormorant_sc_medium.ttf` / `cormorant_sc_bold.ttf` | 영문 소제목 | 762,320 / 763,124 | 없음 | `7ec02e6b…f89bf` / `78f70c79…19177` |
+| `playfair_display_sc_bold.ttf` | 사건 카드 라벨 | 204,568 | 없음 | `b58a968c…e7915` |
+| `playfair_display_italic.ttf` | 사건 게시판 부제 | 278,688 | 없음(가변 글꼴 원본, 굵기는 앱에서 지정) | `a5e26dc5…1378b` |
+
+Noto Serif KR은 예약 글꼴 이름이 없어 부분집합으로 줄여 쓸 수 있습니다. Playfair Display는 예약 이름이 있어 원본을 수정하지 않았습니다. 앱 문구에 새 한글이 추가되면 부분집합에 없는 글자는 시스템 글꼴로 표시될 수 있으므로, 문구를 크게 바꾸면 부분집합을 다시 만들어야 합니다.
+
+## 디자인 캔버스 질감
+
+캔버스에 업로드된 원본 이미지를 받아 바탕·양피지 질감으로 씁니다(PDF에서 잘라낸 `pdf_wallpaper`/`pdf_paper` 대신). 다마스크 무늬는 캔버스의 SVG 경로를 코드로 그립니다.
+
+| 파일 | 크기(bytes) | SHA-256 |
+| --- | --- | --- |
+| `drawable-nodpi/canvas_velvet.jpg` | 122,555 | `de5c849e…ef616` |
+| `drawable-nodpi/canvas_parchment.jpg` | 24,979 | `656d76f7…96db1f` |
 
 ## 사용자 제공 PDF의 그림
 

@@ -1,5 +1,12 @@
 package com.example.roadescape.ui
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,6 +41,7 @@ fun ArrivalScreen(state:GameUiState,puzzleId:String,onOpen:()->Unit){
     val cp=content.checkpoints.find{it.puzzleId==puzzleId}?:return
     val gate=GameController.gate(content,session,state.environment,puzzleId)
     if(!state.canReadContent||gate!=GateReason.READY){CasePausedScreen(state,gate);return}
+    if(cp.story!=null){StoryArrival(state,content,session,cp,onOpen);return}
     BoxWithConstraints(Modifier.fillMaxSize().testTag("screen-arrival")){
         val letter:@Composable ()->Unit={PaperSheet(Modifier.fillMaxWidth()){
             Text("FRAGMENT ${content.checkpoints.indexOf(cp)+1}",letterSpacing=3.sp,color=CaseColors.Ink.copy(alpha=.65f))
@@ -82,7 +90,7 @@ fun CasePuzzleScreen(state:GameUiState,puzzleId:String,command:(GameCommand)->Un
             PaperSheet(Modifier.fillMaxWidth()){
                 Text("Fragment ${content.checkpoints.indexOf(cp)+1} — ${puzzle.title}",color=CaseColors.Ink.copy(alpha=.65f),fontFamily=CaseFonts.Serif)
                 Text("“${puzzle.prompt}”",fontSize=22.sp,lineHeight=36.sp,color=CaseColors.Ink)
-                Text("— The Detective's Drive Club",modifier=Modifier.align(Alignment.End),fontFamily=FontFamily.Cursive,fontStyle=FontStyle.Italic,color=CaseColors.Ink.copy(alpha=.7f))
+                Text("— The Detective's Drive Club",modifier=Modifier.align(Alignment.End),fontFamily=CaseFonts.Script,fontStyle=FontStyle.Italic,color=CaseColors.Ink.copy(alpha=.7f))
                 Spacer(Modifier.height(16.dp))
                 Text(stringResource(R.string.wrong_attempts,progress.wrongAttempts),color=CaseColors.Ink.copy(alpha=.65f))
             }
@@ -121,7 +129,7 @@ private fun CaseLockControls(puzzle:PuzzleDefinition,enabled:Boolean,onSubmit:(L
     fun rotateDigit(index:Int,step:Int){val current=digits.padEnd(index+1,'0').toCharArray();current[index]=('0'.code+((current[index]-'0'+step+10)%10)).toChar();digits=current.concatToString()}
     val title=when(puzzle.lock){is LockDefinition.Numeric->"The Combination Lock";is LockDefinition.Sequence->"The Directional Lock";is LockDefinition.StateCombination->"The Device Lock"}
     Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)){
-        Text(title,fontFamily=FontFamily.Cursive,fontStyle=FontStyle.Italic,fontSize=30.sp,color=CaseColors.Gold)
+        Text(title,fontFamily=CaseFonts.Script,fontStyle=FontStyle.Italic,fontSize=30.sp,color=CaseColors.Gold)
         when(val lock=puzzle.lock){
             is LockDefinition.Numeric->{
                 Text(stringResource(R.string.numeric_length,lock.length),color=CaseColors.MutedGold)
@@ -237,3 +245,52 @@ private fun CaseLockControls(puzzle:PuzzleDefinition,enabled:Boolean,onSubmit:(L
 }
 private fun directionGlyph(value:Direction)=when(value){Direction.UP->"↑";Direction.RIGHT->"→";Direction.DOWN->"↓";Direction.LEFT->"←"}
 internal fun displayAnswer(lock:LockDefinition):String=when(lock){is LockDefinition.Numeric->lock.answer;is LockDefinition.Sequence->lock.answer.joinToString(" "){directionGlyph(it)};is LockDefinition.StateCombination->"채널 ${lock.channel} · 레벨 ${lock.level}"}
+
+/** 장소별 영문 태그·편지 이름(캔버스 도착 화면 표기). */
+private val arrivalTags=listOf("Hwaseong · 1795" to "왕의 밀서","Hwahongmun · 1795" to "병사의 전갈","Manseokgeo · 1795" to "노인의 부탁","Museum · 2026" to "찢어진 기록","Gwanggyo · 2026" to "마지막 약병")
+
+/** 시역 코스의 도착 화면 — 캔버스 '5. 도착 · 1795년으로'(Unlock) 양식. */
+@Composable
+private fun StoryArrival(state:GameUiState,content:GamePackage,session:GameSession,cp:CheckpointDefinition,onOpen:()->Unit){
+    val index=content.checkpoints.indexOf(cp)
+    val (tag,letter)=arrivalTags.getOrElse(index){"Chapter ${index+1}" to cp.title}
+    val chapter=cp.story?:return
+    val place=cp.title.replace(Regex("^CH\\.\\d+\\s*"),"")
+    val ingredients=content.checkpoints.take(index).count{c->c.story?.item!=null&&c.story.item!="완성한 백신"}
+    BoxWithConstraints(Modifier.fillMaxSize().testTag("screen-arrival")){
+        val card:@Composable ()->Unit={
+            Box(Modifier.size(520.dp),contentAlignment=Alignment.Center){
+                Canvas(Modifier.fillMaxSize()){
+                    val g=CaseColors.Gold.copy(alpha=.55f);val c=center;val r=size.minDimension/2
+                    drawCircle(g,r*230f/260f,c,style=Stroke(1.dp.toPx()))
+                    drawCircle(g,r*200f/260f,c,style=Stroke(1.dp.toPx(),pathEffect=PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(),8.dp.toPx()))))
+                }
+                Column(Modifier.size(300.dp,370.dp).rotate(-4f).shadow(20.dp).caseTexture(true).padding(horizontal=30.dp,vertical=34.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+                    Text(tag,style=smallCaps(14,CaseColors.InkLabel))
+                    Text(letter,fontFamily=CaseFonts.Heading,fontWeight=FontWeight.ExtraBold,fontSize=26.sp,color=CaseColors.Wine)
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFB9A882)))
+                    listOf(.92f,.78f,.86f,.60f).forEach{Box(Modifier.fillMaxWidth(it).height(10.dp).background(Color(90,62,42).copy(alpha=.22f)))}
+                    Spacer(Modifier.weight(1f))
+                    Text("자물쇠를 풀면 ${letter}의 내용이 드러납니다",fontFamily=CaseFonts.Body,fontSize=13.sp,color=Color(0xFF5A3E2A))
+                }
+            }
+        }
+        val detail:@Composable ()->Unit={Column(verticalArrangement=Arrangement.spacedBy(16.dp)){
+            Row(Modifier.background(CaseColors.Panel).border(1.dp,CaseColors.Gold).padding(horizontal=14.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
+                Box(Modifier.size(24.dp).border(1.dp,CaseColors.Gold),contentAlignment=Alignment.Center){Text("P",style=smallCaps(15,spacing=0f).copy(fontWeight=FontWeight.Bold))}
+                Text("장소 ${index+1} / ${content.checkpoints.size} · $place 도착",fontFamily=CaseFonts.Body,fontSize=15.sp)
+            }
+            Text(if(index>=3)"Back to 2026" else "Welcome to 1795",style=script(42))
+            Text(chapter.arrival,fontFamily=CaseFonts.Body,fontSize=17.sp,lineHeight=30.sp,color=Color(0xFFE3D5BA),modifier=Modifier.testTag("arrival-story"))
+            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                Text("모은 재료",fontFamily=CaseFonts.Body,fontSize=15.sp,color=CaseColors.MutedGold)
+                repeat(2){i->Box(Modifier.size(26.dp).border(1.dp,CaseColors.Gold,CircleShape).background(if(i<ingredients)CaseColors.Gold else Color.Transparent,CircleShape))}
+                Text("$ingredients / 2",fontFamily=CaseFonts.Body,fontSize=15.sp,color=CaseColors.MutedGold)
+            }
+            Text("모은 단서 ${session.acquiredClues.size} / ${content.clues.size}",color=CaseColors.Gold)
+            EscapeButton("편지 펼쳐보기","arrival-open",onOpen)
+        }}
+        if(maxWidth>=1000.dp)Row(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(40.dp),verticalAlignment=Alignment.CenterVertically){card();Box(Modifier.weight(1f)){detail()}}
+        else Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(24.dp),horizontalAlignment=Alignment.CenterHorizontally){card();detail()}
+    }
+}

@@ -14,6 +14,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
@@ -39,21 +41,55 @@ import kotlin.math.roundToInt
 
 enum class CaseArt { LIGHTHOUSE, CLOCK, ENVELOPE, KEY, BOOK, LOCK, COMPASS, WAX }
 
-/** Textures cropped from the supplied PDF. Native text and controls remain independent. */
+/** 캔버스 다마스크 타일(120x168) - 업로드 SVG 경로 그대로, 짙은 색 32% 불투명도. */
+private val damaskPaths: List<Path> by lazy {
+    listOf(
+        "M60 14c6 10 16 14 16 26 0 9-7 14-12 12 5-4 4-11-1-13-4 9-3 18 3 26 5 7 15 9 21 4-1 9-11 14-20 10 2 8 0 16-7 22-7-6-9-14-7-22-9 4-19-1-20-10 6 5 16 3 21-4 6-8 7-17 3-26-5 2-6 9-1 13-5 2-12-3-12-12 0-12 10-16 16-26z",
+        "M60 104l5 10-5 10-5-10z",
+        "M0 84c4 6 10 9 10 16 0 6-4 9-8 8 3-3 2-7-1-8-1 0-1 0-1 0zM120 84c-4 6-10 9-10 16 0 6 4 9 8 8-3-3-2-7 1-8 1 0 1 0 1 0z",
+        "M0 0l4 8-4 8zM120 0l-4 8 4 8zM0 152l4 8-4 8zM120 152l-4 8 4 8z",
+    ).map { androidx.compose.ui.graphics.vector.PathParser().parsePathString(it).toPath() }
+}
+private val damaskInk = Color(0x521A0306)
+
+/**
+ * 캔버스의 .wall(벨벳 사진 + 다마스크)과 .parch(양피지 사진 + 가장자리 그을림) 질감.
+ * 그리기만 하며 카드의 측정 크기에 관여하지 않는다(스크롤 안에서도 안전).
+ */
 @Composable
 fun Modifier.caseTexture(paper: Boolean = false): Modifier {
-    val bitmap = ImageBitmap.imageResource(if (paper) R.drawable.pdf_paper else R.drawable.pdf_wallpaper)
-    // Draw only: the texture must not affect a card's measurement inside a scrolling column.
+    val bitmap = ImageBitmap.imageResource(if (paper) R.drawable.canvas_parchment else R.drawable.canvas_velvet)
     return drawWithCache {
         val scale = max(size.width / bitmap.width, size.height / bitmap.height).coerceAtLeast(.001f)
         val width = (size.width / scale).roundToInt().coerceIn(1, bitmap.width)
         val height = (size.height / scale).roundToInt().coerceIn(1, bitmap.height)
+        val vignette = Brush.radialGradient(
+            .55f to Color.Transparent, 1f to Color(110, 70, 30).copy(alpha = .32f),
+            center = Offset(size.width / 2, size.height / 2), radius = (max(size.width, size.height) * .71f).coerceAtLeast(1f),
+        )
         onDrawBehind {
             clipRect {
+                drawRect(if (paper) CaseColors.Cream else CaseColors.Burgundy)
                 drawImage(bitmap, srcOffset = IntOffset((bitmap.width-width)/2, (bitmap.height-height)/2),
                     srcSize = IntSize(width, height),
                     dstSize = IntSize(size.width.roundToInt().coerceAtLeast(1), size.height.roundToInt().coerceAtLeast(1)),
                     filterQuality = FilterQuality.Medium)
+                if (paper) drawRect(vignette)
+                else {
+                    val s = 1.dp.toPx(); val tw = 120 * s; val th = 168 * s
+                    var y = 0f
+                    while (y < size.height) {
+                        var x = 0f
+                        while (x < size.width) {
+                            withTransform({ translate(x, y); scale(s, s, Offset.Zero) }) {
+                                damaskPaths.forEach { drawPath(it, damaskInk) }
+                                drawCircle(damaskInk, 3f, Offset(60f, 132f))
+                            }
+                            x += tw
+                        }
+                        y += th
+                    }
+                }
             }
         }
     }
@@ -65,9 +101,10 @@ fun CaseFrame(modifier: Modifier = Modifier, framed: Boolean = true, content: @C
     Box(modifier.caseTexture().then(if (framed) Modifier.drawWithCache {
         onDrawWithContent {
             drawContent()
-            val inset = 10.dp.toPx()
-            drawRect(CaseColors.Gold, Offset(inset, inset), Size((size.width - 2*inset).coerceAtLeast(0f), (size.height - 2*inset).coerceAtLeast(0f)), style = Stroke(1.3.dp.toPx()))
-            drawRect(CaseColors.Gold.copy(alpha = .7f), Offset(inset+4.dp.toPx(), inset+4.dp.toPx()), Size((size.width-2*inset-8.dp.toPx()).coerceAtLeast(0f), (size.height-2*inset-8.dp.toPx()).coerceAtLeast(0f)), style = Stroke(.5.dp.toPx()))
+            val inset = 8.dp.toPx(); val outer = 2.dp.toPx()
+            drawRect(CaseColors.Gold, Offset(inset + outer/2, inset + outer/2), Size((size.width - 2*inset - outer).coerceAtLeast(0f), (size.height - 2*inset - outer).coerceAtLeast(0f)), style = Stroke(outer))
+            val inner = inset + 7.dp.toPx()
+            drawRect(CaseColors.Gold, Offset(inner, inner), Size((size.width - 2*inner).coerceAtLeast(0f), (size.height - 2*inner).coerceAtLeast(0f)), style = Stroke(1.dp.toPx()))
         }
     } else Modifier), content = content)
     }
@@ -75,17 +112,17 @@ fun CaseFrame(modifier: Modifier = Modifier, framed: Boolean = true, content: @C
 
 @Composable
 fun CasePanel(modifier: Modifier = Modifier, paper: Boolean = false, selected: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
-    val fill = if (paper) Modifier.caseTexture(true) else Modifier.background(if (selected) CaseColors.Gold.copy(alpha=.13f) else CaseColors.DeepBurgundy.copy(alpha=.55f))
+    val fill = if (paper) Modifier.caseTexture(true) else Modifier.background(if (selected) CaseColors.Gold.copy(alpha=.16f) else CaseColors.Panel)
     CompositionLocalProvider(LocalContentColor provides if (paper) CaseColors.Ink else CaseColors.Cream) {
-        Column(modifier.then(fill).border(if (selected) 2.dp else .7.dp, CaseColors.Gold.copy(alpha=if(selected)1f else .55f)).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+        Column(modifier.then(fill).border(if (selected) 2.dp else 1.dp, CaseColors.Gold.copy(alpha=if(selected)1f else .45f)).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
 }
 
 @Composable
 fun PaperSheet(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     CompositionLocalProvider(LocalContentColor provides CaseColors.Ink) {
-        Box(modifier.caseTexture(true).border(1.dp, CaseColors.Gold.copy(alpha=.9f)).padding(8.dp)) {
-            Column(Modifier.fillMaxWidth().border(.5.dp, CaseColors.Ink.copy(alpha=.23f)).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp), content = content)
+        Box(modifier.shadow(18.dp).caseTexture(true).padding(10.dp)) {
+            Column(Modifier.fillMaxWidth().border(1.dp, CaseColors.ParchEdge).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp), content = content)
         }
     }
 }
@@ -93,10 +130,10 @@ fun PaperSheet(modifier: Modifier = Modifier, content: @Composable ColumnScope.(
 @Composable
 fun CaseHeading(english: String, korean: String, modifier: Modifier = Modifier, side: String? = null) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        Text(english, color = CaseColors.Gold, fontFamily = FontFamily.Cursive, fontStyle = FontStyle.Italic, fontSize = 27.sp)
+        Text(english, style = script(34))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-            Text(korean, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-            if (side != null) Text(side, style = MaterialTheme.typography.labelLarge, color = CaseColors.MutedGold, modifier = Modifier.padding(start=12.dp))
+            Text(korean, fontFamily = CaseFonts.Heading, fontWeight = FontWeight.ExtraBold, fontSize = 30.sp, lineHeight = 39.sp, modifier = Modifier.weight(1f))
+            if (side != null) Text(side, style = smallCaps(15), modifier = Modifier.padding(start=12.dp))
         }
         HorizontalDivider(color = CaseColors.Gold.copy(alpha=.45f), modifier = Modifier.padding(top=8.dp))
     }
@@ -104,15 +141,17 @@ fun CaseHeading(english: String, korean: String, modifier: Modifier = Modifier, 
 
 @Composable
 fun EscapeButton(text: String, tag: String, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier, secondary: Boolean = false) {
+    val parchment = !secondary && enabled
     val bounds = modifier.heightIn(min = 56.dp).widthIn(min = 56.dp).testTag(tag)
+        .then(if (parchment) Modifier.caseTexture(true) else Modifier)
     val colors = ButtonDefaults.buttonColors(
-        containerColor = if (secondary) CaseColors.DeepBurgundy.copy(alpha=.5f) else CaseColors.Cream,
-        contentColor = if (secondary) CaseColors.Cream else CaseColors.Ink,
+        containerColor = if (secondary) CaseColors.Panel else Color.Transparent,
+        contentColor = if (secondary) CaseColors.Cream else CaseColors.ButtonInk,
         disabledContainerColor = CaseColors.DeepBurgundy.copy(alpha=.3f), disabledContentColor = CaseColors.MutedGold.copy(alpha=.5f),
     )
     Button(onClick, bounds, enabled = enabled, colors = colors, shape = MaterialTheme.shapes.small,
-        border = BorderStroke(.8.dp, CaseColors.Gold.copy(alpha = if(enabled) .85f else .25f)), contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp)) {
-        Text(text, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+        border = BorderStroke(1.dp, CaseColors.Gold.copy(alpha = if(enabled) 1f else .25f)), contentPadding=PaddingValues(horizontal=22.dp,vertical=12.dp)) {
+        Text(text, fontFamily = CaseFonts.Heading, fontWeight = if (secondary) FontWeight.Bold else FontWeight.ExtraBold, fontSize = if (secondary) 17.sp else 18.sp)
     }
 }
 
@@ -143,12 +182,22 @@ fun CasePausedScreen(state: GameUiState, reason: GateReason? = null) {
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("paused").padding(24.dp),
         horizontalAlignment=Alignment.CenterHorizontally, verticalArrangement=Arrangement.spacedBy(22.dp,Alignment.CenterVertically)) {
-        Text(if(gate==GateReason.DRIVING) "En Route · 이동 중" else "The Letter Remains Sealed",fontFamily=FontFamily.Cursive,fontStyle=FontStyle.Italic,color=CaseColors.Gold,fontSize=30.sp)
-        CaseArtwork(CaseArt.ENVELOPE,Modifier.size(130.dp))
-        Text(stringResource(R.string.pause_title),style=MaterialTheme.typography.headlineMedium)
+        val content=state.content;val session=state.session
+        val next=if(content?.story!=null&&session!=null)com.example.roadescape.game.GameController.currentCheckpoint(content,session) else null
+        Text(if(gate==GateReason.DRIVING) "En Route · 이동 중" else "The Letter Remains Sealed",style=smallCaps(18,spacing=.3f))
+        CaseArtwork(CaseArt.ENVELOPE,Modifier.size(132.dp,104.dp))
+        if(next!=null){
+            // 시안: 다음 목적지를 크게. 이야기 문구는 주행 중 화면에 쓰지 않는다.
+            Text("다음 목적지",fontFamily=CaseFonts.Body,fontSize=22.sp,color=CaseColors.MutedGold)
+            Text(next.title.replace(Regex("^CH\\.\\d+\\s*"),""),fontFamily=CaseFonts.Heading,fontWeight=FontWeight.ExtraBold,fontSize=58.sp,lineHeight=70.sp,modifier=Modifier.testTag("paused-next"))
+        } else Text(stringResource(R.string.pause_title),style=MaterialTheme.typography.headlineMedium)
         Text(stringResource(gateLabel(gate)),color=CaseColors.Gold,style=MaterialTheme.typography.titleLarge)
-        Text(stringResource(R.string.pause_description),color=CaseColors.MutedGold)
-        Text("Drive safely, Detective",fontFamily=FontFamily.Cursive,fontStyle=FontStyle.Italic,color=CaseColors.Gold,fontSize=22.sp)
+        Text(if(next!=null)"도착해서 주차하면 그 시대로 건너갑니다" else stringResource(R.string.pause_description),fontFamily=CaseFonts.Body,fontSize=if(next!=null)26.sp else 16.sp,color=if(next!=null)CaseColors.Cream else CaseColors.MutedGold)
+        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)){
+            Box(Modifier.width(120.dp).height(1.dp).background(CaseColors.Gold))
+            Text(if(content?.story!=null)"Drive safely, Agent" else "Drive safely, Detective",style=script(30))
+            Box(Modifier.width(120.dp).height(1.dp).background(CaseColors.Gold))
+        }
     }
 }
 

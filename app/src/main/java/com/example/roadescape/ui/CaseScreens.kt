@@ -1,5 +1,11 @@
 package com.example.roadescape.ui
 
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import com.example.roadescape.R
 
 import androidx.compose.ui.res.stringResource
@@ -65,7 +71,7 @@ fun LobbyScreen(
         Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             LobbyLayoutCanvas(editor, wide, viewportHeight, contentTopPadding, state.session != null) { block ->
                 when (block) {
-                    LobbyBlock.WELCOME -> Text("Welcome, Detective", fontFamily = FontFamily.Cursive, fontSize = 30.sp, color = CaseColors.Gold)
+                    LobbyBlock.WELCOME -> Text("Welcome, Detective", fontFamily = CaseFonts.Script, fontSize = 30.sp, color = CaseColors.Gold)
                     LobbyBlock.LOGO -> Image(
                         painter = painterResource(R.drawable.pdf_logo),
                         contentDescription = "ESCAPE ROAD",
@@ -149,7 +155,7 @@ fun CaseDetailScreen(state: GameUiState, onBack: () -> Unit, onBegin: () -> Unit
             PaperSheet(Modifier.fillMaxWidth()) {
                 CLabel("CASE FILE NO. 01", dark = true)
                 CText(state.content?.title ?: "기본 기능 테스트 패키지", size = 30, color = CaseColors.Ink, weight = FontWeight.Bold)
-                Text("Dear Detective,", fontFamily = FontFamily.Cursive, color = CaseColors.Red, fontSize = 28.sp)
+                Text("Dear Detective,", fontFamily = CaseFonts.Script, color = CaseColors.Red, fontSize = 28.sp)
                 CText("탐정님께,", color = CaseColors.Ink, modifier = Modifier.padding(top = 10.dp))
                 CText("세 개의 테스트 경유지에 작은 자물쇠가 기다리고 있습니다. 숫자를 이어 쓰고, 방향의 순서를 기억하고, 가상 장치의 두 값을 맞춰 보세요.", color = CaseColors.Ink, size = 18)
                 CText("각 경유지에서 도착과 주차 상태를 확인하면 편지가 열립니다. 자물쇠를 해결하거나 건너뛰면 단서가 가방에 보관되고 다음 경유지로 나아갈 수 있습니다.", color = CaseColors.Ink, size = 18)
@@ -163,7 +169,7 @@ fun CaseDetailScreen(state: GameUiState, onBack: () -> Unit, onBegin: () -> Unit
         }
         val route: @Composable () -> Unit = {
             Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                Text("The Route", fontFamily = FontFamily.Cursive, fontSize = 30.sp, color = CaseColors.Gold)
+                Text("The Route", fontFamily = CaseFonts.Script, fontSize = 30.sp, color = CaseColors.Gold)
                 CText(stringResource(R.string.nav_case_route), size = 24, weight = FontWeight.Bold)
                 state.content?.checkpoints?.forEachIndexed { index, checkpoint ->
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -262,7 +268,7 @@ fun PrologueScreen(state: GameUiState, onBack: () -> Unit, onStart: () -> Unit) 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 CLabel("PROLOGUE · I")
-                Text("The First Clue", fontFamily = FontFamily.Cursive, fontSize = 32.sp, color = CaseColors.Cream)
+                Text("The First Clue", fontFamily = CaseFonts.Script, fontSize = 32.sp, color = CaseColors.Cream)
             }
             EscapeButton("돌아가기", "prologue-back", onBack, secondary = true)
         }
@@ -282,13 +288,20 @@ fun CaseCheckpointScreen(state: GameUiState, onOpen: (String) -> Unit, onComplet
     val content = state.content ?: return
     val session = state.session ?: return
     val current = GameController.currentCheckpoint(content, session)
-    CasePage("screen-checkpoints", "Map of the First Clue", stringResource(R.string.nav_case_route), "CASE NO. 01") {
+    val story = content.story
+    CasePage("screen-checkpoints", if (story != null) "The Route" else "Map of the First Clue", stringResource(R.string.nav_case_route), if (story != null) "${story.title}, ${story.subtitle}" else "CASE NO. 01") {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val map: @Composable () -> Unit = {
                 PaperSheet(Modifier.fillMaxWidth()) {
-                    CText("${content.checkpoints.size}개 경유지", size = 22, color = CaseColors.Ink, weight = FontWeight.Bold)
-                    CText("실제 지도가 아닌 경유지 진행도입니다.", size = 14, color = CaseColors.Ink.copy(alpha = .6f))
-                    RouteDiagram(state)
+                    if (story != null && content.checkpoints.size == 5) {
+                        Text("Follow the Water", style = script(30, CaseColors.Wine))
+                        StoryRouteMap(state)
+                        CText("실제 지도가 아닌 물길 진행도입니다.", size = 13, color = CaseColors.Ink.copy(alpha = .6f))
+                    } else {
+                        CText("${content.checkpoints.size}개 경유지", size = 22, color = CaseColors.Ink, weight = FontWeight.Bold)
+                        CText("실제 지도가 아닌 경유지 진행도입니다.", size = 14, color = CaseColors.Ink.copy(alpha = .6f))
+                        RouteDiagram(state)
+                    }
                 }
             }
             val list: @Composable () -> Unit = {
@@ -316,6 +329,84 @@ fun CaseCheckpointScreen(state: GameUiState, onOpen: (String) -> Unit, onComplet
                 Box(Modifier.weight(1.7f).verticalScroll(rememberScrollState())) { map() }
                 Box(Modifier.weight(1f).verticalScroll(rememberScrollState())) { list() }
             } else Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(18.dp)) { map(); list() }
+        }
+    }
+}
+
+/** 캔버스 '로드트립 지도'(TripMap) 좌표 그대로(760x580). 다섯 장소의 시안 위치. */
+private val storyNodes = listOf(Offset(120f, 500f), Offset(300f, 380f), Offset(300f, 230f), Offset(480f, 260f), Offset(610f, 90f))
+private val storySolvedNotes = listOf("왕의 밀서 · 비방 첫 장", "재료 1 · 흐르는 물", "재료 2 · 곡식", "비방 마지막 장 · 백신", "백신 전달")
+private val storyCurrentNotes = listOf("행궁 · 수사 중", "수문 · 수사 중", "만석거 · 수사 중", "박물관 · 수사 중", "원천호수 · 수사 중")
+private fun svg(d: String) = androidx.compose.ui.graphics.vector.PathParser().parsePathString(d).toPath()
+private val storyRoad by lazy { svg("M120 500 C 200 470, 220 420, 300 380 S 330 260, 300 230 S 420 180, 480 260 S 560 140, 610 90") }
+private val storySegments by lazy { listOf("M120 500 C 200 470, 220 420, 300 380", "M300 380 C 380 340, 330 260, 300 230", "M300 230 C 270 200, 420 180, 480 260", "M480 260 C 540 340, 560 140, 610 90").map(::svg) }
+private val storyWaters by lazy { listOf("M700 40 C 640 120, 600 160, 560 230 S 470 330, 420 380 S 330 470, 300 560", "M700 40 C 690 150, 650 220, 590 300").map(::svg) }
+
+/** 시역 코스의 물길 지도. 해결=붉은 체크, 다음 목적지=금색 표식, 봉인=점선 물음표(이름도 가림). */
+@Composable
+private fun StoryRouteMap(state: GameUiState) {
+    val content = state.content ?: return
+    val session = state.session ?: return
+    val currentId = GameController.currentCheckpoint(content, session)?.id
+    val checkpoints = content.checkpoints.take(5)
+    fun status(i: Int): Int {
+        val cp = checkpoints[i]
+        val p = session.progress.first { it.checkpointId == cp.id }
+        return when { p.status.isComplete -> 0; cp.id == currentId -> 1; else -> 2 }
+    }
+    val seal = Color(0xFF7A2026); val brown = Color(0xFF5A4A36); val locked = Color(0xFF7E6A4E)
+    BoxWithConstraints(Modifier.fillMaxWidth().height(600.dp)) {
+        val scale = minOf(maxWidth.value / 760f, maxHeight.value / 580f)
+        val left = (maxWidth.value - 760f * scale) / 2f
+        val top = (maxHeight.value - 580f * scale) / 2f
+        Canvas(Modifier.fillMaxSize()) {
+            val d = this.density; val k = scale * d
+            withTransform({ translate(left * d, top * d); scale(k, k, Offset.Zero) }) {
+                storyWaters.forEach { drawPath(it, Color(0xFF6F8AA0).copy(alpha = .7f), style = Stroke(2f)) }
+                listOf(Triple(610f, 90f, 46f to 22f), Triple(560f, 140f, 34f to 16f), Triple(300f, 230f, 36f to 20f)).forEach { (x, y, r) ->
+                    drawOval(Color(0xFF9DB3C2).copy(alpha = .45f), Offset(x - r.first, y - r.second), Size(r.first * 2, r.second * 2))
+                    drawOval(Color(0xFF6F8AA0), Offset(x - r.first, y - r.second), Size(r.first * 2, r.second * 2), style = Stroke(1.2f))
+                }
+                drawPath(storyRoad, Color(0xFFD8C9A6), style = Stroke(12f, cap = StrokeCap.Round))
+                val reached = (0 until 5).count { status(it) == 0 }.coerceAtMost(storySegments.size)
+                storySegments.take(reached).forEach {
+                    drawPath(it, seal, style = Stroke(3.5f, cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 9f))))
+                }
+                val c = Offset(110f, 110f)
+                drawCircle(brown, 40f, c, style = Stroke(1.2f))
+                drawPath(Path().apply { moveTo(c.x, c.y - 50); lineTo(c.x + 7, c.y); lineTo(c.x, c.y + 50); lineTo(c.x - 7, c.y); close() }, brown)
+                drawPath(Path().apply { moveTo(c.x - 50, c.y); lineTo(c.x, c.y - 7); lineTo(c.x + 50, c.y); lineTo(c.x, c.y + 7); close() }, Color(0xFF8C7556))
+                storyNodes.forEachIndexed { i, p ->
+                    when (status(i)) {
+                        0 -> {
+                            drawCircle(seal, 16f, p)
+                            drawPath(Path().apply { moveTo(p.x - 5, p.y); lineTo(p.x - 1, p.y + 4); lineTo(p.x + 6, p.y - 4) }, CaseColors.Cream, style = Stroke(2.4f, cap = StrokeCap.Round))
+                        }
+                        1 -> {
+                            drawCircle(seal, 28f, p, style = Stroke(2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 5f))))
+                            drawCircle(CaseColors.Gold, 16f, p)
+                            drawCircle(Color(0xFF6B4A1C), 16f, p, style = Stroke(2f))
+                            drawCircle(CaseColors.ButtonInk, 5f, p)
+                        }
+                        else -> drawCircle(locked, 14f, p, style = Stroke(2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f))))
+                    }
+                }
+            }
+        }
+        fun at(x: Float, y: Float) = Modifier.offset((left + x * scale).dp, (top + y * scale).dp)
+        Text("N", at(104f, 40f), style = smallCaps((16 * scale).toInt().coerceAtLeast(10), brown, 0f))
+        Text("광교산", at(660f, 16f), fontFamily = CaseFonts.Heading, fontWeight = FontWeight.ExtraBold, fontSize = (14 * scale).sp, color = brown)
+        storyNodes.forEachIndexed { i, p ->
+            val st = status(i)
+            if (st == 2) Text("?", at(p.x - 4f, p.y - 10f), style = smallCaps((15 * scale).toInt().coerceAtLeast(10), locked, 0f))
+            val final = i == 4
+            val name = when { st == 2 && final -> "???"; st == 2 -> "장소 ${i + 1}"; else -> checkpoints[i].title.replace(Regex("^CH\\.\\d+\\s*"), "") }
+            val note = when (st) { 0 -> storySolvedNotes[i]; 1 -> storyCurrentNotes[i]; else -> if (final) "단서를 모으면 공개" else "봉인됨" }
+            Column(at(p.x + 26f, p.y - 20f)) {
+                Text(name, fontFamily = CaseFonts.Heading, fontWeight = FontWeight.ExtraBold, fontSize = (17 * scale).sp, lineHeight = (20 * scale).sp,
+                    color = when (st) { 0 -> CaseColors.Ink; 1 -> seal; else -> Color(0xFF6A5A44) })
+                Text(note, fontFamily = CaseFonts.Body, fontSize = (13 * scale).sp, lineHeight = (16 * scale).sp, color = brown)
+            }
         }
     }
 }
@@ -529,9 +620,10 @@ fun CaseCompletionScreen(state: GameUiState, onNew: () -> Unit, onSolution: () -
     val allSolved = session.progress.all { it.status == CheckpointStatus.SOLVED }
     Box(Modifier.fillMaxSize().testTag("screen-completion")) {
     Column(Modifier.fillMaxSize().testTag("completion").verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(22.dp)) {
-        Text("Case Closed", fontFamily = FontFamily.Cursive, fontSize = 37.sp, color = CaseColors.Gold)
-        CText("${session.progress.size}개 경유지의 진행을 모두 마쳤어요", size = 34, weight = FontWeight.Bold)
         val story = state.content?.story
+        Text(if (story != null) "Mission Complete" else "Case Closed", style = script(44))
+        if (story != null) Text("임무 완료 · 진 엔딩", fontFamily = CaseFonts.Heading, fontWeight = FontWeight.ExtraBold, fontSize = 44.sp, lineHeight = 57.sp)
+        CText("${session.progress.size}개 경유지의 진행을 모두 마쳤어요", size = if (story != null) 20 else 34, weight = FontWeight.Bold)
         if (story != null) {
             CText("${story.title}, ${story.subtitle}", size = 22, color = CaseColors.Gold)
             CText(story.ending, color = CaseColors.Cream, modifier = Modifier.testTag("story-ending"))
@@ -547,10 +639,12 @@ fun CaseCompletionScreen(state: GameUiState, onNew: () -> Unit, onSolution: () -
                 }
             }
             val stamp: @Composable () -> Unit = {
-            Column(Modifier.widthIn(min = 150.dp).border(2.dp, CaseColors.Red).padding(horizontal = 20.dp, vertical = 26.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                CLabel("CASE NO. 01")
-                CText(if (allSolved) "SOLVED" else "COMPLETED", size = 27, color = CaseColors.Red, weight = FontWeight.Bold)
-                CText(if (allSolved) "해결 완료" else "테스트 완료", color = CaseColors.Cream.copy(alpha = .7f))
+            // 시안의 붉은 이중 테두리 도장(-8도)
+            val stampRed = Color(0xFFB83A33)
+            Column(Modifier.padding(24.dp).rotate(-8f).border(2.dp, stampRed).padding(2.dp).border(2.dp, stampRed).padding(horizontal = 34.dp, vertical = 26.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(if (story != null) "CASE NO. 03" else "CASE NO. 01", style = smallCaps(22, stampRed, .3f))
+                Text(if (allSolved) "SOLVED" else "COMPLETED", fontFamily = CaseFonts.SmallCaps, fontWeight = FontWeight.Bold, fontSize = 64.sp, lineHeight = 68.sp, color = stampRed)
+                Text(if (story != null) "임무 완료" else if (allSolved) "해결 완료" else "테스트 완료", fontFamily = CaseFonts.Heading, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = stampRed)
             }
             }
             if (maxWidth >= 800.dp) Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -185,7 +185,7 @@ private fun inputModeBadge(state:GameUiState)=if(state.mode==TourMode.LIVE)"Pleo
 @Composable private fun CaseSaveScreen(state:GameUiState,onHome:()->Unit,onBack:()->Unit,onMap:()->Unit){
     if(!state.canReadContent){CasePausedScreen(state);return}
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("screen-save"),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(22.dp,Alignment.CenterVertically)){
-        CaseArtwork(CaseArt.CLOCK,Modifier.size(120.dp));Text("The Case is Saved",fontFamily=FontFamily.Cursive,fontStyle=FontStyle.Italic,fontSize=32.sp,color=CaseColors.Gold)
+        CaseArtwork(CaseArt.CLOCK,Modifier.size(120.dp));Text("The Case is Saved",fontFamily=CaseFonts.Script,fontStyle=FontStyle.Italic,fontSize=32.sp,color=CaseColors.Gold)
         Text("수사 기록을 저장했습니다",style=MaterialTheme.typography.headlineMedium)
         Text("${state.session?.progress?.count{it.status.isComplete}?:0} / ${state.content?.checkpoints?.size?:0} 경유지 완료",color=CaseColors.Gold,style=MaterialTheme.typography.headlineSmall)
         Text("마지막으로 저장을 마친 진행에서 언제든 이어갈 수 있습니다. 제한 시간은 없습니다.",color=CaseColors.MutedGold)
