@@ -2,6 +2,8 @@
 
 Pleos Connect용 차량 여행 미스터리 앱입니다. v0.2의 SDK·안전 제한·저장·자물쇠를 기반으로 v0.3의 「시역(屍疫)」 스토리와 임시 연동 문제를 통합했습니다. 관광 → 자물쇠 → 제출 → 단서 → 저장·재개를 수원 5개 장소에 적용합니다. **Debug·Release 빌드, 단위 테스트 71개, 화성행궁 우선 기기 테스트 1개와 전체 코스·회귀 7개, Lint 오류 0개를 확인했습니다.** 최종 결과와 이전 검증 이력은 [검증 로그](docs/verification-log.md)에 구분해 기록합니다. 실제 관광 방문·길 안내 완료·가청 음성 성공과는 구분합니다.
 
+앱 표시명은 `Escape Road`이고, 런처 아이콘은 금색 열쇠 그림(`res/mipmap-*/ic_launcher.png`, 원본 축소본 `docs/brand/app-icon-key-512.png`)입니다.
+
 - 앱 ID: `com.team.carescape`
 - 앱 버전: `0.4.0` (`versionCode=4`), 공유 브랜치: `release/v0.4.0`
 - 도구 설정: AGP 9.0.1, Kotlin 2.2.21, Gradle 9.1.0, compileSdk 36 / targetSdk 34 / minSdk 28
