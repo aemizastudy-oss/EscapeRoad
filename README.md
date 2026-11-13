@@ -12,13 +12,17 @@
 
 | 항목 | 상태 |
 | --- | --- |
-| 관광 정책·별도 저장·5챕터·SDK 어댑터·UI 연결 | 코드 구현 |
-| SDK 추가 직후 중간 스냅샷 | debug/release 컴파일과 JVM 31개 통과 보고 |
-| 이후 UI·권한·음성·리뷰 수정이 포함된 최신 통합본 | 최종 빌드·테스트 재검증 대기 |
-| 최신 통합본의 실제 위치 인증·5챕터 기기 완주 | 확인 대기 |
-| LIVE 길 안내 완료·가청 TTS·STT 결과·실차 지원 | 각각 확인 필요 |
+| 관광 정책·별도 저장·5챕터·SDK 어댑터·UI 연결 | 구현 완료 |
+| 최신 Debug·Release APK / JVM / Lint | 빌드 성공 / 37개 통과 / 오류 0·경고 26 |
+| 최신 통합본의 기기 회귀 | 26개 통과. 기존 3경유지와 MOCK 5챕터 순차 진행·재생성·범위 밖 차단 포함 |
+| 실제 SDK 초기화·수명주기 시험 | 최신 1회 통과(18.673초). 새 위치 콜백·P/정지/UX·브레이크·배터리 관측, 6개 연결 상태 READY |
+| 속도 권한 허용 후 SDK 재시험 | 8088 Virtual Console DDS ONLINE에서 확인. TTS/STT는 ON_DEVICE 초기화만 검증 |
+| LIVE 도착 인증·길 안내 완료·가청 TTS·STT·실차 | 미확인. 연결 준비와 실제 기능 완료를 구분 |
+| 기존 기기 저장 데이터 | 테스트 전 파일 3개 복원·SHA-256 일치 확인 |
 
 **LIVE 위치 인증은 현재 정확도 근거 부족으로 보류합니다.** FusedLocation의 `confidence`를 미터 오차로 바꿀 공식 근거를 확인하지 못해 `accuracyMeters=null`을 전달합니다. SDK가 초기화되거나 좌표 콜백이 도착했다는 이유만으로 관광 인증을 성공 처리하지 않습니다.
+
+Pleos 차량 시뮬레이션 콘솔은 `adb -s emulator-5554 forward tcp:8088 tcp:8088` 후 `http://127.0.0.1:8088/`에서 사용합니다. 앱을 웹으로 실행하는 주소가 아니며, 최신 재시험에서는 콘솔 브리지 준비·Park·브라우저 활성 상태를 확인했습니다.
 
 ## 두 가지 시작 경로
 
@@ -70,6 +74,7 @@
 | `files/datastore/game-session.json` | 기존 단일 게임 진행. 방문·오답·힌트·정답 공개·완료·단서를 원자 스냅샷으로 저장 |
 | `files/datastore/tour-state.json` | `sessionId + checkpointId + mode`별 최초 관광 시작과 MOCK debug 표시를 별도 Typed DataStore로 저장 |
 | `roadescape-ui` SharedPreferences | 경유지별 수첩·세션별 평가. 게임 진행 원장과 무관 |
+| `roadescape-lobby-layout` SharedPreferences | 로비 요소의 화면 프로필별 이동량. 게임 진행과 별개 |
 
 관광 시작은 저장 성공 후에만 화면에 공개하며 중복 클릭으로 시각을 초기화하지 않습니다. 앱 종료 사이에는 반복 타이머 없이 재실행 때 시간 차이를 계산합니다. 같은 부팅의 wall/단조 시각을 대조하고, 역행·불합리한 시계 변화를 보류합니다. 외부 시간 서버가 없는 로컬 방식이므로 **고의적인 시각 조작을 완전히 막지는 못합니다.**
 
@@ -78,6 +83,12 @@
 손상 JSON·미지원 버전·읽기/쓰기 실패는 원본을 자동으로 빈 기록으로 덮어쓰지 않습니다. **다시 시도**를 제공하고 저장 문제 중 진행을 막습니다. 사용자가 기존 게임의 **새 게임 → 확인**을 선택하면 `game-session.json`은 내부 `.bak`로 보존합니다. 관광 저장 오류 때문에 이 게임 원장을 비우지 않습니다. 앱 제거·앱 데이터 삭제는 내부 진행과 백업도 삭제합니다.
 
 수첩과 평가는 **메모 저장 / 평가 저장**을 눌러야 영구 저장합니다. 저장하지 않은 편집은 화면 이동·주차 중단에서 사라질 수 있습니다. 완료 후 해설·기념카드를 열 수 있으며, PNG 저장은 시스템 파일 선택기를 사용합니다. 기존 Pleos AVD에서 파일 선택기가 자동 취소된 이력이 있어 실제 파일 저장 성공은 별도 확인 항목입니다.
+
+## 로비 배치 편집
+
+debug 로비에서 안전 정차를 확인한 뒤 오른쪽 위 **로비 배치 편집**을 누릅니다. 로고·문구·버튼 줄·이어하기 카드를 드래그하거나 1/10dp 화살표로 옮기고 **저장**합니다. **취소**와 **기본값**도 지원하며, 기기에 저장한 위치는 앱 재실행 후 유지합니다. 버튼 줄은 묶음으로 이동합니다.
+
+팀에 배치를 공유하려면 **레이아웃 JSON 복사**로 내보낸 내용을 `app/src/main/assets/lobby_layout.json`에 반영하고 재빌드합니다. release에는 편집 조작부가 없고 저장 배치는 적용됩니다. 화면별 설정·안전 조건·공유 방법은 [로비 위치 편집](docs/lobby-layout-editor.md)에 정리했습니다.
 
 ## 프로젝트 구성
 
@@ -89,11 +100,12 @@
 | `game/GameController.kt`, `LockEvaluator.kt` | 순수 게임 진행과 자물쇠 판정 |
 | `game/TourPolicy.kt`, `TourCatalog.kt` | 15분·현재 위치·안전 정책, 관광지 대표점 |
 | `game/VoiceAnswerParser.kt` | 음성 텍스트를 제출 전 입력 후보로 변환 |
-| `data/` | 정적 콘텐츠와 두 파일의 개별 원자 저장 |
+| `data/` | 정적 콘텐츠·게임/관광 개별 원장·별도 로비 배치 설정 |
 | `platform/sdk/` | 실제 Pleos 위치·길 안내·차량 보조·음성, AAOS 안전 상태 |
 | `src/debug/`, `src/release/` | 모의 제공자·개발 패널의 빌드별 분리 |
 | `ui/` | 화면·이벤트 직렬 처리·안전 가림·SDK 상태 |
 | `assets/demo_package.json`, `assets/suwon_tour_package.json` | 기존 3개와 신규 5개 검증 콘텐츠 |
+| `assets/lobby_layout.json` | 로비 기본 이동량과 팀 공유용 JSON |
 | `app/src/main/res/drawable-nodpi/pdf_*.png` | PDF에서 잘라낸 배경·질감·로고·장식 PNG 14개 |
 | `tools/extract_pdf_assets.py`, `docs/pdf-assets.json` | PNG 재추출 스크립트와 원본 좌표·SHA 명세 |
 | `src/test/`, `src/androidTest/` | 게임·관광·저장·음성·UI 검증 코드 |

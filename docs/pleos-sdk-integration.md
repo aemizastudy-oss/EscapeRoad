@@ -92,4 +92,6 @@ TTS/STT AAR Manifest는 CCG validation 용도의 `android.permission.INTERNET` �
 
 권한 허용 전 첫 smoke에서는 NaviHelper의 서비스 연결 READY와 Vehicle의 브레이크·배터리 표본 존재를 관측했습니다. Fused는 약 3.5초 관측창에서 NO_DATA·새 위치 콜백 미관측이었고, TTS/STT는 정지 조건이 미확인되어 STOPPED를 유지했습니다. 이를 경로 안내·위치 인증·가청 음성·인식 성공이나 음성 SDK 미지원 판정으로 바꾸지 않습니다. 이후 권한 허용·재실행의 실제 상태 표는 [검증 기록](verification.md)에 둡니다.
 
+8088 Virtual Console의 DDS ONLINE을 확인한 최신 재시험은 단일 SDK 시험 18.673초로 통과했습니다. 약 3.406초 foreground 관측에서 Fused·Navi·AAOS 안전·Vehicle·TTS·STT 상태가 모두 READY였고 새 위치 콜백, P·정지·CarUx 허용과 브레이크·배터리 표본을 확인했습니다. 음성은 ON_DEVICE 초기화 준비만 관측했으며 실제 발화·인식·경로 요청은 실행하지 않았습니다. 미터 단위 정확도는 여전히 미확인으로 전달합니다.
+
 현재는 공식 공개 자료의 5개 관광지 대표점을 초기 설정에 넣었습니다. 두 공원의 최종 방문 구역·인증 중심점과 전 구간의 주차 접근성은 현장 검증 전입니다. LIVE 인증은 미터 단위 위치 정확도 근거 확보 전까지 보류하고, 물리 정지·P·CarUx·권한·최신 표본도 독립적으로 모두 확인해야 합니다. 좌표를 비워 둔 설정도 별도로 차단합니다. SDK나 권한이 없는 환경에서는 오류·미지원·확인 대기를 표시하며 MOCK으로 자동 전환하지 않습니다.

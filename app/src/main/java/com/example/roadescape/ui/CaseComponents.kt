@@ -39,34 +39,6 @@ import kotlin.math.roundToInt
 
 enum class CaseArt { LIGHTHOUSE, CLOCK, ENVELOPE, KEY, BOOK, LOCK, COMPASS, WAX }
 
-fun Modifier.ornateCaseBorder(): Modifier = drawWithCache {
-    onDrawWithContent {
-        drawContent()
-        fun outline(inset: Float) {
-            val edge = 24.dp.toPx()
-            val w = size.width; val h = size.height
-            val path = Path().apply {
-                moveTo(inset + edge, inset)
-                lineTo(w - inset - edge, inset)
-                quadraticTo(w - inset - edge, inset + edge, w - inset, inset + edge)
-                lineTo(w - inset, h - inset - edge)
-                quadraticTo(w - inset - edge, h - inset - edge, w - inset - edge, h - inset)
-                lineTo(inset + edge, h - inset)
-                quadraticTo(inset + edge, h - inset - edge, inset, h - inset - edge)
-                lineTo(inset, inset + edge)
-                quadraticTo(inset + edge, inset + edge, inset + edge, inset)
-                close()
-            }
-            drawPath(path, CaseColors.Gold.copy(alpha=.8f), style=Stroke(.8.dp.toPx()))
-        }
-        outline(8.dp.toPx()); outline(15.dp.toPx())
-        for (y in listOf(8.dp.toPx(), size.height-8.dp.toPx())) {
-            val x = size.width/2; val r = 7.dp.toPx()
-            drawPath(Path().apply { moveTo(x,y-r); lineTo(x+r*.65f,y); lineTo(x,y+r); lineTo(x-r*.65f,y);close() },CaseColors.Gold)
-        }
-    }
-}
-
 /** Textures cropped from the supplied PDF. Native text and controls remain independent. */
 @Composable
 fun Modifier.caseTexture(paper: Boolean = false): Modifier {

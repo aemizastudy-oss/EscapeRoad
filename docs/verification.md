@@ -1,5 +1,139 @@
 # 검증 기록
 
+## 2026-11-13 로비 배치 편집
+
+**구현 완료 / Debug·Release 빌드 확인 / JVM 44개·기기 4개 통과.** 로비에 debug 전용 드래그·선택·1/10dp 이동·저장·취소·기본값·JSON 복사를 추가했습니다. 편집하지 않은 기본 위치와 제공 배경을 유지하고, 이동한 요소의 실제 터치 영역도 함께 배치합니다. 버튼 줄은 전체 묶음이며 개별 버튼 편집은 아닙니다. 사용법과 저장·공유 경계는 [로비 위치 편집](lobby-layout-editor.md)에 있습니다.
+
+배치는 별도 `roadescape-lobby-layout/settings_json`에 저장합니다. WIDE·COMPACT를 분리하며, release에는 편집 조작부가 없고 저장값·기본 asset의 배치는 적용됩니다. 편집은 기존 `canReadContent`의 foreground·P·실제 정지·UX 허용 조건을 따릅니다. 안전 조건 상실·프로필 변경·화면 이탈에서는 저장하지 않은 초안을 폐기합니다. 이미 사용자가 저장을 눌러 시작된 동기 디스크 commit을 되돌린다는 의미는 아닙니다.
+
+| 항목 | 실행 결과 |
+| --- | --- |
+| 빌드 | `:app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest :app:testDebugUnitTest`, 최종 `lobby-editor-build-final.log`의 1분 42초 성공. Release 필수 Lint 포함 |
+| JVM | 최종 `lobby-editor-unit-final.log`의 7초 성공. 기존 37개와 배치 모델·JSON·프로필 시험 7개, 합계 44개. 실패·오류·건너뜀 0 |
+| 기기 | Pleos API 34, `emulator-5554`, 사용자 10. `lobby-editor-device.log`, `OK (4 tests)`, 119.285초, 실패·오류·건너뜀 0 |
+| 새 UI 시험 3개 | 로고 실제 드래그·저장·Activity 재생성; 편집 중 접근성/실제 터치 차단과 저장 후 이전 위치 밖에서 버튼 클릭; 취소·기본값 초안·DRIVING·Activity stop/resume 시 미저장 변경 폐기 |
+| 기존 UI 시험 1개 | 메뉴 왕복·로비 이어하기·새 게임 초기화 취소. 전체 기존 6개 UI나 관광·SDK 기기 시험을 재실행한 것은 아님 |
+
+기기 명령은 `adb -s emulator-5554 shell am instrument --user 10 -w -r -e class com.example.roadescape.ui.LobbyLayoutEditorTest,com.example.roadescape.ui.GameFlowTest#menuPagesAndLobbyReturnWithoutChangingSavedSessionAndResetCanBeCancelled com.example.roadescape.test/androidx.test.runner.AndroidJUnitRunner`입니다. 신규 편집기 시험은 게임을 초기화하지 않으며 기존 편집 설정을 보관·복원합니다. 함께 실행한 기존 메뉴 회귀는 시험 게임을 생성하므로, 실행 전 새로 백업한 원래 진행·기존 백업·설치 기록 3개를 종료 후 SHA-256 일치로 복원했습니다.
+
+첫 실행은 실제 UI 문구 전체와 일부 문자열을 같다고 비교한 시험 코드 2곳 때문에 실패했습니다. 편집 중 접근성 클릭도 이동을 차단하도록 콜백 검사를 추가했습니다. 수동 화면에서 선택 테두리가 요소보다 작은 것을 발견해 `matchParentSize()` 뒤의 `requiredSizeIn()`을 제거했고, 핸들과 요소의 위치·너비·높이 일치 검사도 추가했습니다. 수정 APK 빌드 완료 전에 시작한 시험 1회는 명시적으로 중단했으며 앱 오류 통과/실패 근거로 사용하지 않습니다. 최종 시험은 빌드 완료와 설치된 앱·테스트 APK의 SHA-256 일치를 먼저 확인합니다. 원시 로그·개인 진행 백업은 Git 제외 `verification-artifacts/`에만 보관합니다. 좁은 화면의 수동 시연·Release 런타임·Ubuntu 실행·실차와 새로운 LIVE SDK 검증·디스크 저장 실패 주입·일반 Lint 전체는 이번에 확인하지 않았습니다.
+
+## 2026-11-13 로비 배경 한정 적용
+
+상단 패널에 배경 윗부분이 가려지는 문제를 수정했습니다. 이미지 레이어를 공통 프레임에서 `LobbyScreen`의 본문 영역으로 옮겨 상단 메뉴·시뮬레이션 패널과 분리했고, 첫 문구의 위쪽 여백도 이미지 상단선 기준으로 조정했습니다. 공통 프레임의 임시 선택 배경 API는 제거했습니다. Debug·Release 빌드는 `lobby-content-background-build.log`에서 15초로 성공했습니다. 최신 Debug 설치 후 `lobby-content-background-only.png`에서 금색 상단선·중앙 마름모·양쪽 모서리가 모두 보이는 것을 확인했고, 사건 선택 왕복 시 저장 파일 2개의 SHA-256도 유지됐습니다(`lobby-content-background-check.json`).
+
+로고 뒤 반투명 박스 제거 요청으로 로비 컨테이너의 `DeepBurgundy.copy(alpha=.55f)` 배경만 삭제했습니다. Debug·Release 빌드는 `lobby-overlay-removal-build.log`에서 14초로 성공했고, Debug 업데이트 후 실제 로비가 보이는 것을 확인해 `lobby-logo-no-overlay.png`를 캡처했습니다. 게임 진행 파일의 전후 SHA-256은 일치했습니다. 로고·여백·배경 이미지·버튼에는 변경이 없습니다.
+
+후속 테두리 제거 요청으로 로비 메인 `CasePanel`을 동일한 너비·배경색·여백의 `Column`으로 바꾸고 `ornateCaseBorder()` 함수를 삭제했습니다. 배경 이미지·버튼·이어하기 카드·다른 화면의 테두리는 유지했습니다. Debug·Release 재빌드는 `lobby-border-removal-build.log`에서 18초로 성공했습니다. 최신 Debug 설치 후 `lobby-border-only.png`에서 중복 장식선 제거와 배경 프레임 유지를 확인했고, 사건 선택 왕복에서도 저장 파일 2개의 해시는 그대로였습니다(`lobby-border-check.json`).
+
+**구현 완료 / Debug·Release 빌드 확인 / 에뮬레이터 화면 확인.** 사용자 지정 `img/extracted/extracted/01_1. 로비/1_background.png`를 원본 그대로 `app/src/main/res/drawable-nodpi/lobby_background.png`에 복사했습니다. 두 파일의 SHA-256은 `1daa4f15f2644dbbbc72fa39fd2dc52d7cddda38727ed00315b98c8d4e7374da`로 일치하며, 크기는 2560×1440입니다.
+
+배경은 `LobbyScreen`의 고정된 `matchParentSize()` 이미지로 표시하며, 프레임 전체를 보이도록 `FillBounds`를 사용합니다. 로비 내용만 스크롤하고 배경은 본문 영역에 고정합니다. 로비의 로고·버튼·이미지, 다른 화면과 대화상자의 기존 PDF 배경은 유지합니다. 아래 13초 빌드·초기 캡처는 배경 최초 적용 시점의 이력입니다.
+
+`./gradlew :app:assembleDebug :app:assembleRelease`에 해당하는 Windows Wrapper 명령이 `lobby-background-build.log`에서 13초로 성공했습니다. 최신 Debug APK를 기존 Pleos API 34 기기에 업데이트하고 로비 → 사건 선택 → 로비를 확인했습니다. 캡처 `lobby-background-only.png`·`lobby-background-case-board.png`에서 로비에만 새 배경, 사건 선택에는 기존 배경이 표시되는 것을 확인했습니다. 새 게임·모의 입력 없이 저장 게임과 기존 백업 2개 파일의 SHA-256이 전후 일치했습니다. 결과 JSON과 캡처는 Git 제외 경로 `verification-artifacts/`에 보관합니다. 이번 배경 변경에서 단위·전체 UI 회귀·Ubuntu 실행은 재실행하지 않았습니다. 실행 방법은 [README](../README.md)의 Android Studio Run 및 Ubuntu 안내를 따릅니다.
+
+## 2026-11-13 수원 관광 5챕터와 Pleos SDK
+
+**구현 완료 / Debug·Release 빌드 확인 / JVM 37개·기기 회귀 26개 통과 / 실제 SDK 초기화·수명주기 1회 통과.** 수원 실제 방문·LIVE 위치 인증·길 안내 완료·음성 출력·실차 시동 OFF/ON 성공을 확인한 결과는 아닙니다. 아래 PDF/UI 기록은 이전 변경의 이력입니다.
+
+### 구현 범위
+
+- 화성행궁 → 화홍문 → 만석공원·만석거 → 수원광교박물관 → 광교호수공원 순서의 별도 5챕터를 추가했습니다. 실제 관광 문제·줄거리는 미정이므로 현재 문제는 명시적인 연동 시험 콘텐츠입니다.
+- 관광 시작 버튼을 누른 시각을 별도 Typed DataStore에 저장하고 중복 시작은 최초 시각을 보존합니다. 15분·최신 위치·P·실제 정지·CarUx 허용·선행 챕터 완료를 함께 검사합니다. 시작 기록 복원은 현재 위치·안전 인증을 대신하지 않습니다.
+- FusedLocation·NaviHelper·Vehicle 읽기·ON_DEVICE TTS/STT 어댑터, 권한 요청과 SDK 상태 화면을 연결했습니다. 음성 정답은 후보를 확인한 뒤 명시적으로 제출합니다.
+- 기존 3경유지·정답·PDF PNG·게임 원장은 보존했습니다. MOCK/LIVE 기록을 분리하고 release에는 모의 주차·위치·시간 버튼이 없습니다.
+
+API 버전·권한·공식 근거는 [SDK 연동 경계](pleos-sdk-integration.md), 좌표·시간·저장 규칙은 [관광 흐름](tour-flow.md)을 따릅니다. 원본 [사용자 요구사항](ROAD_ESCAPE_sdk.md)은 수정하지 않았습니다.
+
+### 최종 빌드와 자동 검증
+
+Windows, Java 25.0.4, Gradle 9.1.0, AGP 9.0.1, Kotlin 2.2.21, SDK min/compile/target 28/36/34입니다. 기기는 `emulator-5554`, Pleos Connect 2.1.0, API 34, Android 사용자 10입니다. Ubuntu 실행은 미확인입니다.
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+.\gradlew.bat :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest --console=plain
+```
+
+| 항목 | 최종 결과·근거 |
+| --- | --- |
+| 빌드 | `sdk-build-final.log`, `BUILD SUCCESSFUL`. Debug·미서명 Release·테스트 APK 생성 |
+| JVM | `GameCoreTest` 15, `GameTourGateTest` 6, `TourPolicyTest` 10, `VoiceAnswerParserTest` 6. 합계 37, 실패·오류·건너뜀 0 |
+| 기기 저장·UI·VM | `sdk-acceptance-run.log`, `OK (26 tests)`, 384.673초. 기존 저장 8·관광 저장 5·기존 UI 6·VM 순서 4·관광 UI 3 |
+| 관광 UI | 5챕터별 시작·시간 시연 후 건너뛰기와 단서 5개, Activity 재생성 후 시작 기록 보존·주차/위치 재확인, 시간 경과 후 범위 밖 제출 거절 |
+| Lint | 오류 0·경고 26. 버전 권고 12, SDK 네이티브 라이브러리 `Aligned16KB` 3, 나머지 리소스·Compose·KTX 경고 11 |
+
+기기 회귀는 백업한 시험용 AVD에서 `adb -s emulator-5554 shell am instrument --user 10 -w -r -e notClass com.example.roadescape.platform.PleosSdkRuntimeTest com.example.roadescape.test/androidx.test.runner.AndroidJUnitRunner`로 실행했습니다. SDK 관측 시험은 같은 명령의 `notClass` 대신 `class com.example.roadescape.platform.PleosSdkRuntimeTest`로 분리했습니다. UI 시험은 진행 데이터를 바꾸므로 일반 사용자 데이터에서 그대로 실행하지 않습니다.
+
+MOCK의 15분 시연 버튼은 실제 관광 시간·방문을 검증하지 않습니다. 시간 경계·시계 역행·재부팅 시각 계산은 순수 정책 시험으로, 저장 보존은 실제 DataStore와 Activity 재생성 시험으로 구분했습니다. SDK AAR의 16KB 정렬 경고는 API 34 시험 성공과 별개로 향후 배포 전에 확인해야 합니다.
+
+### 실제 SDK 관측과 제한
+
+첫 SDK 시험은 `OK (1 test)`, 전체 시험 20.49초, foreground 관측창 약 3.478초였습니다. 준비 작업에서 사용자 10의 일반 dangerous 권한인 FusedLocation만 허용했고 경로 요청·발화·음성 인식은 실행하지 않았습니다. 진단 JSON은 좌표·원시 음성·계정·토큰을 제외한 상태 필드만 보관합니다.
+
+| 기능 | 실제 관측 | 판정 범위 |
+| --- | --- | --- |
+| FusedLocation | `NO_DATA / WAITING_FOR_LOCATION_UPDATE`, 새 위치 콜백 없음 | 해당 관측창의 미수신. SDK 미지원 확정이나 현재 위치 인증 성공이 아님 |
+| NaviHelper | `READY / SERVICE_CONNECTED`, 경로 `IDLE` | 서비스 연결 확인. 목적지 요청·길 안내 완료 미확인 |
+| Vehicle | `READY / OPTIONAL_READ_ONLY_SIGNALS`, 브레이크·배터리 표본 존재 | 읽기 보조 값 관측. 실차 지원·게임 정답·주차 인증을 의미하지 않음 |
+| AAOS 안전 | `PERMISSION_DENIED / SecurityException`, P·UX 확인, 정지 미확인 | 실제 공개 클래스 접근 가능. 미허용 `CAR_SPEED`가 dangerous임을 확인했고 안전 조건 미충족으로 게임 차단 |
+| TTS/STT | `STOPPED`, 발화·인식 요청 없음 | 정지 조건이 확인되지 않아 음성 대기. 가청 출력·인식 성공 미확인 |
+| lifecycle | background 즉시 중단, stop 뒤 재시작, close 뒤 중단 유지 | 위치·안전·음성의 중단과 이전 콜백 차단 확인 |
+
+최초 필수 `android.car` 공유 라이브러리 선언은 `INSTALL_FAILED_MISSING_SHARED_LIBRARY`로 기기 시험 0개였고, 선택 선언으로 수정했습니다. `pm list libraries`와 특정 JAR에서 해당 이름·클래스를 찾지 못한 정적 조회만으로 runtime 미지원을 단정할 수 없습니다. 실제 SDK 시험에서는 공개 클래스가 로딩됐습니다. 누락 환경을 위한 runtime 검사와 안전 차단은 유지합니다.
+
+이후 FusedLocation과 `CAR_SPEED`의 일반 runtime 권한 두 개를 허용했습니다. 재시험 준비 중 에뮬레이터 시스템 서비스 재시작·설치 `Broken pipe`가 발생했고, 다음 시도는 Activity 탐색 오류로 초기화 관측 전에 실패했습니다. 따라서 **속도 권한 허용 이후의 안전·음성·위치 상태는 재확인 미완료**입니다. 첫 통과 JSON/로그와 후속 실패 로그를 분리 보존했습니다. car 서비스의 `finishBroadcast()` 예외와 시스템 프로세스 오류도 로컬 진단에 남았으며 앱 코드 원인으로 확정하지 않습니다. 같은 AVD를 데이터 초기화 없이 재시작하고 원래 사용자 10으로 복귀했습니다.
+
+**현재 LIVE 인증은 보류합니다.** 아래 8088 후속 재시험에서는 새 위치 표본을 확인했으나 `LocationData.confidence`를 미터 정확도로 변환할 공식 근거는 아직 없습니다. 정확도를 임의로 채우지 않습니다. 실제 관광지 5곳의 주차 접근성·15분 관광·실차 전원 OFF/ON·Navi 안내 완료·가청 TTS·STT·좁은 화면 전체 플레이는 미확인입니다.
+
+초기 통합 과정의 음성 부호 처리 실패는 음수·소수점 거절로 수정했습니다. 첫 기기 26개 중 Compose 초기 조회 1개 실패는 첫 프레임을 기다리도록 보완해 최종 26개 재실행에서 통과했습니다. Gradle UTP 호스트 종료 지연과 겹친 실행의 출력 잠금 오류 때문에 최종 기기 회귀는 직접 instrumentation으로 분리했으며, 실패한 초기 실행을 최종 통과에 합산하지 않습니다.
+
+### 최종 APK와 데이터 보존
+
+| 파일 | 크기 | SHA-256 |
+| --- | --- | --- |
+| `app/build/outputs/apk/debug/app-debug.apk` | 57,777,980 bytes | `ea042ada5027041f619320113254ff95326f47504f5017c8c5358056a258e947` |
+| `app/build/outputs/apk/release/app-release-unsigned.apk` | 47,451,431 bytes | `2e33ef892c8c61e9e4e1644bdbda8f6b9d7817414ca432fb01a64441cb389d53` |
+
+기기에 설치된 Debug APK도 같은 SHA-256임을 확인했습니다. Release 설치·실행은 이번 SDK 변경에서 확인하지 않았습니다.
+
+시험 전에 만든 이번 작업 전용 백업으로 기존 파일 3개를 복원했습니다(`sdk-data-restoration.log`, `restored=true`). 생성된 관광 원장·시험 백업·보조 설정 28개만 제거했고 원본 게임·기존 백업·프로파일 설치 표식의 SHA-256을 모두 대조했습니다. 복원 후 앱은 중지 상태로 두었습니다.
+
+| 원본 파일 | 복원 후 SHA-256 |
+| --- | --- |
+| `files/datastore/game-session.json` | `5fb2dab05558946e0ead005220e29b99f94e3138cfec80e600bfcc78a381b779` |
+| `files/datastore/game-session.json.1794491810714.bak` | `d7aeddb6d7f6999d468f23bef79fb0de030b72b6f6e10ab9e78a0b133619aae2` |
+| `files/profileInstalled` | `d081fb41ecfa153fd700409d6051db82217e9cc1fffa5768775edf8d2e3072c4` |
+
+최종 화면 설정은 2560×1440·density 160입니다. 다음 실행에서 프로파일 표식은 Android가 다시 갱신할 수 있습니다. 백업·원시 진단·시험 스크립트·로그는 Git 제외 경로에만 보관하며 커밋·푸시는 하지 않았습니다. Android Studio와 Ubuntu의 실행 방법은 [README](../README.md)를 따릅니다.
+
+### 8088 Virtual Console 후속 접속 시험
+
+사용자가 요청한 8088은 Pleos 차량 시뮬레이션용 Virtual Console입니다. 처음 잘못 띄운 APK 다운로드용 서버는 해당 작업에서 생성한 PID·명령을 확인해 종료했습니다. 이후 `adb -s emulator-5554 forward tcp:8088 tcp:8088`로 연결했으며 최종 리스너는 Python이 아닌 ADB입니다. 방화벽이나 AVD 설정은 바꾸지 않았습니다.
+
+단일 접속 점검에서 `http://127.0.0.1:8088/`은 HTTP 200, 제목 `Pleos Connect Virtual Console`이었습니다. `/vehicle/state`도 HTTP 200이지만 `gear.bridge_ready=false`, `gear.actual=null`, `browser.clients=0`, `browser.active=false`였습니다. **포트·웹/API 경로 정상 / DDS 차량 데이터 연결 OFFLINE**으로 구분합니다. 차량 값 변경 요청은 보내지 않았고 실제 기어·속도 시뮬레이션 성공으로 표시하지 않습니다.
+
+브라우저 자동 열기 명령은 자동 승인 검토에서 `blocked by policy`로 거절됐으며 구체적인 이유는 제공되지 않았습니다. 따라서 IDE 내 브라우저나 실제 콘솔 탭이 열렸다고 주장하지 않습니다. 포트 전달은 유지했고 사용자가 위 주소로 접속할 수 있습니다. 로컬 점검 결과는 `verification-artifacts/pleos-console-8088-connection.json`과 `pleos-console-8088-state.json`에 보관합니다.
+
+### 8088 재시도 — DDS ONLINE과 SDK 단일 시험 통과
+
+사용자 후속 요청으로 다시 확인했습니다. 8088은 동일 AVD의 ADB 포트 전달을 유지했고, `/vehicle/state` GET 1회에서 HTTP 200, `gear.bridge_ready=true`, `gear.actual.value=Park`, `browser.clients=1`, `browser.active=true`를 관측했습니다. 자동 브라우저 실행 명령은 다시 정책 차단됐지만 현재 활성 콘솔 연결은 확인했습니다. 차량 제어값을 변경하는 요청은 보내지 않았습니다.
+
+이 상태에서 기존 설치본의 `PleosSdkRuntimeTest` **1개만 재실행**했고 `OK (1 test)`, 18.673초로 통과했습니다. foreground 관측창은 약 3.406초이며 최신 결과는 다음과 같습니다.
+
+| 항목 | 실제 관측 |
+| --- | --- |
+| FusedLocation | READY, 새 위치 갱신 콜백·confidence 관측. 미터 단위 정확도는 미확인 |
+| NaviHelper | READY / SERVICE_CONNECTED, 경로 IDLE. 안내 요청은 하지 않음 |
+| AAOS 안전 | READY / P_SPEED_CAR_UX_OBSERVED, P·실제 정지·CarUx 허용 모두 true |
+| Vehicle | READY, 브레이크·배터리 읽기 표본 존재 |
+| TTS·STT | 각각 READY / ON_DEVICE_INITIALIZED. 발화·음성 인식은 요청하지 않음 |
+| lifecycle | background 즉시 안전값 무효화·음성 중단, stop 후 새 연결 시작, close 후 재활성화 차단 통과 |
+
+재연결 직후의 CHECKING 상태는 준비 완료로 표시하지 않았습니다. 위 READY는 초기 foreground 관측 결과이며 경로 완주·음성 출력·실차 지원·관광지 인증 성공을 뜻하지 않습니다. 이 후속 결과가 위의 DDS OFFLINE·속도 권한 허용 후 재확인 미완료 기록을 대체하며, 이전 실패 로그는 이력으로 보존합니다. 같은 SDK 시험의 반복 실행을 새 테스트 종류로 합산하지 않습니다.
+
+이번 단일 시험 직전에 새 백업 `road-sdk-8088-retry-20261113-021708`을 만들었고, 종료 후 원본 파일 3개를 모두 복원해 앞 표와 같은 SHA-256을 확인했습니다. 새 게임·관광 시작·정답 제출 없이 진행을 보존했으며 앱은 중지 상태로 두었습니다. 시험 로그·복원 결과와 좌표 없는 상태 JSON은 `verification-artifacts/`에만 보관합니다(`sdk-8088-retry-observation.json`).
+
 ## 2026-11-13 PDF에서 추출한 PNG 적용
 
 **구현 완료 / debug·release 빌드 확인 / JVM 15개·화면 6개 통과.** 공통 배경과 양피지, 로고, 봉투·시계·열쇠·종이 조각·자물쇠·나침반·봉인·등대와 금속 재질을 사용자 PDF에서 잘라낸 PNG로 교체했습니다. 방향 자물쇠의 외형도 PNG이며 투명한 네이티브 버튼이 각 화살표를 입력합니다. 기념카드의 임의 자동차 그림은 PDF 봉투로 교체했습니다. 동적 글자·입력·진행도·경로 도식·테두리와 기존 게임·저장·주차 게이트는 유지합니다.

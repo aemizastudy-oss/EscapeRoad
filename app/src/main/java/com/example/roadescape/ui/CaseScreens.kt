@@ -35,6 +35,8 @@ import com.example.roadescape.game.GameController
 import com.example.roadescape.model.AcquisitionType
 import com.example.roadescape.model.CheckpointStatus
 import com.example.roadescape.model.GameSession
+import com.example.roadescape.model.LobbyBlock
+import com.example.roadescape.model.LobbyLayoutProfile
 
 @Composable
 fun LobbyScreen(
@@ -46,44 +48,53 @@ fun LobbyScreen(
     onTour: () -> Unit = {},
     onSdk: () -> Unit = {},
 ) {
-    BoxWithConstraints(Modifier.fillMaxSize().testTag("screen-lobby")) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(CaseColors.DeepBurgundy).testTag("screen-lobby")) {
         val wide = maxWidth >= 900.dp
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            CasePanel(Modifier.fillMaxWidth(if (wide) .76f else 1f).ornateCaseBorder()) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("Welcome, Detective", fontFamily = FontFamily.Cursive, fontSize = 30.sp, color = CaseColors.Gold)
-                    Image(
+        Image(
+            painter = painterResource(R.drawable.lobby_background), contentDescription = null,
+            modifier = Modifier.matchParentSize(), contentScale = ContentScale.FillBounds,
+        )
+        // The supplied frame's upper edge is about 1/12 of its height.
+        val innerTopPadding = 20.dp + 18.dp
+        val contentTopPadding = maxOf(18.dp, maxHeight / 12f + 16.dp - innerTopPadding)
+        val viewportHeight = maxHeight
+        val editor = rememberLobbyLayoutEditor(
+            profile = if (wide) LobbyLayoutProfile.WIDE else LobbyLayoutProfile.COMPACT,
+            canEditSafely = state.canReadContent,
+        )
+        Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            LobbyLayoutCanvas(editor, wide, viewportHeight, contentTopPadding, state.session != null) { block ->
+                when (block) {
+                    LobbyBlock.WELCOME -> Text("Welcome, Detective", fontFamily = FontFamily.Cursive, fontSize = 30.sp, color = CaseColors.Gold)
+                    LobbyBlock.LOGO -> Image(
                         painter = painterResource(R.drawable.pdf_logo),
                         contentDescription = "ESCAPE ROAD",
                         modifier = Modifier.widthIn(max = 620.dp).fillMaxWidth().height(if (wide) 260.dp else 200.dp),
                         contentScale = ContentScale.Fit,
                     )
-                    CLabel("THE DETECTIVE'S DRIVE CLUB · MMXXVI", Modifier.padding(top = 4.dp))
-                    CText("내 차로 떠나는 방탈출 여행", size = 23, weight = FontWeight.Bold)
-                    CText("오늘 맡으실 사건을 고르시면, 첫 번째 단서를 건네드리겠습니다.", color = CaseColors.Cream.copy(alpha = .8f), modifier = Modifier.widthIn(max = 720.dp), align = TextAlign.Center)
-                    FlowRow(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        EscapeButton("수원 관광 코스 · 5챕터", "open-suwon-tour", onTour)
-                        EscapeButton("SDK 연결 상태", "open-sdk-status", onSdk, secondary = true)
-                        EscapeButton("사건 고르기", "open-cases", onCases)
-                        EscapeButton("사건 기록부", "lobby-casebook", onCasebook, secondary = true)
-                        EscapeButton("저장된 수사", "lobby-archive", onArchive, secondary = true)
+                    LobbyBlock.TAGLINE -> CLabel("THE DETECTIVE'S DRIVE CLUB · MMXXVI", Modifier.padding(top = 4.dp))
+                    LobbyBlock.TITLE -> CText("내 차로 떠나는 방탈출 여행", size = 23, weight = FontWeight.Bold)
+                    LobbyBlock.DESCRIPTION -> CText("오늘 맡으실 사건을 고르시면, 첫 번째 단서를 건네드리겠습니다.", color = CaseColors.Cream.copy(alpha = .8f), modifier = Modifier.widthIn(max = 720.dp), align = TextAlign.Center)
+                    LobbyBlock.ACTIONS -> FlowRow(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        EscapeButton("수원 관광 코스 · 5챕터", "open-suwon-tour", { if (!editor.editing) onTour() })
+                        EscapeButton("SDK 연결 상태", "open-sdk-status", { if (!editor.editing) onSdk() }, secondary = true)
+                        EscapeButton("사건 고르기", "open-cases", { if (!editor.editing) onCases() })
+                        EscapeButton("사건 기록부", "lobby-casebook", { if (!editor.editing) onCasebook() }, secondary = true)
+                        EscapeButton("저장된 수사", "lobby-archive", { if (!editor.editing) onArchive() }, secondary = true)
+                    }
+                    LobbyBlock.RESUME -> state.session?.let { session ->
+                        PaperSheet(Modifier.widthIn(max = 440.dp).fillMaxWidth()) {
+                            CLabel("CASE IN PROGRESS", dark = true)
+                            CText(state.content?.title.orEmpty(), color = CaseColors.Ink, size = 20, weight = FontWeight.Bold)
+                            // Detailed results remain behind the same parking gate as the casebook.
+                            if (state.canReadContent) CText("경유지 ${session.progress.count { it.status.isComplete }} / ${session.progress.size}", color = CaseColors.Ink.copy(alpha = .7f))
+                            EscapeButton("수사 재개", "resume", { if (!editor.editing) onResume() }, enabled = !state.saving, modifier = Modifier.fillMaxWidth())
+                        }
                     }
                 }
             }
-            state.session?.let { session ->
-                PaperSheet(Modifier.widthIn(max = 440.dp).fillMaxWidth().align(if (wide) Alignment.End else Alignment.CenterHorizontally)) {
-                    CLabel("CASE IN PROGRESS", dark = true)
-                    CText(state.content?.title.orEmpty(), color = CaseColors.Ink, size = 20, weight = FontWeight.Bold)
-                    // Detailed results remain behind the same parking gate as the casebook.
-                    if (state.canReadContent) CText("경유지 ${session.progress.count { it.status.isComplete }} / ${session.progress.size}", color = CaseColors.Ink.copy(alpha = .7f))
-                    EscapeButton("수사 재개", "resume", onResume, enabled = !state.saving, modifier = Modifier.fillMaxWidth())
-                }
-            }
         }
+        LobbyLayoutEditorControls(editor, Modifier.fillMaxSize())
     }
 }
 
