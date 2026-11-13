@@ -42,9 +42,13 @@ internal fun LobbyLayoutCanvas(
         var nextY = contentTopPadding.roundToPx() + 38.dp.roundToPx()
         placeables.forEachIndexed { index, placeable ->
             val resume = blocks[index] == LobbyBlock.RESUME
-            val x = if (resume && wide) {
-                if (layoutDirection == LayoutDirection.Rtl) 0 else width - placeable.width
-            } else (width - placeable.width) / 2
+            if (resume && wide) {
+                // 시안: 오른쪽 아래(오른쪽 26, 아래 30)에 겹쳐 놓는 작은 카드.
+                val rx = if (layoutDirection == LayoutDirection.Rtl) 26.dp.roundToPx() else width - placeable.width - 26.dp.roundToPx()
+                bases += rx.coerceAtLeast(0) to (viewportHeight.roundToPx() - placeable.height - 30.dp.roundToPx()).coerceAtLeast(0)
+                return@forEachIndexed
+            }
+            val x = (width - placeable.width) / 2
             bases += x to nextY
             nextY += placeable.height + when {
                 blocks[index] == LobbyBlock.ACTIONS -> 56.dp.roundToPx()

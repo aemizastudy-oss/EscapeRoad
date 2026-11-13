@@ -208,3 +208,25 @@ fun CasePausedScreen(state: GameUiState, reason: GateReason? = null) {
     GateReason.ARRIVAL_REQUIRED->R.string.gate_arrival;GateReason.COMPLETED->R.string.gate_completed;GateReason.NOT_CURRENT->R.string.gate_not_current;GateReason.STALE_EVENT->R.string.gate_stale
     GateReason.TOUR_REQUIRED->R.string.gate_tour;GateReason.UX_RESTRICTED->R.string.gate_ux;GateReason.MODE_MISMATCH->R.string.gate_mode
 }
+
+/** 캔버스 디자인 기준 크기. 모든 시안 보드는 1280x720이다. */
+const val DESIGN_WIDTH_DP = 1280f
+const val DESIGN_HEIGHT_DP = 720f
+
+/**
+ * 시안 비율(16:9)을 그대로 지키는 무대. 화면에 맞는 가장 큰 배율로 1280x720 dp 영역을 확대해 가운데 두고,
+ * 남는 위아래(또는 좌우)는 바깥 질감이 보이게 둔다. [top]은 무대 밖 위쪽 여백에 그린다(debug 개발 패널용).
+ */
+@Composable
+fun DesignStage(top: @Composable () -> Unit = {}, content: @Composable BoxScope.() -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val base = androidx.compose.ui.platform.LocalDensity.current
+        val scale = minOf(maxWidth.value / DESIGN_WIDTH_DP, maxHeight.value / DESIGN_HEIGHT_DP)
+        CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(base.density * scale, base.fontScale)) {
+            Box(Modifier.fillMaxSize()) {
+                Box(Modifier.size(DESIGN_WIDTH_DP.dp, DESIGN_HEIGHT_DP.dp).align(Alignment.Center).testTag("design-stage"), content = content)
+                Column(Modifier.align(Alignment.TopCenter).width(DESIGN_WIDTH_DP.dp).padding(horizontal = 26.dp)) { top() }
+            }
+        }
+    }
+}

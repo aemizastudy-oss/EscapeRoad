@@ -1,5 +1,6 @@
 package com.example.roadescape.ui
 
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.PathEffect
@@ -71,30 +72,32 @@ fun LobbyScreen(
         Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             LobbyLayoutCanvas(editor, wide, viewportHeight, contentTopPadding, state.session != null) { block ->
                 when (block) {
-                    LobbyBlock.WELCOME -> Text("Welcome, Detective", fontFamily = CaseFonts.Script, fontSize = 30.sp, color = CaseColors.Gold)
+                    LobbyBlock.WELCOME -> Text("Welcome, Detective", style = script(40))
                     LobbyBlock.LOGO -> Image(
                         painter = painterResource(R.drawable.pdf_logo),
                         contentDescription = "ESCAPE ROAD",
-                        modifier = Modifier.widthIn(max = 620.dp).fillMaxWidth().height(if (wide) 260.dp else 200.dp),
+                        modifier = Modifier.widthIn(max = 380.dp).fillMaxWidth().height(if (wide) 220.dp else 180.dp),
                         contentScale = ContentScale.Fit,
                     )
                     LobbyBlock.TAGLINE -> CLabel("THE DETECTIVE'S DRIVE CLUB · MMXXVI", Modifier.padding(top = 4.dp))
                     LobbyBlock.TITLE -> CText("내 차로 떠나는 방탈출 여행", size = 23, weight = FontWeight.Bold)
                     LobbyBlock.DESCRIPTION -> CText("오늘 맡으실 사건을 고르시면, 첫 번째 단서를 건네드리겠습니다.", color = CaseColors.Cream.copy(alpha = .8f), modifier = Modifier.widthIn(max = 720.dp), align = TextAlign.Center)
-                    LobbyBlock.ACTIONS -> FlowRow(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        EscapeButton("수원 관광 코스 · 5챕터", "open-suwon-tour", { if (!editor.editing) onTour() })
-                        EscapeButton("SDK 연결 상태", "open-sdk-status", { if (!editor.editing) onSdk() }, secondary = true)
-                        EscapeButton("사건 고르기", "open-cases", { if (!editor.editing) onCases() })
-                        EscapeButton("사건 기록부", "lobby-casebook", { if (!editor.editing) onCasebook() }, secondary = true)
-                        EscapeButton("저장된 수사", "lobby-archive", { if (!editor.editing) onArchive() }, secondary = true)
+                    LobbyBlock.ACTIONS -> FlowRow(Modifier.padding(top = 18.dp).widthIn(max = 600.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // 시안의 로비처럼 버튼 두 개만 둔다. SDK 연결 상태·사건 기록부·저장된 수사는 '더보기' 메뉴에 있다.
+                        EscapeButton("수원 관광 코스 · 5챕터", "open-suwon-tour", { if (!editor.editing) onTour() }, modifier = Modifier.widthIn(min = 220.dp).heightIn(min = 58.dp))
+                        EscapeButton("사건 고르기", "open-cases", { if (!editor.editing) onCases() }, secondary = true, modifier = Modifier.widthIn(min = 170.dp).heightIn(min = 58.dp))
                     }
                     LobbyBlock.RESUME -> state.session?.let { session ->
-                        PaperSheet(Modifier.widthIn(max = 440.dp).fillMaxWidth()) {
-                            CLabel("CASE IN PROGRESS", dark = true)
-                            CText(state.content?.title.orEmpty(), color = CaseColors.Ink, size = 20, weight = FontWeight.Bold)
+                        // 시안: 폭 236의 양피지 카드, -2도 기울임, 안쪽 6px 선.
+                        Column(
+                            Modifier.width(236.dp).rotate(-2f).shadow(14.dp).caseTexture(true).padding(6.dp).border(1.dp, CaseColors.ParchEdge).padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text("Case in Progress", style = smallCaps(14, CaseColors.InkLabel, .18f))
+                            Text(state.content?.title.orEmpty(), fontFamily = CaseFonts.Heading, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, lineHeight = 24.sp, color = CaseColors.Ink, textAlign = TextAlign.Center)
                             // Detailed results remain behind the same parking gate as the casebook.
-                            if (state.canReadContent) CText("경유지 ${session.progress.count { it.status.isComplete }} / ${session.progress.size}", color = CaseColors.Ink.copy(alpha = .7f))
-                            EscapeButton("수사 재개", "resume", { if (!editor.editing) onResume() }, enabled = !state.saving, modifier = Modifier.fillMaxWidth())
+                            if (state.canReadContent) Text("장소 ${session.progress.count { it.status.isComplete }} / ${session.progress.size}", fontFamily = CaseFonts.Body, fontSize = 14.sp, color = Color(0xFF5A3E2A))
+                            EscapeButton("수사 재개", "resume", { if (!editor.editing) onResume() }, enabled = !state.saving, modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp))
                         }
                     }
                 }

@@ -51,11 +51,13 @@ fun RoadEscapeApp(vm:GameViewModel,state:GameUiState,onPermissions:()->Unit={}) 
         val key="${state.session?.sessionId}:${state.session?.progress?.sumOf{it.wrongAttempts}}"
         if(state.feedback==GameFeedback.INCORRECT&&route=="puzzle/{puzzleId}"&&state.canReadContent&&key!=shownWrong){shownWrong=key;wrong=true}
     }
-    Surface(Modifier.fillMaxSize(),color=CaseColors.DeepBurgundy){Box(Modifier.safeDrawingPadding()){
+    Surface(Modifier.fillMaxSize(),color=CaseColors.DeepBurgundy){Box(Modifier.safeDrawingPadding().caseTexture()){
+        // 시안과 같은 1280x720 무대. debug 개발 패널은 무대 밖 위쪽 여백에 둔다.
+        DesignStage(top={EnvironmentPanel(vm,state)}){
         CaseFrame(Modifier.fillMaxSize(),framed=route!="start"){
             Column(Modifier.fillMaxSize().padding(horizontal=26.dp,vertical=18.dp)){
-                CaseNavigationHeader(state,route,home,back,{go("checkpoints")},{go("clues")},{menu=true})
-                EnvironmentPanel(vm,state)
+                // 시안의 로비에는 머리줄이 없다: 로비에서는 자리를 차지하지 않는 겹침 버튼만 둔다.
+                if(route!="start")CaseNavigationHeader(state,route,home,back,{go("checkpoints")},{go("clues")},{menu=true})
                 if(state.saving){LinearProgressIndicator(Modifier.fillMaxWidth().testTag("saving"),color=CaseColors.Gold);Text(stringResource(R.string.saving),style=MaterialTheme.typography.labelSmall)}
                 Box(Modifier.weight(1f).fillMaxWidth().padding(top=12.dp)){
                     val ready=!state.loading&&state.error==null
@@ -98,8 +100,10 @@ fun RoadEscapeApp(vm:GameViewModel,state:GameUiState,onPermissions:()->Unit={}) 
                         composable("locks"){if(ready)LockCollectionScreen(state,back)}
                     }
                     when{state.loading->CaseLoadingScreen();state.error!=null->CaseErrorScreen(state.error,vm::retry,begin)}
+                    if(route=="start")LobbyHeaderOverlay(state,{go("checkpoints")},{go("clues")},{menu=true},Modifier.align(Alignment.TopStart))
                 }
             }
+        }
         }
     }}
     if(menu)CaseDialog("The Detective's Desk","탐정의 책상",{menu=false}){
@@ -131,6 +135,14 @@ fun RoadEscapeApp(vm:GameViewModel,state:GameUiState,onPermissions:()->Unit={}) 
             EscapeButton(stringResource(R.string.hint_request),"wrong-hint",{wrong=false;entry?.arguments?.getString("puzzleId")?.let{go("hints/$it")}},secondary=true)
             EscapeButton("다시 시도","wrong-retry",{wrong=false})
         }
+    }
+}
+
+/** 로비 전용: 머리줄 버튼(같은 테스트 태그)을 로비 그림 위에 겹쳐 둔다. */
+@Composable private fun LobbyHeaderOverlay(state:GameUiState,onMap:()->Unit,onClues:()->Unit,onMenu:()->Unit,modifier:Modifier){
+    Row(modifier.padding(start=18.dp,top=14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){
+        if(state.session!=null){EscapeButton(stringResource(R.string.nav_case_route),"tab-checkpoints",onMap,secondary=true);EscapeButton(stringResource(R.string.nav_satchel),"tab-clues",onClues,secondary=true)}
+        EscapeButton(stringResource(R.string.nav_more),"open-menu",onMenu,secondary=true)
     }
 }
 
