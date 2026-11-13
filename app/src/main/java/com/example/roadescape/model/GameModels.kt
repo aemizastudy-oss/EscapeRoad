@@ -12,10 +12,41 @@ data class GamePackage(
     val puzzles: List<PuzzleDefinition>,
     val clues: List<ClueDefinition>,
     val requiresTour: Boolean = false,
+    /** Optional narrative layer. Packages without a story (the 3-waypoint test) keep working unchanged. */
+    val story: StoryDefinition? = null,
 )
 
 @Serializable
-data class CheckpointDefinition(val id: String, val title: String, val puzzleId: String)
+data class CheckpointDefinition(
+    val id: String,
+    val title: String,
+    val puzzleId: String,
+    /** Optional chapter narrative; never affects gates, puzzles or saved progress. */
+    val story: ChapterStory? = null,
+)
+
+/** Fiction shown around the existing tour/puzzle flow. Text only; it grants no progress. */
+@Serializable
+data class StoryDefinition(
+    val title: String,
+    val subtitle: String,
+    val prologue: String,
+    val rules: List<String> = emptyList(),
+    val ending: String,
+    val disclaimer: String,
+)
+
+/**
+ * [travelDrama] is meant for audio while moving and is only displayed while safely parked.
+ * [arrival] and [explore] are shown on arrival; the chapter's clue carries the reveal text.
+ */
+@Serializable
+data class ChapterStory(
+    val travelDrama: String,
+    val arrival: String,
+    val explore: String? = null,
+    val item: String? = null,
+)
 
 @Serializable
 data class PuzzleDefinition(

@@ -531,7 +531,12 @@ fun CaseCompletionScreen(state: GameUiState, onNew: () -> Unit, onSolution: () -
     Column(Modifier.fillMaxSize().testTag("completion").verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         Text("Case Closed", fontFamily = FontFamily.Cursive, fontSize = 37.sp, color = CaseColors.Gold)
         CText("${session.progress.size}개 경유지의 진행을 모두 마쳤어요", size = 34, weight = FontWeight.Bold)
-        CText("이번 테스트 사건의 진행을 기기에 저장했습니다. 해결한 퍼즐과 건너뛴 퍼즐은 각각의 기록으로 남습니다.", color = CaseColors.Cream.copy(alpha = .8f))
+        val story = state.content?.story
+        if (story != null) {
+            CText("${story.title}, ${story.subtitle}", size = 22, color = CaseColors.Gold)
+            CText(story.ending, color = CaseColors.Cream, modifier = Modifier.testTag("story-ending"))
+        }
+        CText("이번 사건의 진행을 기기에 저장했습니다. 해결한 퍼즐과 건너뛴 퍼즐은 각각의 기록으로 남습니다.", color = CaseColors.Cream.copy(alpha = .8f))
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val results: @Composable () -> Unit = {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -563,6 +568,7 @@ fun CaseCompletionScreen(state: GameUiState, onNew: () -> Unit, onSolution: () -
             EscapeButton("테마 평가", "open-rating", onRating, secondary = true)
             EscapeButton(stringResource(R.string.new_game), "start-new", onNew, enabled = !state.saving, secondary = true)
         }
+        state.content?.story?.let { CText(it.disclaimer, size = 13, color = CaseColors.Cream.copy(alpha = .6f)) }
     }
     }
 }

@@ -38,6 +38,7 @@ fun TourSetupScreen(
     ) {
         CaseHeading("A Journey Through Suwon", "수원 관광 여행", side = "5 CHAPTERS")
         Text("관광을 마치고 차로 돌아오면 다음 자물쇠를 엽니다.", color = CaseColors.MutedGold)
+        Text("이번 이야기 · 시역(屍疫), 물을 건너지 못하는 자들 — 1795년 화성에 퍼진 역병을 막을 백신의 재료와 비방을 물길을 따라 모읍니다.", color = CaseColors.Cream)
         PaperSheet(Modifier.fillMaxWidth()) {
             Text("이번 여행의 다섯 장소", color = CaseColors.Burgundy, style = MaterialTheme.typography.titleLarge)
             TourCatalog.checkpoints.forEachIndexed { index, waypoint ->
@@ -87,6 +88,7 @@ fun TourProgressPanel(viewModel: GameViewModel, state: GameUiState) {
         }
         Text(current.title, style = MaterialTheme.typography.titleMedium)
         Text(tourGateMessage(state.tourGate), modifier = Modifier.testTag("tour-gate"), color = CaseColors.MutedGold)
+        if (state.canReadContent) ChapterStoryBlock(state, current)
         if (state.tourError != null) {
             Text("관광 기록을 읽거나 저장하지 못했습니다. 기존 기록을 보존하고 진행을 잠시 멈췄습니다.", modifier = Modifier.testTag("tour-storage-error"))
             EscapeButton("저장 다시 확인", "tour-retry", viewModel::retry, enabled = !state.saving && !state.loading, secondary = true)
@@ -127,6 +129,43 @@ fun TourProgressPanel(viewModel: GameViewModel, state: GameUiState) {
                     secondary = true)
             }
         }
+    }
+}
+
+/**
+ * 챕터 이야기(시역). 정차·게임 허용 상태에서만 부른다. 진행 판정에는 관여하지 않는다.
+ * 첫 장소 출발 전 → 프롤로그, 도착 전 → 가는 길의 이야기, 도착 확인 후 → 도착 이야기와 둘러볼 곳.
+ */
+@Composable
+private fun ChapterStoryBlock(state: GameUiState, current: com.example.roadescape.model.CheckpointDefinition) {
+    val content = state.content ?: return
+    val chapter = current.story ?: return
+    val story = content.story
+    val first = content.checkpoints.firstOrNull()?.id == current.id
+    PaperSheet(Modifier.fillMaxWidth().testTag("chapter-story")) {
+        if (story != null && first && state.tourRecord == null) {
+            Text("${story.title}, ${story.subtitle}", color = CaseColors.Burgundy, style = MaterialTheme.typography.titleLarge)
+            Text(story.prologue, color = CaseColors.Ink, modifier = Modifier.testTag("story-prologue"))
+            story.rules.forEach { Text("· $it", color = CaseColors.Ink) }
+            HorizontalDivider(color = CaseColors.Gold)
+        }
+        when {
+            state.tourRecord != null -> {
+                Text("둘러볼 곳", color = CaseColors.Burgundy, fontWeight = FontWeight.Bold)
+                Text(chapter.explore ?: chapter.arrival, color = CaseColors.Ink)
+            }
+            state.tourStartGate == TourGate.READY -> {
+                Text("도착", color = CaseColors.Burgundy, fontWeight = FontWeight.Bold)
+                Text(chapter.arrival, color = CaseColors.Ink, modifier = Modifier.testTag("chapter-arrival"))
+                chapter.explore?.let { Text(it, color = CaseColors.Burgundy) }
+            }
+            else -> {
+                Text("가는 길의 이야기", color = CaseColors.Burgundy, fontWeight = FontWeight.Bold)
+                Text(chapter.travelDrama, color = CaseColors.Ink, modifier = Modifier.testTag("chapter-travel"))
+                Text("이동 중에는 화면을 보지 말고 운전에 집중해 주세요. 이 이야기는 정차 중에만 표시합니다.", color = CaseColors.Ink.copy(alpha = .65f), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        chapter.item?.let { Text("이 장소에서 얻을 재료 · $it", color = CaseColors.Burgundy) }
     }
 }
 

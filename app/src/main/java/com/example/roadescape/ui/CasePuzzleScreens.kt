@@ -44,7 +44,8 @@ fun ArrivalScreen(state:GameUiState,puzzleId:String,onOpen:()->Unit){
         val detail:@Composable ()->Unit={Column(verticalArrangement=Arrangement.spacedBy(22.dp)){
             Text("P · ${cp.title}",color=CaseColors.Gold)
             CaseHeading("The Seal is Broken","다음 단서를 살펴볼 시간입니다")
-            Text("도착 기록과 주차 확인을 마쳤습니다. 화면의 가상 자물쇠를 풀고 수사 기록에 단서를 남겨 보세요.",style=MaterialTheme.typography.bodyLarge,color=CaseColors.MutedGold)
+            Text(cp.story?.arrival?:"도착 기록과 주차 확인을 마쳤습니다. 화면의 가상 자물쇠를 풀고 수사 기록에 단서를 남겨 보세요.",style=MaterialTheme.typography.bodyLarge,color=CaseColors.MutedGold)
+            if(cp.story!=null)Text("자물쇠를 풀면 이 장소의 단서가 열립니다.",color=CaseColors.Cream)
             Text("모은 단서 ${session.acquiredClues.size} / ${content.clues.size}",color=CaseColors.Gold)
             EscapeButton("편지 펼쳐보기","arrival-open",onOpen)
         }}

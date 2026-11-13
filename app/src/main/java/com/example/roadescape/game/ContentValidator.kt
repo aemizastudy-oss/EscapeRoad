@@ -52,5 +52,18 @@ object ContentValidator {
         content.clues.forEach {
             if (it.title.isBlank() || it.body.isBlank()) add("단서 ${it.id}의 제목과 내용이 필요합니다.")
         }
+        content.story?.let { story ->
+            if (listOf(story.title, story.subtitle, story.prologue, story.ending, story.disclaimer).any(String::isBlank)) {
+                add("이야기의 제목·부제·프롤로그·엔딩·허구 고지가 필요합니다.")
+            }
+            if (story.rules.any(String::isBlank)) add("이야기 규칙에 빈 문장이 있습니다.")
+            content.checkpoints.forEach { checkpoint ->
+                val chapter = checkpoint.story
+                if (chapter == null) add("경유지 ${checkpoint.id}의 챕터 이야기가 없습니다.")
+                else if (chapter.travelDrama.isBlank() || chapter.arrival.isBlank() || chapter.explore?.isBlank() == true || chapter.item?.isBlank() == true) {
+                    add("경유지 ${checkpoint.id}의 챕터 이야기에 빈 문장이 있습니다.")
+                }
+            }
+        }
     }
 }
