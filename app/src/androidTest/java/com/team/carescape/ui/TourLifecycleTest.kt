@@ -14,7 +14,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.team.carescape.MainActivity
 import com.team.carescape.data.StoredTrip
 import com.team.carescape.data.TripProgressStore
+import com.team.carescape.data.TripStoreState
 import com.team.carescape.game.StoryPhase
+import com.team.carescape.game.StoryPuzzleInput
 import com.team.carescape.game.TourGate
 import com.team.carescape.model.TourMode
 import kotlinx.coroutines.runBlocking
@@ -36,6 +38,7 @@ class TourLifecycleTest {
     private lateinit var store: TripProgressStore
     private var originalMock: StoredTrip? = null
     private var originalLive: StoredTrip? = null
+    private var originalMetadata: TripStoreState? = null
 
     private val isolateMockTrip = object : ExternalResource() {
         override fun before() {
@@ -43,21 +46,26 @@ class TourLifecycleTest {
             val prior = runBlocking { store.load() }
             originalMock = prior.trips.firstOrNull { it.mode == TourMode.MOCK }
             originalLive = prior.trips.firstOrNull { it.mode == TourMode.LIVE }
+            originalMetadata = prior.copy(trips = emptyList())
             runBlocking { store.remove(TourMode.MOCK) }
         }
 
         override fun after() {
-            val liveAfterTest = runBlocking { store.load().trips.firstOrNull { it.mode == TourMode.LIVE } }
+            val afterTest = runBlocking { store.load() }
+            val liveAfterTest = afterTest.trips.firstOrNull { it.mode == TourMode.LIVE }
             try {
                 assertEquals("MOCK tests must preserve the LIVE record", originalLive, liveAfterTest)
+                assertEquals("Archived original trips must remain unchanged", originalMetadata, afterTest.copy(trips = emptyList()))
             } finally {
                 runBlocking {
+                    store.remove(TourMode.MOCK)
                     val prior = originalMock
-                    if (prior == null) store.remove(TourMode.MOCK) else store.save(prior)
+                    if (prior != null) store.save(prior)
                 }
                 val restored = runBlocking { store.load() }
                 assertEquals(originalMock, restored.trips.firstOrNull { it.mode == TourMode.MOCK })
                 assertEquals(originalLive, restored.trips.firstOrNull { it.mode == TourMode.LIVE })
+                assertEquals(originalMetadata, restored.copy(trips = emptyList()))
             }
         }
     }
@@ -89,6 +97,12 @@ class TourLifecycleTest {
         click("sdk-demo-elapse")
         awaitState { !it.saving && it.tourGate == TourGate.READY }
         click("tour-return")
+        awaitState { !it.saving && it.story?.phase == StoryPhase.PUZZLE }
+        assertTrue("Returning from tourism must not grant clues", storedMock().clues.isEmpty())
+        rule.runOnUiThread {
+            vm.changeStoryNumbers(listOf(0, 4, 2, 7))
+            vm.submitStoryPuzzle(StoryPuzzleInput.Numeric("0427"))
+        }
         awaitState { !it.saving && it.story?.phase == StoryPhase.REVEALED }
 
         val revealed = storedMock()

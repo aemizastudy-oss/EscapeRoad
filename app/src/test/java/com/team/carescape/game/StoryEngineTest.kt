@@ -80,4 +80,32 @@ class StoryEngineTest {
         val exploring = StoryEngine.leaveCar(arrived)
         assertEquals(exploring, StoryEngine.verifiedArrival(exploring))
     }
+
+    @Test fun `이전 완료 면제는 완료된 챕터 다음 이동만 허용하고 새 퍼즐은 생략하지 않는다`() {
+        val episode = StoryCatalog.episodeFor(2)
+        val retained = StoryState(episode, phase = StoryPhase.REVEALED,
+            clues = listOfNotNull(episode.chapters.first().clue), flowVersion = 2, legacyCompletedCount = 1)
+        val next = StoryEngine.next(retained)
+        assertEquals(1, next.chapterIndex)
+        assertEquals(1, next.legacyCompletedCount)
+        assertEquals(StoryPhase.EN_ROUTE, next.phase)
+        val puzzle = StoryEngine.returnToCar(StoryEngine.leaveCar(StoryEngine.verifiedArrival(next)))
+        assertEquals(StoryPhase.PUZZLE, puzzle.phase)
+        assertEquals(retained.clues, puzzle.clues)
+        assertEquals(StoryPuzzleProgress("suwon_02"), puzzle.puzzleProgressForCurrent)
+        assertEquals(puzzle, StoryEngine.next(puzzle))
+    }
+
+    @Test fun `퍼즐 오답 누적이 정수 범위를 넘지 않고 이미 해결한 기록은 다시 지급하지 않는다`() {
+        val puzzle = StoryEngine.returnToCar(StoryEngine.leaveCar(StoryEngine.verifiedArrival(
+            StoryEngine.start(StoryCatalog.episodeFor(2), 2),
+        ))).copy(puzzleProgress = listOf(StoryPuzzleProgress("suwon_01", wrongAttempts = Int.MAX_VALUE)))
+        val wrong = StoryEngine.submitPuzzle(puzzle, StoryPuzzleInput.Numeric("9999"))
+        assertEquals(Int.MAX_VALUE, wrong.state.puzzleProgressForCurrent!!.wrongAttempts)
+        val solved = StoryEngine.submitPuzzle(puzzle, StoryPuzzleInput.Numeric("0427"))
+        val forgedReplay = solved.state.copy(phase = StoryPhase.PUZZLE)
+        assertEquals(StoryPuzzleResult.LOCKED, StoryEngine.submitPuzzle(forgedReplay, StoryPuzzleInput.Numeric("0427")).result)
+        assertEquals(solved.state.items, forgedReplay.items)
+        assertEquals(solved.state.clues, forgedReplay.clues)
+    }
 }

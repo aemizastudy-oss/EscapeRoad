@@ -6,8 +6,9 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.core.DataStoreFactory
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStoreFile
-import com.team.carescape.game.Siyeok
+import com.team.carescape.game.StoryCatalog
 import com.team.carescape.game.StoryPhase
+import com.team.carescape.game.StoryPuzzleProgress
 import com.team.carescape.game.TourCatalog
 import com.team.carescape.model.TourMode
 import com.team.carescape.model.TourStartRecord
@@ -16,6 +17,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.charset.CharacterCodingException
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,14 +43,19 @@ data class StoredTrip(
     val startedAtEpochMillis: Long,
     val showMap: Boolean = false,
     val tourRecords: List<TourStartRecord> = emptyList(),
+    val flowVersion: Int = 1,
+    val legacyCompletedCount: Int = 0,
+    val puzzleProgress: List<StoryPuzzleProgress> = emptyList(),
+    val legacySourceSessionId: String? = null,
 )
 
 @Serializable
 data class TripStoreState(
     val schemaVersion: Int = CURRENT_SCHEMA_VERSION,
     val trips: List<StoredTrip> = emptyList(),
+    val archivedTrips: List<StoredTrip> = emptyList(),
 ) {
-    companion object { const val CURRENT_SCHEMA_VERSION = 1 }
+    companion object { const val CURRENT_SCHEMA_VERSION = 2 }
 }
 
 enum class TripStorageFailure { CORRUPT, UNSUPPORTED_SCHEMA, INVALID_STATE, READ_WRITE }
@@ -74,13 +81,16 @@ object TripStateSerializer : Serializer<TripStoreState> {
             val bytes = input.readBounded(MAX_BYTES)
             val text = bytes.decodeToString(throwOnInvalidSequence = true)
             val root = json.parseToJsonElement(text).jsonObject
-            val schema = root["schemaVersion"]?.jsonPrimitive?.intOrNull
+            val schemaValue = root["schemaVersion"]?.jsonPrimitive
+            val schema = schemaValue?.takeIf { !it.isString }?.intOrNull
                 ?: throw CorruptionException("여행 기록 버전 항목이 없습니다.")
-            if (schema != TripStoreState.CURRENT_SCHEMA_VERSION) {
+            if (schema !in 1..TripStoreState.CURRENT_SCHEMA_VERSION) {
                 throw TripStorageException(TripStorageFailure.UNSUPPORTED_SCHEMA)
             }
             if (!root.containsKey("trips")) throw CorruptionException("여행 기록 목록이 없습니다.")
-            return json.decodeFromString<TripStoreState>(text).also(::validateTripState)
+            val decoded = json.decodeFromString<TripStoreState>(text)
+            // No DataStore migration/writer is installed: this is an in-memory read adapter only.
+            return (if (schema == 1) migrateLegacyTripState(decoded) else decoded).also(::validateTripState)
         } catch (error: TripStorageException) {
             throw error
         } catch (error: SerializationException) {
@@ -117,11 +127,20 @@ internal fun validateTripState(state: TripStoreState) {
     }
     requireValid(state.trips.size <= TourMode.entries.size)
     requireValid(state.trips.map { it.mode }.distinct().size == state.trips.size)
-    state.trips.forEach(::validateStoredTrip)
+    requireValid(state.archivedTrips.size <= TourMode.entries.size)
+    requireValid(state.archivedTrips.map { it.mode }.distinct().size == state.archivedTrips.size)
+    state.archivedTrips.forEach { archived ->
+        requireValid(archived.flowVersion == StoryCatalog.LEGACY_FLOW_VERSION)
+        validateStoredTrip(archived)
+    }
+    state.trips.forEach { validateStoredTrip(it, state.archivedTrips) }
 }
 
-internal fun validateStoredTrip(trip: StoredTrip) {
-    val episode = Siyeok.episode
+internal fun validateStoredTrip(trip: StoredTrip, archivedTrips: List<StoredTrip> = emptyList()) {
+    if (trip.flowVersion !in StoryCatalog.LEGACY_FLOW_VERSION..StoryCatalog.CURRENT_FLOW_VERSION) {
+        throw TripStorageException(TripStorageFailure.UNSUPPORTED_SCHEMA)
+    }
+    val episode = StoryCatalog.episodeFor(trip.flowVersion)
     requireValid(trip.episodeId == episode.id)
     requireValid(trip.sessionId.isNotBlank() && trip.sessionId.length <= 128)
     requireValid(trip.chapterIndex in episode.chapters.indices)
@@ -135,10 +154,41 @@ internal fun validateStoredTrip(trip: StoredTrip) {
         requireValid(entries.distinct().size == entries.size)
         requireValid(entries.all { it.isNotBlank() && it.length <= 4096 })
     }
-    val completedCount = when (trip.phase) {
-        StoryPhase.REVEALED, StoryPhase.FINAL_REVEAL -> trip.chapterIndex + 1
-        StoryPhase.ENDED -> episode.chapters.size
-        else -> trip.chapterIndex
+    val completedCount = StoryCatalog.completedCount(trip.chapterIndex, trip.phase, episode.chapters.size)
+    requireValid(trip.legacyCompletedCount in 0..completedCount)
+    if (trip.flowVersion == StoryCatalog.LEGACY_FLOW_VERSION) {
+        requireValid(trip.phase != StoryPhase.PUZZLE && trip.legacyCompletedCount == 0 &&
+            trip.puzzleProgress.isEmpty() && trip.legacySourceSessionId == null)
+    } else {
+        val sourceId = trip.legacySourceSessionId
+        if (sourceId == null) requireValid(trip.legacyCompletedCount == 0)
+        else {
+            val source = archivedTrips.singleOrNull { it.mode == trip.mode && it.sessionId == sourceId }
+                ?: throw TripStorageException(TripStorageFailure.INVALID_STATE)
+            requireValid(source.flowVersion == StoryCatalog.LEGACY_FLOW_VERSION)
+            requireValid(trip.sessionId == integratedSessionId(source) && trip.sessionId != source.sessionId)
+            requireValid(trip.episodeId == source.episodeId && trip.startedAtEpochMillis == source.startedAtEpochMillis)
+            requireValid(trip.legacyCompletedCount == StoryCatalog.completedCount(
+                source.chapterIndex, source.phase, StoryCatalog.episodeFor(source.flowVersion).chapters.size,
+            ))
+            requireValid(trip.items.take(source.items.size) == source.items && trip.clues.take(source.clues.size) == source.clues)
+        }
+        requireValid(episode.chapters.all { it.puzzle != null })
+        requireValid(trip.puzzleProgress.size <= episode.chapters.size)
+        requireValid(trip.puzzleProgress.map { it.checkpointId }.distinct().size == trip.puzzleProgress.size)
+        trip.puzzleProgress.forEach { progress ->
+            val index = TourCatalog.checkpoints.indexOfFirst { it.id == progress.checkpointId }
+            requireValid(index in trip.legacyCompletedCount..trip.chapterIndex)
+            val puzzle = episode.chapters[index].puzzle!!
+            requireValid(progress.wrongAttempts >= 0 && progress.hintsShown in 0..puzzle.hints.size)
+            requireValid(progress.solved == (index < completedCount))
+            if (!progress.solved) requireValid(index == trip.chapterIndex && trip.phase == StoryPhase.PUZZLE)
+        }
+        val solvedIds = trip.puzzleProgress.filter { it.solved }.map { it.checkpointId }.toSet()
+        requireValid(TourCatalog.checkpoints.subList(trip.legacyCompletedCount, completedCount).all { it.id in solvedIds })
+        if (trip.phase == StoryPhase.PUZZLE) requireValid(trip.puzzleProgress.any {
+            it.checkpointId == TourCatalog.checkpoints[trip.chapterIndex].id && !it.solved
+        })
     }
     val completed = episode.chapters.take(completedCount)
     requireValid(trip.items == completed.mapNotNull { it.item })
@@ -148,23 +198,64 @@ internal fun validateStoredTrip(trip: StoredTrip) {
     trip.tourRecords.forEach { record ->
         requireValid(record.sessionId == trip.sessionId && record.mode == trip.mode)
         val index = TourCatalog.checkpoints.indexOfFirst { it.id == record.checkpointId }
-        requireValid(index in 0..trip.chapterIndex)
+        requireValid(index in trip.legacyCompletedCount..trip.chapterIndex)
         requireValid(record.startedAt.wallTimeMillis > 0 && record.startedAt.elapsedRealtimeMillis >= 0)
         requireValid(record.startedAt.bootId.isNotBlank() && record.startedAt.bootId.length <= 128)
         requireValid(!record.debugTimeBypass || trip.mode == TourMode.MOCK)
     }
-    val requiredStarts = if (trip.phase == StoryPhase.EXPLORING) trip.chapterIndex + 1 else completedCount
+    val requiredStarts = if (trip.phase in listOf(StoryPhase.EXPLORING, StoryPhase.PUZZLE)) trip.chapterIndex + 1 else completedCount
     val startedIds = trip.tourRecords.map { it.checkpointId }.toSet()
-    requireValid(TourCatalog.checkpoints.take(requiredStarts).all { it.id in startedIds })
+    requireValid(TourCatalog.checkpoints.subList(trip.legacyCompletedCount, requiredStarts).all { it.id in startedIds })
 }
+
+/** Keep all original records in the archive; the current unfinished tour must start anew. */
+internal fun migrateLegacyTripState(previous: TripStoreState): TripStoreState {
+    requireValid(previous.schemaVersion == 1 && previous.archivedTrips.isEmpty())
+    requireValid(previous.trips.size <= TourMode.entries.size)
+    requireValid(previous.trips.map { it.mode }.distinct().size == previous.trips.size)
+    previous.trips.forEach {
+        requireValid(it.flowVersion == StoryCatalog.LEGACY_FLOW_VERSION)
+        validateStoredTrip(it)
+    }
+    return TripStoreState(
+        trips = previous.trips.map { old ->
+            old.copy(
+                sessionId = integratedSessionId(old),
+                flowVersion = StoryCatalog.CURRENT_FLOW_VERSION,
+                legacyCompletedCount = StoryCatalog.completedCount(
+                    old.chapterIndex, old.phase, StoryCatalog.episodeFor(old.flowVersion).chapters.size,
+                ),
+                phase = if (old.phase == StoryPhase.EXPLORING) StoryPhase.ARRIVED else old.phase,
+                showMap = if (old.phase == StoryPhase.EXPLORING) false else old.showMap,
+                tourRecords = emptyList(),
+                puzzleProgress = emptyList(),
+                legacySourceSessionId = old.sessionId,
+            )
+        },
+        archivedTrips = previous.trips.toList(),
+    ).also(::validateTripState)
+}
+
+private fun integratedSessionId(source: StoredTrip): String = UUID.nameUUIDFromBytes(
+    "v04:${source.mode.name}:${source.sessionId}".toByteArray(Charsets.UTF_8),
+).toString()
 
 /** An already persisted start remains immutable even if a duplicate UI command arrives. */
 internal fun upsertTrip(previous: TripStoreState, trip: StoredTrip): TripStoreState {
     validateTripState(previous)
-    validateStoredTrip(trip)
+    validateStoredTrip(trip, previous.archivedTrips)
     val old = previous.trips.firstOrNull { it.mode == trip.mode }
     if (old != null && old.sessionId == trip.sessionId) {
         requireValid(old.episodeId == trip.episodeId && old.startedAtEpochMillis == trip.startedAtEpochMillis)
+        requireValid(old.flowVersion == trip.flowVersion && old.legacyCompletedCount == trip.legacyCompletedCount)
+        requireValid(old.legacySourceSessionId == trip.legacySourceSessionId)
+        requireValid(trip.chapterIndex >= old.chapterIndex)
+        if (trip.chapterIndex == old.chapterIndex) requireValid(trip.phase.ordinal >= old.phase.ordinal)
+        old.puzzleProgress.forEach { saved ->
+            val next = trip.puzzleProgress.firstOrNull { it.checkpointId == saved.checkpointId }
+            requireValid(next != null && next.wrongAttempts >= saved.wrongAttempts && next.hintsShown >= saved.hintsShown)
+            requireValid(next != null && (!saved.solved || next.solved))
+        }
         old.tourRecords.forEach { saved ->
             val next = trip.tourRecords.firstOrNull { it.key == saved.key }
             requireValid(next != null && next.startedAt == saved.startedAt)

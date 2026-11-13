@@ -31,7 +31,7 @@ object ThemeCatalog {
             playTime = "반나절 · 장소 5곳",
             description = "1795년 화성에 퍼진 역병. 물길을 따라 치료제의 재료와 비방을 모아 백신을 전달한다.",
             episode = null,
-            story = Siyeok.episode,
+            story = IntegratedSiyeok.episode,
             playable = true,
         ),
         // 아래 테마는 시연용으로 카드만 보여 준다(2026-11-12 팀 결정). 콘텐츠와 테스트는 보존한다.

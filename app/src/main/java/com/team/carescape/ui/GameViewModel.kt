@@ -36,6 +36,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private var mockLocation: TourLocation? = null
     private var mockWaypointId: String? = null
     private var mockParked: Boolean? = null
+    private var puzzleDraftIdentity: String? = null
     private var liveSafety by mutableStateOf(TourSafety(false, false, false, false))
     private val bootId = runCatching {
         "boot:${Settings.Global.getInt(application.contentResolver, Settings.Global.BOOT_COUNT)}"
@@ -45,6 +46,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var lockWorkshop by mutableStateOf(LockWorkshopState())
         private set
+    var storyPuzzleDraft by mutableStateOf(StoryPuzzleDraft())
+        private set
+    var storyPuzzleMessage by mutableStateOf<String?>(null)
+        private set
+    val storyPuzzle: StoryPuzzleDefinition? get() = story?.currentPuzzle
+    val storyPuzzleProgress: StoryPuzzleProgress? get() = story?.puzzleProgressForCurrent
     var selectedCard by mutableStateOf(ThemeCatalog.cards.first())
         private set
     var game by mutableStateOf<GameState?>(null)
@@ -125,7 +132,17 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun applyStored(value: StoredTrip?) {
-        story = value?.let { StoryState(Siyeok.episode, it.chapterIndex, it.phase, it.items, it.clues) }
+        val identity = value?.let { "${it.sessionId}:${it.chapterIndex}:${it.phase}" }
+        if (identity != puzzleDraftIdentity) {
+            puzzleDraftIdentity = identity
+            storyPuzzleDraft = StoryPuzzleDraft()
+            storyPuzzleMessage = null
+        }
+        story = value?.let {
+            StoryState(StoryCatalog.episodeFor(it.flowVersion), it.chapterIndex, it.phase, it.items, it.clues,
+                flowVersion = it.flowVersion, legacyCompletedCount = it.legacyCompletedCount,
+                puzzleProgress = it.puzzleProgress)
+        }
         storyStartedAtMs = value?.startedAtEpochMillis ?: 0L
         showMap = value?.showMap ?: false
     }
@@ -177,6 +194,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (!value) {
             mockParked = null; mockLocation = null; mockWaypointId = null
             vehicle = VehicleState(); pendingNarration = null
+            storyPuzzleDraft = StoryPuzzleDraft(); storyPuzzleMessage = null
             runtime.stopAudio()
         }
         runtime.setForeground(value)
@@ -192,6 +210,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         safetyRevision++
         runtime.stopAudio()
         pendingNarration = null; mockLocation = null; mockWaypointId = null; mockParked = null
+        storyPuzzleDraft = StoryPuzzleDraft(); storyPuzzleMessage = null; puzzleDraftIdentity = null
         vehicle = VehicleState(); story = null; trip = null; game = null
         mode = next; loading = true
         commands.trySend { loadCurrentMode() }
@@ -228,6 +247,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val saved = store.save(next)
             if (mode == requestedMode) {
                 trip = saved; applyStored(saved)
+                // Publish the new start clock and gate before exposing the completed save.
+                refreshTour()
                 if (revision == safetyRevision && screen == sourceScreen && parked) afterSave?.invoke()
             }
         }
@@ -304,6 +325,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             if (it != null && it.phase != StoryPhase.ENDED) it else StoredTrip(
                 mode = mode, sessionId = UUID.randomUUID().toString(), chapterIndex = 0,
                 phase = StoryPhase.EN_ROUTE, startedAtEpochMillis = System.currentTimeMillis(), showMap = true,
+                flowVersion = StoryCatalog.CURRENT_FLOW_VERSION,
             )
         }
     }
@@ -355,7 +377,73 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (tourGate != TourGate.READY || story?.phase != StoryPhase.EXPLORING) return
         changeTrip { old ->
             if (old == null || TourPolicy.unlockGate(record(), mode, currentWaypoint!!, location(), safety(), now()) != TourGate.READY) null
-            else StoryEngine.returnToCar(story!!).let { old.copy(phase = it.phase, items = it.items, clues = it.clues) }
+            else StoryEngine.returnToCar(story!!).let {
+                old.copy(phase = it.phase, items = it.items, clues = it.clues, puzzleProgress = it.puzzleProgress)
+            }
+        }
+    }
+
+    /** Draft changes are local and never grant a clue or write a puzzle result. */
+    private fun canEditStoryPuzzle(): Boolean = parked && !saving && !loading &&
+        storageError == null && screen == Screen.STORY && story?.phase == StoryPhase.PUZZLE &&
+        tourGate == TourGate.READY && storyPuzzleProgress?.solved == false
+
+    fun changeStoryNumbers(value: List<Int>) {
+        if (!canEditStoryPuzzle() || storyPuzzle?.lock !is StoryLockDefinition.Numeric ||
+            value.size != 4 || value.any { it !in 0..9 }) return
+        storyPuzzleDraft = storyPuzzleDraft.copy(numbers = value.toList())
+        storyPuzzleMessage = null
+    }
+    fun changeStoryDirections(value: List<LockDirection>) {
+        if (!canEditStoryPuzzle() || storyPuzzle?.lock !is StoryLockDefinition.Directions) return
+        storyPuzzleDraft = storyPuzzleDraft.copy(directions = value.toList())
+        storyPuzzleMessage = null
+    }
+    fun changeStoryDevice(channel: Int, level: Int) {
+        val lock = storyPuzzle?.lock as? StoryLockDefinition.Device ?: return
+        if (!canEditStoryPuzzle() || channel !in lock.min..lock.max || level !in lock.min..lock.max) return
+        storyPuzzleDraft = storyPuzzleDraft.copy(channel = channel, level = level)
+        storyPuzzleMessage = null
+    }
+    private fun draftInput(): StoryPuzzleInput? = when (storyPuzzle?.lock) {
+        is StoryLockDefinition.Numeric -> StoryPuzzleInput.Numeric(storyPuzzleDraft.numbers.joinToString(""))
+        is StoryLockDefinition.Directions -> StoryPuzzleInput.Directions(storyPuzzleDraft.directions.toList())
+        is StoryLockDefinition.Device -> StoryPuzzleInput.Device(storyPuzzleDraft.channel, storyPuzzleDraft.level)
+        null -> null
+    }
+
+    /** Submits a snapshot only; refresh location/safety again at the serialized mutation boundary. */
+    fun submitStoryPuzzle(input: StoryPuzzleInput) {
+        refreshTour()
+        if (!canEditStoryPuzzle() || input != draftInput()) return
+        val puzzleId = storyPuzzle?.id ?: return
+        var outcome = StoryPuzzleResult.LOCKED
+        changeTrip(afterSave = {
+            storyPuzzleMessage = when (outcome) {
+                StoryPuzzleResult.CORRECT -> "자물쇠가 열렸습니다. 단서를 저장했습니다."
+                StoryPuzzleResult.WRONG -> "아직 열리지 않았습니다. 단서를 다시 살펴보세요."
+                StoryPuzzleResult.INVALID_INPUT -> "입력 개수와 값을 확인한 뒤 제출해 주세요."
+                StoryPuzzleResult.LOCKED -> "현재 문제와 이용 조건을 다시 확인해 주세요."
+            }
+        }) { old ->
+            if (old == null || story?.currentPuzzle?.id != puzzleId || story?.phase != StoryPhase.PUZZLE ||
+                TourPolicy.unlockGate(record(), mode, currentWaypoint!!, location(), safety(), now()) != TourGate.READY) null
+            else {
+                val result = StoryEngine.submitPuzzle(story!!, input)
+                outcome = result.result
+                old.copy(phase = result.state.phase, items = result.state.items, clues = result.state.clues,
+                    puzzleProgress = result.state.puzzleProgress)
+            }
+        }
+    }
+    fun showStoryPuzzleHint() {
+        refreshTour()
+        if (!canEditStoryPuzzle()) return
+        val puzzleId = storyPuzzle?.id ?: return
+        changeTrip { old ->
+            if (old == null || story?.currentPuzzle?.id != puzzleId ||
+                TourPolicy.unlockGate(record(), mode, currentWaypoint!!, location(), safety(), now()) != TourGate.READY) null
+            else old.copy(puzzleProgress = StoryEngine.showPuzzleHint(story!!).puzzleProgress)
         }
     }
     fun storyNext() {
@@ -363,7 +451,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         changeTrip { old -> old?.let {
             val next = StoryEngine.next(story!!)
             it.copy(chapterIndex = next.chapterIndex, phase = next.phase, items = next.items, clues = next.clues,
-                showMap = next.phase == StoryPhase.EN_ROUTE)
+                showMap = next.phase == StoryPhase.EN_ROUTE, puzzleProgress = next.puzzleProgress)
         } }
     }
     fun replayDrama() { if (parked) story?.let { pendingNarration = it.chapter.travelDrama } }
@@ -411,7 +499,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
 /** 프롤로그를 시안처럼 세 쪽으로 나눈다. */
 fun prologuePagesOf(ep: StoryEpisode): List<String> =
-    if (ep.id != "siyeok") listOf(ep.prologue)
+    if (ep.rules.isNotEmpty()) listOf(ep.prologue) + ep.rules.map { "이야기의 규칙\n$it" }
+    else if (ep.id != "siyeok") listOf(ep.prologue)
     else listOf(
         "\"요원, 브리핑을 시작한다. 1795년 윤2월, 화성에 정체불명의 역병이 돌았다.\n죽은 자가 다시 일어나는 병이다.\"",
         "\"당시 내의원이 치료제의 비방을 만들었지만, 기록은 흩어졌고 약은 끝내 쓰이지 못했다.\n그 결과 역사가 무너지고 있다.\"",

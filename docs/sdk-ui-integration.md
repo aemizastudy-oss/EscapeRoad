@@ -1,5 +1,7 @@
 # 기존 시역 UI와 Pleos SDK 연결
 
+> 이 문서는 2026-11-13 SDK 연결 당시의 검증 기록입니다. v0.4에서는 SDK·안전 경계를 유지하면서 관광 후 자물쇠 제출과 schema 2 원본 보관·재개를 추가했습니다. 현재 흐름과 최종 검증은 [README](../README.md)와 [검증 로그](verification-log.md)의 v0.4 절을 따릅니다.
+
 작성일: 2026-11-13. **Debug·Release 빌드 / JVM 44개·기기 UI 3개 통과 / Lint 오류 0개**를 확인했다. 아래의 코드 연결 설명을 실제 차량·길 안내·발화·방문 인증 성공으로 해석하지 않는다. 실제 검증 범위와 이전 SIM 시연 기록은 [verification-log.md](verification-log.md)에 구분해 보존한다.
 
 ## 적용 기준과 보존 범위

@@ -135,14 +135,7 @@ fun StoryBriefingScreen(vm: GameViewModel) {
                 }
                 Text("${ep.title}, ${ep.subtitle}", Modifier.padding(top = 4.dp), style = Esc.nanum(32, Esc.ink))
                 Text("Dear Agent,", style = Esc.pinyon(30, Esc.wine, 1.2f))
-                Text(
-                    "1795년 윤2월, 혜경궁의 회갑연을 앞둔 화성에 정체불명의 역병이 돌았다. 죽은 자가 다시 일어나는 병, 시역(屍疫)이다. 내의원이 치료제의 비방을 만들었지만 기록은 흩어졌고, 약은 끝내 쓰이지 못했다. 그 결과 역사가 무너지고 있다.",
-                    style = Esc.noto(16, Esc.inkBody, lineHeight = 1.8f),
-                )
-                Text(
-                    "1795년으로 건너가 비방과 재료를 모으고, 백신을 완성해 전달하라. 첫 번째 실마리는 왕의 어머니를 위한 잔치가 열린 곳에 있다.",
-                    style = Esc.noto(16, Esc.inkBody, lineHeight = 1.8f),
-                )
+                Text(ep.prologue, style = Esc.noto(16, Esc.inkBody, lineHeight = 1.8f))
                 Box(Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text("— 시간 조사국", style = Esc.noto(15, Esc.inkSoft))
@@ -164,7 +157,7 @@ fun StoryBriefingScreen(vm: GameViewModel) {
                             }
                             Column(Modifier.padding(top = 4.dp)) {
                                 Text(if (i == ep.finalChapterIndex) "???" else c.place, style = Esc.noto(16, weight = FontWeight.Bold, lineHeight = 1.3f))
-                                Text(looks[i].routeNote, style = Esc.noto(13, Esc.label, lineHeight = 1.3f))
+                                Text(if (i == ep.finalChapterIndex) "단서를 모으면 공개" else c.concept, style = Esc.noto(13, Esc.label, lineHeight = 1.3f))
                             }
                         }
                     }
@@ -178,7 +171,7 @@ fun StoryBriefingScreen(vm: GameViewModel) {
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text("Rules of the Plague", style = Esc.cormorant(13))
-                    listOf("시귀는 흐르는 물을 건너지 못한다", "시귀는 해가 지면 깨어난다", "시귀는 소리에 몰려든다").forEach {
+                    ep.rules.forEach {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("·", style = Esc.noto(14, Esc.gold))
                             Text(it, style = Esc.noto(14))
@@ -288,6 +281,7 @@ fun StoryScreen(vm: GameViewModel, narrator: Narrator?) {
         StoryPhase.EN_ROUTE -> StoryDrivingScreen(s) { EnRouteActions(s, vm, narrator) }
         StoryPhase.ARRIVED -> ArrivalScreen(s, vm)
         StoryPhase.EXPLORING -> ExploringScreen(s, vm)
+        StoryPhase.PUZZLE -> StoryPuzzleScreen(vm)
         StoryPhase.REVEALED -> RevealScreen(s, vm)
         StoryPhase.FINAL_REVEAL -> FinalRevealScreen(s, vm)
         StoryPhase.ENDED -> EndingScreen(s, vm)
@@ -351,8 +345,8 @@ private fun TripMapScreen(s: StoryState, vm: GameViewModel) {
                             else -> s.episode.chapters[i].place
                         }
                         val note = when (st) {
-                            NodeState.SOLVED -> l.solvedNote
-                            NodeState.CURRENT -> l.currentNote
+                            NodeState.SOLVED -> s.episode.chapters[i].revealTitle
+                            NodeState.CURRENT -> "${s.episode.chapters[i].place} · 수사 중"
                             NodeState.LOCKED -> if (isFinal) "단서를 모으면 공개" else "봉인됨"
                         }
                         val color = when (st) { NodeState.SOLVED -> Esc.ink; NodeState.CURRENT -> Esc.seal; NodeState.LOCKED -> Color(0xFF6A5A44) }
@@ -379,7 +373,7 @@ private fun TripMapScreen(s: StoryState, vm: GameViewModel) {
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 val name = if (st == NodeState.LOCKED) (if (isFinal && !finalShown) "???" else "장소 ${i + 1}") else s.episode.chapters[i].place
                                 Text(name, style = Esc.noto(16, c, FontWeight.Bold, 1.2f))
-                                Text(if (st == NodeState.LOCKED && !isFinal) "?" else l.listNote, style = Esc.noto(13, Esc.label, lineHeight = 1.2f))
+                                Text(if (st == NodeState.LOCKED) "?" else s.episode.chapters[i].revealTitle, style = Esc.noto(13, Esc.label, lineHeight = 1.2f))
                             }
                             Text(when (st) { NodeState.SOLVED -> "해결"; NodeState.CURRENT -> "다음 목적지"; NodeState.LOCKED -> "봉인됨" }, style = Esc.noto(14, c))
                         }
@@ -523,7 +517,8 @@ private fun ArrivalScreen(s: StoryState, vm: GameViewModel) {
                     listOf(0.92f, 0.78f, 0.86f, 0.60f).forEach { Box(Modifier.fillMaxWidth(it).height(10.dp).background(Color(90, 62, 42).copy(alpha = 0.22f))) }
                     Box(Modifier.weight(1f))
                     Text(
-                        "관광을 마치고 복귀 조건을 확인하면 ${withSubject(l.letter)} 열립니다",
+                        if (s.currentPuzzle != null) "관광 후 차로 돌아와 자물쇠를 풀면 단서가 열립니다"
+                        else "관광을 마치고 복귀 조건을 확인하면 ${withSubject(l.letter)} 열립니다",
                         style = Esc.noto(13, Esc.inkSoft),
                     )
                 }
@@ -532,8 +527,8 @@ private fun ArrivalScreen(s: StoryState, vm: GameViewModel) {
                 AwakeningGauge(0)
                 ParkBadge("장소 ${s.chapterIndex + 1} / ${s.episode.chapters.size} · ${c.place} 도착", boxed = true)
                 Text(l.script, style = Esc.pinyon(42))
-                Text(l.headline, style = Esc.nanum(40, lineHeight = 1.3f))
-                Text(l.body, style = Esc.noto(17, Esc.creamMuted, lineHeight = 1.75f))
+                Text("${c.place}에 도착했습니다", style = Esc.nanum(40, lineHeight = 1.3f))
+                Text(c.arrival, style = Esc.noto(17, Esc.creamMuted, lineHeight = 1.75f))
                 if (c.explore != null) Text(c.explore, style = Esc.noto(15, Esc.creamSoft))
                 Text("모든 장소에서 관광 시작을 저장하고 최소 15분 후 복귀 위치·안전 상태를 다시 확인합니다.", style = Esc.noto(14, Esc.creamSoft))
                 Text(tourGateMessage(vm.tourStartGate), Modifier.testTag("tour-start-reason"), style = Esc.noto(14, Esc.gold))
@@ -558,6 +553,7 @@ private fun ExploringScreen(s: StoryState, vm: GameViewModel) {
             Text("${withObject(s.chapter.place)} 둘러보는 중", style = Esc.nanum(52, lineHeight = 1.2f))
             Text(s.chapter.explore ?: "마지막 장소도 최소 15분 둘러본 뒤 차량으로 돌아와 주세요.", Modifier.widthIn(max = 900.dp), style = Esc.noto(22, Esc.creamMuted, lineHeight = 1.6f), textAlign = TextAlign.Center)
             Text("차 문을 잠그고, 걸을 때는 주변을 살펴 주세요.", style = Esc.noto(16, Esc.creamSoft))
+            if (s.currentPuzzle != null) Text("차로 돌아와 관광 조건을 확인하면 자물쇠를 풉니다. 정답을 제출해야 단서가 열립니다.", style = Esc.noto(16, Esc.gold), textAlign = TextAlign.Center)
             Text(tourRemainingMessage(vm.tourRemainingMillis), Modifier.testTag("tour-remaining"), style = Esc.noto(20, Esc.gold))
             Text(tourGateMessage(vm.tourGate), Modifier.testTag("tour-unlock-reason"), style = Esc.noto(15, Esc.creamSoft))
             ParchmentButton("차로 돌아왔어요", vm::returnToCar, Modifier.testTag("tour-return"),
@@ -579,7 +575,7 @@ private fun RevealScreen(s: StoryState, vm: GameViewModel) {
             Box(Modifier.weight(1f).height(520.dp)) {
                 CompassBackdrop(Modifier.size(520.dp))
                 Column(
-                    Modifier.offset(80.dp, 40.dp).size(360.dp, 430.dp).rotate(-4f).shadow(20.dp).parchment().padding(28.dp),
+                    Modifier.offset(80.dp, 40.dp).size(360.dp, 430.dp).rotate(-4f).shadow(20.dp).parchment().padding(28.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Text("Fragment ${roman(s.chapterIndex + 1)} · ${l.tag}", style = Esc.cormorant(13, Esc.inkLabel))
@@ -589,7 +585,7 @@ private fun RevealScreen(s: StoryState, vm: GameViewModel) {
                 }
                 WaxSeal(Modifier.offset(360.dp, 390.dp).size(96.dp))
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 AwakeningGauge(0)
                 ParkBadge("장소 ${s.chapterIndex + 1} / ${s.episode.chapters.size} · ${c.place}", boxed = true)
                 Text("The Seal is Broken", style = Esc.pinyon(42))
@@ -598,7 +594,7 @@ private fun RevealScreen(s: StoryState, vm: GameViewModel) {
                 Text("다음 행선지 · ${c.next ?: "??? — 모은 단서로 백신을 전달할 곳을 찾아야 합니다"}", style = Esc.noto(17, Esc.creamMuted, lineHeight = 1.6f))
                 MaterialsRow(ingredientCount(s))
                 Box(Modifier.padding(top = 6.dp)) {
-                    ParchmentButton(if (c.next == null) "모은 단서 펼쳐 보기" else "다음 장소 경로 보기", vm::storyNext, minWidth = 260.dp)
+                    ParchmentButton(if (c.next == null) "모은 단서 펼쳐 보기" else "다음 장소 경로 보기", vm::storyNext, enabled = vm.parked && !vm.loading && !vm.saving, minWidth = 260.dp)
                 }
             }
         }
@@ -618,7 +614,7 @@ private fun FinalRevealScreen(s: StoryState, vm: GameViewModel) {
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("The Four Clues", style = Esc.pinyon(34))
-                    Text("모은 단서", style = Esc.nanum(30))
+                    Text(s.episode.finalRevealTitle, style = Esc.nanum(30))
                 }
                 Box(Modifier.weight(1f))
                 Text("Case No. 03", style = Esc.cormorant(15))
@@ -627,7 +623,7 @@ private fun FinalRevealScreen(s: StoryState, vm: GameViewModel) {
                 Modifier.weight(1f).fillMaxWidth().shadow(18.dp).parchment().drawBehind {
                     val i = 10.dp.toPx()
                     drawRect(Esc.parchEdge, Offset(i, i), Size(size.width - 2 * i, size.height - 2 * i), style = Stroke(1.dp.toPx()))
-                }.padding(horizontal = 36.dp, vertical = 14.dp),
+                }.padding(horizontal = 36.dp, vertical = 14.dp).verticalScroll(rememberScrollState()),
             ) {
                 s.clues.forEachIndexed { i, clue ->
                     Row(
@@ -640,14 +636,14 @@ private fun FinalRevealScreen(s: StoryState, vm: GameViewModel) {
                             Text(s.episode.chapters[i].place, style = Esc.nanum(18, Esc.ink))
                             Text("단서 ${i + 1}", style = Esc.noto(13, Esc.inkSoft))
                         }
-                        Text(clue, Modifier.width(300.dp), style = Esc.nanum(17, Esc.seal, lineHeight = 1.4f))
-                        Text(looks[i].meaning, Modifier.weight(1f), style = Esc.noto(14, Esc.inkBody, lineHeight = 1.6f))
+                        Text(clue, Modifier.weight(1f), style = Esc.nanum(17, Esc.seal, lineHeight = 1.4f))
+                        Text(s.episode.chapters[i].concept, Modifier.width(220.dp), style = Esc.noto(14, Esc.inkBody, lineHeight = 1.6f))
                     }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 Text(s.episode.finalRevealText, Modifier.weight(1f), style = Esc.noto(15, Esc.creamMuted, lineHeight = 1.6f))
-                ParchmentButton("${target.place} 경로 보기", vm::storyNext, minWidth = 280.dp)
+                ParchmentButton("${target.place} 경로 보기", vm::storyNext, enabled = vm.parked && !vm.loading && !vm.saving, minWidth = 280.dp)
             }
         }
     }
@@ -662,17 +658,18 @@ private fun EndingScreen(s: StoryState, vm: GameViewModel) {
     val sec = ((now - vm.storyStartedAtMs) / 1000).coerceAtLeast(0)
     GoldFrame {
         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("Mission Complete", style = Esc.pinyon(44))
                 Text("임무 완료 · 진 엔딩", style = Esc.nanum(44))
                 Text(
-                    "약병이 열리고, 백신이 물을 타고 퍼져 나갑니다. 물로 이어진 고을 곳곳에서 쓰러졌던 사람들이 숨을 고르기 시작합니다. \"이 고을의 이름은 수원(水原). 물의 근원이라는 뜻이다. 이 땅을 지킨 것은 처음부터 물이었다.\" 1795년의 회갑연은 무사히 열리고, 역사가 복원되었습니다.",
+                    s.episode.ending,
                     style = Esc.noto(16, Esc.creamMuted, lineHeight = 1.7f),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     StatBox("누적 수사 시간", "%02d : %02d : %02d".format(sec / 3600, (sec / 60) % 60, sec % 60), Modifier.weight(1f))
-                    StatBox("힌트 사용", "0회", Modifier.weight(1f))
-                    StatBox("시귀 각성도", "0 / 10", Modifier.weight(1f))
+                    StatBox("힌트 사용", "${s.puzzleProgress.sumOf { it.hintsShown }}회", Modifier.weight(1f))
+                    if (s.flowVersion >= 2) StatBox("오답 횟수", "${s.puzzleProgress.sumOf { it.wrongAttempts }}회", Modifier.weight(1f))
+                    else StatBox("시귀 각성도", "0 / 10", Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlineButton("로비로", vm::endStory, minWidth = 180.dp)

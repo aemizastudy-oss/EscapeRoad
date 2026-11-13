@@ -1,6 +1,6 @@
 package com.team.carescape.game
 
-/** 스토리형 테마의 한 장소(챕터). 퍼즐 없이 이야기만 담는다. */
+/** 스토리형 테마의 한 장소. 원본 flow1은 puzzle 없이 보존한다. */
 data class StoryChapter(
     val place: String,
     val parking: String,
@@ -23,6 +23,7 @@ data class StoryChapter(
     val clue: String? = null,
     /** 다음 행선지 안내 문구. 다음이 추리로 밝혀지는 곳이면 null. */
     val next: String? = null,
+    val puzzle: StoryPuzzleDefinition? = null,
 )
 
 data class StoryEpisode(
@@ -36,6 +37,7 @@ data class StoryEpisode(
     val finalRevealText: String,
     val ending: String,
     val disclaimer: String,
+    val rules: List<String> = emptyList(),
 ) {
     val finalChapterIndex: Int get() = chapters.lastIndex
 }
