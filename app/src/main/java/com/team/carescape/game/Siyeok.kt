@@ -20,6 +20,8 @@ data class CaseItem(
     val glyph: String,
     val fromStep: String,
     val usedBy: String? = null,
+    /** 펼쳐 읽을 수 있는 물건(수첩·서찰)의 본문. 없으면 그림과 설명만 보여 준다. */
+    val pages: List<String> = emptyList(),
 )
 
 /** 대사 줄을 음성 안내용 한 문단으로 잇는다. 인물의 말은 따옴표로 감싼다. */

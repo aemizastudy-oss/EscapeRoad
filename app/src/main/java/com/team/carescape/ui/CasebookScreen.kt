@@ -105,19 +105,22 @@ fun CasebookScreen(s: StoryState, onClose: () -> Unit) {
                     }
                     Text("이 이야기의 인물과 기록은 허구입니다.", style = Esc.noto(13, Esc.label))
                 }
-                CaseTab.ITEMS -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                CaseTab.ITEMS -> Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     val inv = s.inventory
-                    if (inv.isEmpty()) Text("아직 얻은 소지품이 없습니다.", style = Esc.noto(15, Esc.creamSoft))
-                    inv.forEach { item ->
-                        val used = s.isItemUsed(item)
-                        Row(Modifier.fillMaxWidth().background(Esc.panel).border(1.dp, Esc.goldDim).padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                            ItemTile(item, used, selected = false, enabled = false, onClick = null)
-                            Text(item.description, Modifier.weight(1f).testTag("casebook-item-${item.id}"),
-                                style = Esc.noto(16, if (used) Esc.locked else Esc.creamMuted, lineHeight = 1.6f))
+                    var pick by rememberSaveable { mutableStateOf<String?>(null) }
+                    val shown = inv.firstOrNull { it.id == pick } ?: inv.lastOrNull()
+                    Column(Modifier.width(360.dp).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (inv.isEmpty()) Text("아직 얻은 소지품이 없습니다.", style = Esc.noto(15, Esc.creamSoft))
+                        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            inv.forEach { item ->
+                                ItemTile(item, s.isItemUsed(item), selected = item.id == shown?.id, enabled = true,
+                                    onClick = { pick = item.id }, modifier = Modifier.testTag("casebook-item-${item.id}"), allowUsed = true)
+                            }
                         }
+                        Text("소지품을 누르면 자세히 볼 수 있어요. 자물쇠에서는 ‘쓰기’로 사용합니다.", style = Esc.noto(13, Esc.label, lineHeight = 1.5f))
                     }
-                    Text("소지품은 퍼즐을 풀면 들어오고, 자물쇠에서 ‘쓰기’로 사용합니다.", style = Esc.noto(13, Esc.label))
+                    if (shown != null) ItemInspect(shown, s.isItemUsed(shown), Modifier.weight(1f).fillMaxHeight())
                 }
                 CaseTab.CLUES -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (s.clues.isEmpty()) Text("아직 확정된 단서가 없습니다.", style = Esc.noto(15, Esc.creamSoft))

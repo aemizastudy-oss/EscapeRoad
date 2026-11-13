@@ -11,15 +11,24 @@ object SiyeokFlow4 {
     private fun from(list: List<StoryPuzzleDefinition>, id: String) = list.first { it.id == id }
 
     val caseItems = listOf(
-        CaseItem("secret_letter", "밀서", "전하의 밀서. “그것들은 흐르는 길을 건너지 못한다.” 끝에 水 한 글자.", "密", "c1_water"),
-        CaseItem("recipe_first", "비방 첫 장", "“이 약에는 흐르는 물과 만 석의 들판에서 거둔 곡식이 든다. 완성한 약은 모든 물길이 모이는 곳에 풀어라.”", "方", "c1_water"),
-        CaseItem("notebook", "연이의 수첩", "0213으로 연 수첩. 오라버니가 준 약, 마른 목, 무서운 물소리.", "冊", "c1_diary_lock"),
+        CaseItem("secret_letter", "밀서", "전하의 밀서. “그것들은 흐르는 길을 건너지 못한다.” 끝에 水 한 글자.", "密", "c1_water",
+            pages = listOf("그것들은 흐르는 길을 건너지 못한다.\n\n왕이 어머니의 장수를 빈 집을 찾아, 그 이름 가운데 글자를 읽으라.\n\n— 水")),
+        CaseItem("recipe_first", "비방 첫 장", "“이 약에는 흐르는 물과 만 석의 들판에서 거둔 곡식이 든다. 완성한 약은 모든 물길이 모이는 곳에 풀어라.”", "方", "c1_water",
+            pages = listOf("이 약에는 두 가지가 든다. 멈추지 않고 흐르는 물, 그리고 만 석의 들판에서 거둔 곡식.\n\n섞는 순서는 기록에 남겼다.\n\n완성한 약은 모든 물길이 모이는 곳에 풀어라.\n\n(아랫단이 찢겨 나갔다)")),
+        CaseItem("notebook", "연이의 수첩", "0213으로 연 수첩. 오라버니가 준 약, 마른 목, 무서운 물소리.", "冊", "c1_diary_lock",
+            pages = listOf(
+                "윤2월 초하루.\n마마의 잔치 날을 잊지 마라. 0213.\n\n오라버니가 약을 지어 주었다. 기운이 날 거라 했다.",
+                "오라버니가 준 약을 먹은 뒤로 목이 자꾸 마르다.\n밤마다 물소리가 무섭게 들린다.",
+                "마마의 잔치 날까지는 버텨야 한다.\n오라버니는 아무에게도 말하지 말라 했다.\n\n손끝이 차갑다.",
+                "(마지막 장 사이에 乙 글자가 새겨진 나무 패가 끼워져 있었다)",
+            )),
         CaseItem("key_eul", "서고 열쇠패 乙", "연이의 수첩 사이에 끼워져 있던 나무 패. 한 면에 乙이 새겨져 있다.", "乙", "c1_diary_lock", usedBy = "c2_drawer"),
         CaseItem("bojagi", "청포 보자기", "乙-04 서랍에서 나온 푸른 보자기. 빈 약첩 하나와 진료 기록이 싸여 있었다.", "布", "c2_drawer"),
         CaseItem("strong_water", "흐르는 물 한 병", "화홍문 가운데 칸에서 뜬, 멈추지 않고 흐르는 물. 백신 재료.", "水", "c2_gates", usedBy = "c4_vaccine"),
         CaseItem("grain", "곡식 자루", "둔전 마을 사람들이 내어 준 만 석 들판의 곡식. 백신 재료.", "穀", "c3_year", usedBy = "c4_vaccine"),
         CaseItem("flint", "부싯돌", "김 노인이 쥐여 준 부싯돌. “밤길에 쓰시오.”", "火", "c3_year", usedBy = "c4_flint"),
-        CaseItem("news", "「고을 소식」", "맞춰 붙인 소식지. 아래 방죽을 아랫방죽이라 부른다. 뒷면 번호 4172. (게임 속 기록)", "報", "c4_paper"),
+        CaseItem("news", "「고을 소식」", "맞춰 붙인 소식지. 아래 방죽을 아랫방죽이라 부른다. 뒷면 번호 4172. (게임 속 기록)", "報", "c4_paper",
+            pages = listOf("「고을 소식」\n\n광교산 아래 두 저수지가 있다. 마을 사람들은 위를 웃방죽, 아래를 아랫방죽이라 부른다.\n\n(뒷면) 4 1 7 2\n\n※ 게임 속 기록입니다.")),
         CaseItem("licorice", "감초", "봉화함 안 비방 마지막 장과 함께 든 약재.", "草", "c4_beacon", usedBy = "c4_vaccine"),
         CaseItem("vaccine", "완성한 백신", "흐르는 물 → 곡식 → 감초 순으로 섞은 약.", "藥", "c4_vaccine", usedBy = "c5_release"),
     )

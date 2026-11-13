@@ -287,6 +287,18 @@ fun StoryPrologueScreen(vm: GameViewModel) {
 @Composable
 fun StoryScreen(vm: GameViewModel, narrator: Narrator?) {
     val s = vm.story ?: return
+    // 새로 얻은 소지품은 창으로 한 번 보여 준다. 화면을 처음 열 때 이미 가진 것은 보여 주지 않는다.
+    var seen by rememberSaveable(vm.storyStartedAtMs) { mutableStateOf<List<String>?>(null) }
+    LaunchedEffect(vm.storyStartedAtMs) { if (seen == null) seen = s.inventory.map { it.id } }
+    val fresh = seen?.let { prev -> s.inventory.filter { it.id !in prev } }.orEmpty()
+    Box(Modifier.fillMaxSize()) {
+        StoryScreenBody(s, vm, narrator)
+        if (fresh.isNotEmpty() && vm.parked) ItemAcquiredDialog(fresh) { seen = s.inventory.map { it.id } }
+    }
+}
+
+@Composable
+private fun StoryScreenBody(s: StoryState, vm: GameViewModel, narrator: Narrator?) {
     if (vm.casebookOpen && vm.parked) {
         CasebookScreen(s, vm::closeCasebook)
         return

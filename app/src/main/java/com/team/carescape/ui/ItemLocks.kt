@@ -74,22 +74,23 @@ fun SymbolDialLock(
 
 /** 소지품 한 칸. 쓴 물건은 흐리게 보이고 고를 수 없다. */
 @Composable
-fun ItemTile(item: CaseItem, used: Boolean, selected: Boolean, enabled: Boolean, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
-    val on = selected && !used
+fun ItemTile(
+    item: CaseItem, used: Boolean, selected: Boolean, enabled: Boolean, onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier, allowUsed: Boolean = false,
+) {
+    val on = selected && (allowUsed || !used)
     Column(
-        modifier.width(96.dp)
+        modifier.width(104.dp)
             .border(if (on) 2.dp else 1.dp, if (on) Esc.gold else Esc.goldDim)
             .background(if (on) Esc.gold.copy(alpha = 0.2f) else Color.Transparent)
             .semantics { this.selected = on; contentDescription = "소지품 ${item.name}${if (used) " (사용함)" else ""}" }
-            .let { if (onClick != null) it.clickable(enabled = enabled && !used, role = Role.RadioButton, onClick = onClick) else it }
+            .let { if (onClick != null) it.clickable(enabled = enabled && (allowUsed || !used), role = Role.RadioButton, onClick = onClick) else it }
             .testTag("item-${item.id}")
             .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Box(Modifier.size(44.dp).border(1.dp, if (used) Esc.goldDim else Esc.gold).background(Esc.wallDeep), contentAlignment = Alignment.Center) {
-            Text(item.glyph, style = Esc.nanum(24, if (used) Esc.locked else Esc.gold))
-        }
+        ItemArt(item.id, Modifier.size(64.dp), used)
         Text(item.name, style = Esc.noto(12, if (used) Esc.locked else Esc.cream, lineHeight = 1.3f), textAlign = TextAlign.Center)
         if (used) Text("사용함", style = Esc.noto(11, Esc.locked))
     }
