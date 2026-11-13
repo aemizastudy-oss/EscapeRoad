@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.team.carescape.game.StoryPhase
+import com.team.carescape.game.EndingKind
+import com.team.carescape.game.StoryCatalog
 import com.team.carescape.game.StoryState
 import com.team.carescape.game.TourGate
 import kotlinx.coroutines.delay
@@ -273,6 +275,10 @@ fun StoryPrologueScreen(vm: GameViewModel) {
 @Composable
 fun StoryScreen(vm: GameViewModel, narrator: Narrator?) {
     val s = vm.story ?: return
+    if (vm.casebookOpen && vm.parked) {
+        CasebookScreen(s, vm::closeCasebook)
+        return
+    }
     if (vm.showMap) {
         TripMapScreen(s, vm)
         return
@@ -358,7 +364,7 @@ private fun TripMapScreen(s: StoryState, vm: GameViewModel) {
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Case No. 03", style = Esc.cormorant(14))
                 Text("${s.episode.title},\n${s.episode.subtitle}", Modifier.padding(bottom = 4.dp), style = Esc.nanum(21, lineHeight = 1.35f))
-                AwakeningGauge(0)
+                AwakeningGauge(s.awakening.coerceAtMost(10))
                 Column {
                     looks.forEachIndexed { i, l ->
                         val st = state(i)
@@ -435,7 +441,7 @@ fun StoryDrivingScreen(s: StoryState?, parkedActions: (@Composable () -> Unit)? 
     GoldFrame(padTop = 40.dp, padH = 40.dp, padBottom = 40.dp, fill = Color(0xB81E0508)) {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(22.dp, Alignment.CenterVertically)) {
             Text("En Route · 이동 중", style = Esc.cormorant(18, spacing = 0.3f))
-            AwakeningGauge(0)
+            AwakeningGauge((s?.awakening ?: 0).coerceAtMost(10))
             Envelope()
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("다음 목적지", style = Esc.noto(22, Esc.creamSoft))
@@ -524,7 +530,7 @@ private fun ArrivalScreen(s: StoryState, vm: GameViewModel) {
                 }
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                AwakeningGauge(0)
+                AwakeningGauge(s.awakening.coerceAtMost(10))
                 ParkBadge("장소 ${s.chapterIndex + 1} / ${s.episode.chapters.size} · ${c.place} 도착", boxed = true)
                 Text(l.script, style = Esc.pinyon(42))
                 Text("${c.place}에 도착했습니다", style = Esc.nanum(40, lineHeight = 1.3f))
@@ -586,15 +592,16 @@ private fun RevealScreen(s: StoryState, vm: GameViewModel) {
                 WaxSeal(Modifier.offset(360.dp, 390.dp).size(96.dp))
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                AwakeningGauge(0)
+                AwakeningGauge(s.awakening.coerceAtMost(10))
                 ParkBadge("장소 ${s.chapterIndex + 1} / ${s.episode.chapters.size} · ${c.place}", boxed = true)
                 Text("The Seal is Broken", style = Esc.pinyon(42))
                 if (c.clue != null) Text("“${c.clue}”", style = Esc.nanum(30, lineHeight = 1.35f))
                 if (c.item != null) Text("얻은 것 · ${c.item}", style = Esc.noto(17, Esc.gold))
                 Text("다음 행선지 · ${c.next ?: "??? — 모은 단서로 백신을 전달할 곳을 찾아야 합니다"}", style = Esc.noto(17, Esc.creamMuted, lineHeight = 1.6f))
                 MaterialsRow(ingredientCount(s))
-                Box(Modifier.padding(top = 6.dp)) {
+                Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ParchmentButton(if (c.next == null) "모은 단서 펼쳐 보기" else "다음 장소 경로 보기", vm::storyNext, enabled = vm.parked && !vm.loading && !vm.saving, minWidth = 260.dp)
+                    CasebookButton(s, vm)
                 }
             }
         }
@@ -643,6 +650,7 @@ private fun FinalRevealScreen(s: StoryState, vm: GameViewModel) {
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 Text(s.episode.finalRevealText, Modifier.weight(1f), style = Esc.noto(15, Esc.creamMuted, lineHeight = 1.6f))
+                CasebookButton(s, vm)
                 ParchmentButton("${target.place} 경로 보기", vm::storyNext, enabled = vm.parked && !vm.loading && !vm.saving, minWidth = 280.dp)
             }
         }
@@ -652,39 +660,57 @@ private fun FinalRevealScreen(s: StoryState, vm: GameViewModel) {
 // ---- 탈출 성공 (EscapeSuccess.dc.html) ----
 
 @Composable
+private fun CasebookButton(s: StoryState, vm: GameViewModel) {
+    if (StoryCatalog.usesAwakening(s.flowVersion)) {
+        OutlineButton("사건 기록부", vm::openCasebook, Modifier.testTag("casebook-open"), enabled = vm.parked, minHeight = 56.dp)
+    }
+}
+
+@Composable
 private fun EndingScreen(s: StoryState, vm: GameViewModel) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
     val sec = ((now - vm.storyStartedAtMs) / 1000).coerceAtLeast(0)
+    val kind = s.endingKind
+    val ending = kind?.let { s.episode.endings[it] }
+    val stampColor = if (kind == EndingKind.BAD) Esc.locked else Esc.alarm
     GoldFrame {
         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(40.dp)) {
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("Mission Complete", style = Esc.pinyon(44))
-                Text("임무 완료 · 진 엔딩", style = Esc.nanum(44))
-                Text(
-                    s.episode.ending,
-                    style = Esc.noto(16, Esc.creamMuted, lineHeight = 1.7f),
-                )
+                if (ending == null) {
+                    Text("Mission Complete", style = Esc.pinyon(44))
+                    Text("임무 완료 · 진 엔딩", style = Esc.nanum(44))
+                    Text(s.episode.ending, style = Esc.noto(16, Esc.creamMuted, lineHeight = 1.7f))
+                } else {
+                    Text(ending.script, style = Esc.pinyon(44))
+                    Text("${kind!!.label} · ${ending.title}", Modifier.testTag("ending-title"), style = Esc.nanum(40))
+                    s.episode.endingIntro?.let { Text(it, style = Esc.noto(15, Esc.creamSoft, lineHeight = 1.7f)) }
+                    Text(ending.body, Modifier.testTag("ending-body"), style = Esc.noto(16, Esc.creamMuted, lineHeight = 1.75f))
+                    Text("2026년", style = Esc.cormorant(16))
+                    Text(ending.epilogue, style = Esc.noto(16, Esc.creamMuted, lineHeight = 1.75f))
+                    Text(ending.note, Modifier.testTag("ending-note"), style = Esc.noto(16, Esc.gold))
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     StatBox("누적 수사 시간", "%02d : %02d : %02d".format(sec / 3600, (sec / 60) % 60, sec % 60), Modifier.weight(1f))
-                    StatBox("힌트 사용", "${s.puzzleProgress.sumOf { it.hintsShown }}회", Modifier.weight(1f))
+                    StatBox("힌트 사용", "${s.hintsUsed}회", Modifier.weight(1f))
                     if (s.flowVersion >= 2) StatBox("오답 횟수", "${s.puzzleProgress.sumOf { it.wrongAttempts }}회", Modifier.weight(1f))
-                    else StatBox("시귀 각성도", "0 / 10", Modifier.weight(1f))
+                    if (StoryCatalog.usesAwakening(s.flowVersion) || s.flowVersion < 2) StatBox("시귀 각성도", "${s.awakening.coerceAtMost(10)} / 10", Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlineButton("로비로", vm::endStory, minWidth = 180.dp)
+                    CasebookButton(s, vm)
                     ParchmentButton("처음부터 다시", vm::restartStory, minWidth = 240.dp)
                 }
                 Text(s.episode.disclaimer, style = Esc.noto(13, Esc.label, lineHeight = 1.5f))
             }
-            Box(Modifier.width(460.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.width(420.dp), contentAlignment = Alignment.Center) {
                 Column(
-                    Modifier.rotate(-8f).border(2.dp, Esc.alarm).padding(2.dp).border(2.dp, Esc.alarm).background(Color(239, 228, 204).copy(alpha = 0.06f)).padding(horizontal = 34.dp, vertical = 26.dp),
+                    Modifier.rotate(-8f).border(2.dp, stampColor).padding(2.dp).border(2.dp, stampColor).background(Color(239, 228, 204).copy(alpha = 0.06f)).padding(horizontal = 34.dp, vertical = 26.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text("Case No. 03", style = Esc.cormorant(22, Esc.alarm, 0.3f))
-                    Text("SOLVED", style = Esc.cormorant(72, Esc.alarm, 0f, FontWeight.Bold).copy(lineHeight = 76.sp))
-                    Text("임무 완료", Modifier.padding(top = 6.dp), style = Esc.nanum(18, Esc.alarm))
+                    Text("Case No. 03", style = Esc.cormorant(22, stampColor, 0.3f))
+                    Text(if (kind == EndingKind.BAD) "UNSEALED" else "SOLVED", style = Esc.cormorant(if (kind == EndingKind.BAD) 56 else 72, stampColor, 0f, FontWeight.Bold).copy(lineHeight = 76.sp))
+                    Text(ending?.let { kind!!.label } ?: "임무 완료", Modifier.padding(top = 6.dp), style = Esc.nanum(18, stampColor))
                 }
             }
         }

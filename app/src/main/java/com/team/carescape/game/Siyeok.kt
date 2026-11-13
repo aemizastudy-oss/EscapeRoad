@@ -24,7 +24,36 @@ data class StoryChapter(
     /** 다음 행선지 안내 문구. 다음이 추리로 밝혀지는 곳이면 null. */
     val next: String? = null,
     val puzzle: StoryPuzzleDefinition? = null,
+    /** flow3: 이 장소에서 차례로 푸는 단계들. 비어 있으면 [puzzle] 하나가 유일한 단계다. */
+    val steps: List<StoryPuzzleDefinition> = emptyList(),
+) {
+    val puzzleSteps: List<StoryPuzzleDefinition> get() = steps.ifEmpty { listOfNotNull(puzzle) }
+}
+
+/** 사건 기록부의 문서. [chapterIndex] 장소에서 차로 돌아온 뒤, [afterStep]을 풀었으면 열린다. */
+data class CaseDocument(
+    val id: String,
+    val owner: String,
+    val title: String,
+    /** 【 】로 감싼 글자는 붉은 먹점으로 강조한다. */
+    val body: String,
+    val chapterIndex: Int,
+    val afterStep: String? = null,
 )
+
+/** 사건 기록부의 인물. 관계는 진상 추리를 맞혀야 채워진다. */
+data class CasePerson(
+    val id: String,
+    val name: String,
+    val role: String,
+    val note: String,
+    val chapterIndex: Int,
+    val truthNote: String? = null,
+)
+
+enum class EndingKind(val label: String) { TRUE("진 엔딩"), NORMAL("일반 엔딩"), BAD("배드 엔딩") }
+
+data class StoryEnding(val title: String, val script: String, val body: String, val epilogue: String, val note: String)
 
 data class StoryEpisode(
     val id: String,
@@ -38,6 +67,11 @@ data class StoryEpisode(
     val ending: String,
     val disclaimer: String,
     val rules: List<String> = emptyList(),
+    val documents: List<CaseDocument> = emptyList(),
+    val people: List<CasePerson> = emptyList(),
+    /** 비어 있으면 [ending] 하나만 쓴다(flow1·2). */
+    val endings: Map<EndingKind, StoryEnding> = emptyMap(),
+    val endingIntro: String? = null,
 ) {
     val finalChapterIndex: Int get() = chapters.lastIndex
 }

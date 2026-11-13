@@ -173,14 +173,27 @@ internal fun validateStoredTrip(trip: StoredTrip, archivedTrips: List<StoredTrip
             ))
             requireValid(trip.items.take(source.items.size) == source.items && trip.clues.take(source.clues.size) == source.clues)
         }
-        requireValid(episode.chapters.all { it.puzzle != null })
+        requireValid(episode.chapters.all { it.puzzleSteps.isNotEmpty() })
         requireValid(trip.puzzleProgress.size <= episode.chapters.size)
         requireValid(trip.puzzleProgress.map { it.checkpointId }.distinct().size == trip.puzzleProgress.size)
         trip.puzzleProgress.forEach { progress ->
             val index = TourCatalog.checkpoints.indexOfFirst { it.id == progress.checkpointId }
             requireValid(index in trip.legacyCompletedCount..trip.chapterIndex)
-            val puzzle = episode.chapters[index].puzzle!!
-            requireValid(progress.wrongAttempts >= 0 && progress.hintsShown in 0..puzzle.hints.size)
+            val steps = episode.chapters[index].puzzleSteps
+            requireValid(progress.wrongAttempts >= 0 && progress.awakening >= 0 && progress.hintsUsed >= 0)
+            if (progress.solved) {
+                requireValid(progress.stepIndex == 0 || progress.stepIndex == steps.size)
+                requireValid(progress.hintsShown in 0..steps.last().hints.size)
+            } else {
+                requireValid(progress.stepIndex in steps.indices)
+                requireValid(progress.hintsShown in 0..steps[progress.stepIndex].hints.size)
+            }
+            val verdictIds = steps.take(if (progress.solved) steps.size else progress.stepIndex).filter { it.verdict }.map { it.id }
+            requireValid(progress.verdictMisses.distinct().size == progress.verdictMisses.size &&
+                progress.verdictMisses.all { it in verdictIds })
+            if (!StoryCatalog.usesAwakening(trip.flowVersion)) {
+                requireValid(progress.awakening == 0 && progress.hintsUsed == 0 && progress.verdictMisses.isEmpty())
+            }
             requireValid(progress.solved == (index < completedCount))
             if (!progress.solved) requireValid(index == trip.chapterIndex && trip.phase == StoryPhase.PUZZLE)
         }
@@ -221,7 +234,7 @@ internal fun migrateLegacyTripState(previous: TripStoreState): TripStoreState {
         trips = previous.trips.map { old ->
             old.copy(
                 sessionId = integratedSessionId(old),
-                flowVersion = StoryCatalog.CURRENT_FLOW_VERSION,
+                flowVersion = StoryCatalog.INTEGRATED_FLOW_VERSION,
                 legacyCompletedCount = StoryCatalog.completedCount(
                     old.chapterIndex, old.phase, StoryCatalog.episodeFor(old.flowVersion).chapters.size,
                 ),
@@ -253,8 +266,13 @@ internal fun upsertTrip(previous: TripStoreState, trip: StoredTrip): TripStoreSt
         if (trip.chapterIndex == old.chapterIndex) requireValid(trip.phase.ordinal >= old.phase.ordinal)
         old.puzzleProgress.forEach { saved ->
             val next = trip.puzzleProgress.firstOrNull { it.checkpointId == saved.checkpointId }
-            requireValid(next != null && next.wrongAttempts >= saved.wrongAttempts && next.hintsShown >= saved.hintsShown)
+            requireValid(next != null && next.wrongAttempts >= saved.wrongAttempts)
             requireValid(next != null && (!saved.solved || next.solved))
+            requireValid(next != null && next.awakening >= saved.awakening && next.hintsUsed >= saved.hintsUsed &&
+                next.verdictMisses.containsAll(saved.verdictMisses))
+            // 한 단계 안에서는 힌트가 줄지 않고, 단계는 뒤로 가지 않는다.
+            requireValid(next != null && (next.solved || next.stepIndex > saved.stepIndex ||
+                (next.stepIndex == saved.stepIndex && next.hintsShown >= saved.hintsShown)))
         }
         old.tourRecords.forEach { saved ->
             val next = trip.tourRecords.firstOrNull { it.key == saved.key }

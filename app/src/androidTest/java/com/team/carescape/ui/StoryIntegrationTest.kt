@@ -19,7 +19,8 @@ import com.team.carescape.MainActivity
 import com.team.carescape.data.StoredTrip
 import com.team.carescape.data.TripProgressStore
 import com.team.carescape.data.TripStoreState
-import com.team.carescape.game.LockDirection
+import com.team.carescape.game.EndingKind
+import com.team.carescape.game.StoryLockDefinition
 import com.team.carescape.game.StoryCatalog
 import com.team.carescape.game.StoryPhase
 import com.team.carescape.game.StoryPuzzleInput
@@ -89,7 +90,9 @@ class StoryIntegrationTest {
         assertTrue(puzzleStart.items.isEmpty())
         assertTrue(puzzleStart.clues.isEmpty())
 
-        // The numeric input starts at 0000. Only the UI submit button evaluates that answer.
+        // flow3 첫 단계는 오디오 증언 보기 문제다. 오답 보기를 골라 UI 제출 버튼으로만 평가한다.
+        assertEquals(StoryCatalog.CASE_FLOW_VERSION, puzzleStart.flowVersion)
+        clickTag("choice-gate")
         clickSubmit()
         awaitState { !it.saving && it.storyPuzzleProgress?.wrongAttempts == 1 }
         clickTag("story-puzzle-hint")
@@ -98,6 +101,7 @@ class StoryIntegrationTest {
         val attempted = storedMock()
         assertEquals(1, attempted.puzzleProgress.single().wrongAttempts)
         assertEquals(1, attempted.puzzleProgress.single().hintsShown)
+        assertEquals(0, attempted.puzzleProgress.single().stepIndex)
         assertFalse(attempted.puzzleProgress.single().solved)
         assertTrue(attempted.items.isEmpty())
         assertTrue(attempted.clues.isEmpty())
@@ -112,7 +116,7 @@ class StoryIntegrationTest {
         awaitTag("story-puzzle-waiting")
         rule.onNodeWithTag("story-puzzle-prompt").assertDoesNotExist()
         rule.runOnUiThread {
-            vm.submitStoryPuzzle(StoryPuzzleInput.Numeric(vm.storyPuzzleDraft.numbers.joinToString("")))
+            vm.submitStoryPuzzle(StoryPuzzleInput.Choice(vm.storyPuzzleDraft.choice ?: ""))
         }
         assertEquals("Fresh P alone must not unlock the question", attempted, storedMock())
 
@@ -125,30 +129,34 @@ class StoryIntegrationTest {
         assertEquals(1, vm.storyPuzzleProgress?.wrongAttempts)
         assertEquals(1, vm.storyPuzzleProgress?.hintsShown)
 
-        // Exercise the native dial hit targets and full wiring; do not call the evaluator here.
-        listOf(0, 4, 2, 7).forEachIndexed { index, count ->
-            repeat(count) {
-                rule.onNodeWithContentDescription("숫자 다이얼 ${index + 1}").performTouchInput { click() }
-            }
-        }
-        rule.runOnIdle { assertEquals(listOf(0, 4, 2, 7), vm.storyPuzzleDraft.numbers) }
-        assertEquals("Changing dials must not evaluate or grant anything", attempted, storedMock())
+        // 보기를 고르는 것만으로는 평가·지급하지 않는다.
+        clickTag("choice-hall")
+        rule.runOnIdle { assertEquals("hall", vm.storyPuzzleDraft.choice) }
+        assertEquals("Selecting must not evaluate or grant anything", attempted, storedMock())
         clickSubmit()
+        awaitState { !it.saving && it.story?.currentStepIndex == 1 }
+        val stepped = storedMock()
+        assertEquals(1, stepped.puzzleProgress.single().stepIndex)
+        assertEquals(0, stepped.puzzleProgress.single().hintsShown)
+        assertEquals(1, stepped.puzzleProgress.single().hintsUsed)
+        assertTrue(stepped.clues.isEmpty())
+        awaitTag("story-step-label")
+
+        solveRemainingSteps()
         awaitState { !it.saving && it.story?.phase == StoryPhase.REVEALED }
         val solved = storedMock()
         assertEquals(session, solved.sessionId)
         assertEquals(firstTourClock, solved.tourRecords.single().startedAt)
         assertEquals(1, solved.puzzleProgress.single().wrongAttempts)
-        assertEquals(1, solved.puzzleProgress.single().hintsShown)
         assertTrue(solved.puzzleProgress.single().solved)
         assertEquals(listOfNotNull(vm.story!!.episode.chapters[0].clue), solved.clues)
         assertEquals(listOfNotNull(vm.story!!.episode.chapters[0].item), solved.items)
         assertEquals(1, solved.clues.size)
 
         rule.runOnUiThread {
-            vm.submitStoryPuzzle(StoryPuzzleInput.Numeric("0427"))
+            vm.submitStoryPuzzle(StoryPuzzleInput.Numeric("0213"))
             vm.returnToCar()
-            vm.submitStoryPuzzle(StoryPuzzleInput.Numeric("0427"))
+            vm.submitStoryPuzzle(StoryPuzzleInput.Choice("hall"))
         }
         rule.waitForIdle()
         assertEquals("A solved checkpoint must never grant twice", solved, storedMock())
@@ -157,14 +165,14 @@ class StoryIntegrationTest {
     @Test
     fun puzzleRejectsDrivingBackgroundAndMissingFreshLocationWithoutChangingReceipts() {
         prepareFirstPuzzle()
-        rule.runOnUiThread { vm.changeStoryNumbers(listOf(0, 4, 2, 7)) }
+        rule.runOnUiThread { vm.changeStoryChoice("hall") }
         val before = storedMock()
 
         rule.runOnUiThread {
             vm.simSetParked(false)
-            vm.changeStoryNumbers(listOf(9, 9, 9, 9))
+            vm.changeStoryChoice("gate")
             vm.showStoryPuzzleHint()
-            vm.submitStoryPuzzle(StoryPuzzleInput.Numeric(vm.storyPuzzleDraft.numbers.joinToString("")))
+            vm.submitStoryPuzzle(StoryPuzzleInput.Choice(vm.storyPuzzleDraft.choice ?: ""))
             vm.storyNext()
         }
         awaitTag("sdk-safety-paused")
@@ -178,9 +186,9 @@ class StoryIntegrationTest {
         rule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             assertFalse(vm.foreground)
-            vm.changeStoryNumbers(listOf(0, 4, 2, 7))
+            vm.changeStoryChoice("hall")
             vm.showStoryPuzzleHint()
-            vm.submitStoryPuzzle(StoryPuzzleInput.Numeric(vm.storyPuzzleDraft.numbers.joinToString("")))
+            vm.submitStoryPuzzle(StoryPuzzleInput.Choice(vm.storyPuzzleDraft.choice ?: ""))
             vm.storyNext()
         }
         assertEquals(before, storedMock())
@@ -191,11 +199,11 @@ class StoryIntegrationTest {
         awaitState { it.parked && it.tourGate == TourGate.LOCATION_MISSING }
         awaitTag("story-puzzle-waiting")
         rule.onNodeWithTag("story-puzzle").assertDoesNotExist()
-        rule.onNodeWithContentDescription("숫자 다이얼 1").assertDoesNotExist()
+        rule.onNodeWithTag("choice-hall").assertDoesNotExist()
         rule.runOnUiThread {
-            vm.changeStoryNumbers(listOf(0, 4, 2, 7))
+            vm.changeStoryChoice("hall")
             vm.showStoryPuzzleHint()
-            vm.submitStoryPuzzle(StoryPuzzleInput.Numeric(vm.storyPuzzleDraft.numbers.joinToString("")))
+            vm.submitStoryPuzzle(StoryPuzzleInput.Choice(vm.storyPuzzleDraft.choice ?: ""))
         }
         assertEquals("A foreground return requires a fresh position before any puzzle command", before, storedMock())
         clickTag("sdk-sim-location")
@@ -208,16 +216,10 @@ class StoryIntegrationTest {
     @Test
     fun allFiveNativePuzzlesGrantOnceInOrderAndKeepTourStartClocksThroughResume() {
         prepareStory()
-        val inputs = listOf(
-            StoryPuzzleInput.Numeric("0427"),
-            StoryPuzzleInput.Directions(listOf(LockDirection.UP, LockDirection.RIGHT, LockDirection.DOWN, LockDirection.LEFT)),
-            StoryPuzzleInput.Device(3, 2),
-            StoryPuzzleInput.Numeric("1500"),
-            StoryPuzzleInput.Directions(listOf(LockDirection.LEFT, LockDirection.UP, LockDirection.RIGHT, LockDirection.DOWN)),
-        )
         val firstClocks = mutableMapOf<String, com.team.carescape.model.TourClock>()
         val session = storedMock().sessionId
-        for (index in inputs.indices) {
+        val chapters = vm.story!!.episode.chapters
+        for (index in chapters.indices) {
             enterPuzzleAtCurrentStop(index)
             val pending = storedMock()
             pending.tourRecords.forEach { firstClocks.putIfAbsent(it.checkpointId, it.startedAt) }
@@ -226,26 +228,20 @@ class StoryIntegrationTest {
             rule.runOnUiThread { vm.storyNext() }
             rule.waitForIdle()
             assertEquals("An unanswered puzzle cannot skip its checkpoint", pending, storedMock())
-            rule.runOnUiThread {
-                when (val input = inputs[index]) {
-                    is StoryPuzzleInput.Numeric -> vm.changeStoryNumbers(input.value.map { it.digitToInt() })
-                    is StoryPuzzleInput.Directions -> vm.changeStoryDirections(input.value)
-                    is StoryPuzzleInput.Device -> vm.changeStoryDevice(input.channel, input.level)
-                }
-                vm.submitStoryPuzzle(inputs[index])
-            }
-            val expectedPhase = if (index == inputs.lastIndex) StoryPhase.ENDED else StoryPhase.REVEALED
+            val lastInput = inputFor(chapters[index].puzzleSteps.last().lock)
+            solveRemainingSteps()
+            val expectedPhase = if (index == chapters.lastIndex) StoryPhase.ENDED else StoryPhase.REVEALED
             awaitState { !it.saving && it.story?.phase == expectedPhase }
             val granted = storedMock()
             assertEquals(session, granted.sessionId)
             assertEquals(index + 1, granted.puzzleProgress.count { it.solved })
             assertEquals(granted.clues.distinct(), granted.clues)
             assertEquals(granted.items.distinct(), granted.items)
-            assertEquals(vm.story!!.episode.chapters.take(index + 1).mapNotNull { it.clue }, granted.clues)
-            assertEquals(vm.story!!.episode.chapters.take(index + 1).mapNotNull { it.item }, granted.items)
+            assertEquals(chapters.take(index + 1).mapNotNull { it.clue }, granted.clues)
+            assertEquals(chapters.take(index + 1).mapNotNull { it.item }, granted.items)
             granted.tourRecords.forEach { assertEquals(firstClocks[it.checkpointId], it.startedAt) }
 
-            rule.runOnUiThread { vm.submitStoryPuzzle(inputs[index]) }
+            rule.runOnUiThread { vm.submitStoryPuzzle(lastInput) }
             rule.waitForIdle()
             assertEquals(granted, storedMock())
             if (index == 1) {
@@ -253,7 +249,7 @@ class StoryIntegrationTest {
                 awaitState { it.screen == Screen.STORY && it.story?.phase == StoryPhase.REVEALED }
                 assertEquals("Resume must not restart clocks or grant again", granted, storedMock())
             }
-            if (index < inputs.lastIndex) advanceToNextStop(index + 1)
+            if (index < chapters.lastIndex) advanceToNextStop(index + 1)
         }
         val completed = storedMock()
         assertEquals(StoryPhase.ENDED, completed.phase)
@@ -262,6 +258,39 @@ class StoryIntegrationTest {
         assertTrue(completed.puzzleProgress.all { it.solved })
         assertEquals(5, completed.tourRecords.size)
         completed.tourRecords.forEach { assertEquals(firstClocks[it.checkpointId], it.startedAt) }
+        assertEquals(EndingKind.TRUE, vm.story?.endingKind)
+        awaitTag("ending-title")
+    }
+
+    private fun inputFor(lock: StoryLockDefinition): StoryPuzzleInput = when (lock) {
+        is StoryLockDefinition.Numeric -> StoryPuzzleInput.Numeric(lock.answer)
+        is StoryLockDefinition.Directions -> StoryPuzzleInput.Directions(lock.answer)
+        is StoryLockDefinition.Device -> StoryPuzzleInput.Device(lock.channel, lock.level)
+        is StoryLockDefinition.Choice -> StoryPuzzleInput.Choice(lock.answer)
+        is StoryLockDefinition.Order -> StoryPuzzleInput.Order(lock.answer)
+        is StoryLockDefinition.CarSequence -> StoryPuzzleInput.CarSequence(lock.answer)
+    }
+
+    /** 현재 단계의 정답을 화면 초안에 넣고 제출한다(평가는 ViewModel·엔진이 한다). */
+    private fun solveCurrentStep() {
+        val before = vm.story!!.currentStepIndex
+        val input = inputFor(vm.storyPuzzle!!.lock)
+        rule.runOnUiThread {
+            when (input) {
+                is StoryPuzzleInput.Numeric -> vm.changeStoryNumbers(input.value.map { it.digitToInt() })
+                is StoryPuzzleInput.Directions -> vm.changeStoryDirections(input.value)
+                is StoryPuzzleInput.Device -> vm.changeStoryDevice(input.channel, input.level)
+                is StoryPuzzleInput.Choice -> vm.changeStoryChoice(input.id)
+                is StoryPuzzleInput.Order -> vm.changeStoryOrder(input.ids)
+                is StoryPuzzleInput.CarSequence -> vm.changeStoryCar(input.value)
+            }
+            vm.submitStoryPuzzle(input)
+        }
+        awaitState { !it.saving && (it.story?.phase != StoryPhase.PUZZLE || it.story?.currentStepIndex != before) }
+    }
+
+    private fun solveRemainingSteps() {
+        while (vm.story?.phase == StoryPhase.PUZZLE) solveCurrentStep()
     }
 
     private fun prepareFirstPuzzle() {

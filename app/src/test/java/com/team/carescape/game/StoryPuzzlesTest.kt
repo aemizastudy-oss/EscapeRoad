@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StoryPuzzlesTest {
-    private val episode get() = StoryCatalog.episodeFor(StoryCatalog.CURRENT_FLOW_VERSION)
+    private val episode get() = StoryCatalog.episodeFor(StoryCatalog.INTEGRATED_FLOW_VERSION)
     private fun definition(lock: StoryLockDefinition) = StoryPuzzleDefinition(
         "test", "테스트 자물쇠", "입력하세요", listOf("첫 힌트", "둘째 힌트"), "해설", lock,
     )
@@ -14,6 +14,9 @@ class StoryPuzzlesTest {
         is StoryLockDefinition.Numeric -> StoryPuzzleInput.Numeric(lock.answer)
         is StoryLockDefinition.Directions -> StoryPuzzleInput.Directions(lock.answer)
         is StoryLockDefinition.Device -> StoryPuzzleInput.Device(lock.channel, lock.level)
+        is StoryLockDefinition.Choice -> StoryPuzzleInput.Choice(lock.answer)
+        is StoryLockDefinition.Order -> StoryPuzzleInput.Order(lock.answer)
+        is StoryLockDefinition.CarSequence -> StoryPuzzleInput.CarSequence(lock.answer)
     }
     private fun atPuzzle(state: StoryState) = StoryEngine.returnToCar(
         StoryEngine.leaveCar(StoryEngine.verifiedArrival(state)),

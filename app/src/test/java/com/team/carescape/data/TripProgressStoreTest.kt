@@ -49,7 +49,7 @@ class TripProgressStoreTest {
     )
 
     private fun nativePuzzle(): StoredTrip {
-        val base = exploring().copy(flowVersion = StoryCatalog.CURRENT_FLOW_VERSION)
+        val base = exploring().copy(flowVersion = StoryCatalog.INTEGRATED_FLOW_VERSION)
         return base.copy(phase = StoryPhase.PUZZLE,
             puzzleProgress = listOf(StoryPuzzleProgress("suwon_01")))
     }
