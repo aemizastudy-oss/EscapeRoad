@@ -109,6 +109,8 @@ fun LobbyScreen(vm: GameViewModel) {
                 // 시안에 있는 버튼. 사건 기록부 화면은 아직 없다.
                 OutlineButton("사건 기록부", {}, minWidth = 170.dp, minHeight = 58.dp, fontSize = 19, transparent = true)
             }
+            VSpace(12.dp)
+            OutlineButton("자물쇠 체험", vm::openLockWorkshop, minWidth = 220.dp, minHeight = 48.dp, fontSize = 17, transparent = true)
         }
         val story = vm.story
         if (story != null) {

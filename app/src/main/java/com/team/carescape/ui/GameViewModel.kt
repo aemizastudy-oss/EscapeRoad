@@ -1,177 +1,412 @@
 package com.team.carescape.ui
 
+import android.app.Application
+import android.os.SystemClock
+import android.provider.Settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
-import com.team.carescape.game.Feedback
-import com.team.carescape.game.GameState
-import com.team.carescape.game.PuzzleEngine
-import com.team.carescape.game.StoryEngine
-import com.team.carescape.game.StoryEpisode
-import com.team.carescape.game.StoryPhase
-import com.team.carescape.game.StoryState
-import com.team.carescape.game.ThemeCard
-import com.team.carescape.game.ThemeCatalog
-import com.team.carescape.game.TurnSide
-import com.team.carescape.game.VehicleState
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.team.carescape.BuildConfig
+import com.team.carescape.data.StoredTrip
+import com.team.carescape.data.TripProgressStore
+import com.team.carescape.game.*
+import com.team.carescape.model.*
+import com.team.carescape.platform.sdk.PleosSdkRuntime
+import com.team.carescape.platform.sdk.PleosSdkStatus
+import com.team.carescape.platform.sdk.SdkAvailability
+import java.util.UUID
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-enum class Screen { LOBBY, THEME_SELECT, BRIEFING, PLAY, SOLVED, SUCCESS, STORY_BRIEFING, STORY_PROLOGUE, STORY }
+enum class Screen { LOBBY, THEME_SELECT, BRIEFING, PLAY, SOLVED, SUCCESS, STORY_BRIEFING, STORY_PROLOGUE, STORY, LOCK_WORKSHOP }
 
-/**
- * 화면 흐름과 퍼즐 엔진을 잇는다. 차량 값은 지금은 시연용 패널(시뮬레이션 데이터)에서만 들어온다.
- * 실제 Pleos Vehicle SDK 어댑터는 아직 연결하지 않았다.
- */
-class GameViewModel : ViewModel() {
+/** Existing screens use one live runtime and one serialized, durable story state. */
+class GameViewModel(application: Application) : AndroidViewModel(application) {
+    private val runtime = PleosSdkRuntime(application)
+    private val store = TripProgressStore(application)
+    private val commands = Channel<suspend () -> Unit>(Channel.UNLIMITED)
+    private var trip: StoredTrip? = null
+    private var safetyRevision = 0L
+    private var foregroundTicker: Job? = null
+    private var mockLocation: TourLocation? = null
+    private var mockWaypointId: String? = null
+    private var mockParked: Boolean? = null
+    private var liveSafety by mutableStateOf(TourSafety(false, false, false, false))
+    private val bootId = runCatching {
+        "boot:${Settings.Global.getInt(application.contentResolver, Settings.Global.BOOT_COUNT)}"
+    }.getOrDefault("")
+
     var screen by mutableStateOf(Screen.LOBBY)
         private set
-    var selectedCard by mutableStateOf<ThemeCard>(ThemeCatalog.cards.first())
+    var lockWorkshop by mutableStateOf(LockWorkshopState())
+        private set
+    var selectedCard by mutableStateOf(ThemeCatalog.cards.first())
         private set
     var game by mutableStateOf<GameState?>(null)
         private set
-
-    /** 시연용 차량 상태. 기본은 'P단 정차 · 배터리 모름'. */
-    var vehicle by mutableStateOf(VehicleState(parked = true))
+    var vehicle by mutableStateOf(VehicleState())
         private set
-
-    /** 퍼즐 시작 시각(ms). 화면 상단 경과 시간 표시용. */
     var startedAtMs by mutableStateOf(0L)
         private set
-
-    /** 정차가 확인되지 않으면 어떤 단서·조작 화면도 보여 주지 않는다. */
-    val parked: Boolean get() = vehicle.parked == true
-
-    fun goLobby() { screen = Screen.LOBBY }
-    fun goThemeSelect() { screen = Screen.THEME_SELECT }
-    fun select(card: ThemeCard) { if (card.playable) selectedCard = card }
-    fun goBriefing() {
-        if (!selectedCard.playable) return
-        screen = if (selectedCard.story != null) Screen.STORY_BRIEFING else Screen.BRIEFING
-    }
-
-    // ---- 스토리형 테마 (시역) ----
-
     var story by mutableStateOf<StoryState?>(null)
         private set
-
-    /** 이동 중 음성 드라마를 들려줄 때 부른다. 화면에서 Narrator로 읽는다. */
     var pendingNarration by mutableStateOf<String?>(null)
-
-    /** 프롤로그 내레이션 쪽 번호(0부터). */
     var prologuePage by mutableStateOf(0)
         private set
-
-    /** 다음 목적지로 떠나기 전에 로드트립 지도를 보여 주는 중인지. */
     var showMap by mutableStateOf(false)
         private set
-
-    /** 수사를 시작한 시각(ms). 엔딩의 누적 수사 시간 표시용. */
     var storyStartedAtMs by mutableStateOf(0L)
         private set
+    var mode by mutableStateOf(if (BuildConfig.DEBUG) TourMode.MOCK else TourMode.LIVE)
+        private set
+    val isMock get() = BuildConfig.DEBUG && mode == TourMode.MOCK
+    private var foregroundState by mutableStateOf(false)
+    val foreground: Boolean get() = foregroundState
+    var loading by mutableStateOf(true)
+        private set
+    var saving by mutableStateOf(false)
+        private set
+    var storageError by mutableStateOf<String?>(null)
+        private set
+    var sdkMessage by mutableStateOf<String?>(null)
+        private set
+    var sdkStatus by mutableStateOf(PleosSdkStatus())
+        private set
+    var tourStartGate by mutableStateOf(TourGate.BACKGROUND)
+        private set
+    var tourGate by mutableStateOf(TourGate.TOUR_NOT_STARTED)
+        private set
+    var tourRemainingMillis by mutableStateOf<Long?>(null)
+        private set
+    val currentWaypoint get() = TourCatalog.checkpoints.getOrNull(story?.chapterIndex ?: 0)
+    val parked: Boolean get() = foreground && !loading && storageError == null && vehicle.parked == true &&
+        if (isMock) mockParked == true else runtime.safety.value.let {
+            it.foreground && it.parked && it.stationary && it.carUxAllowed
+        }
+    val speechReady get() = parked && liveSafety.let { it.foreground && it.parked && it.stationary && it.carUxAllowed } &&
+        sdkStatus.tts.availability == SdkAvailability.READY
 
-    fun goStoryBriefing() { if (selectedCard.story != null) screen = Screen.STORY_BRIEFING }
+    init {
+        viewModelScope.launch {
+            for (command in commands) {
+                try { command() }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (error: Exception) { storageError = error.message ?: "여행 기록 처리에 실패했습니다. 다시 시도해 주세요." }
+                finally { saving = false }
+            }
+        }
+        commands.trySend { loadCurrentMode() }
+        viewModelScope.launch { runtime.safety.collect { liveSafety = it; updateLiveInputs() } }
+        viewModelScope.launch { runtime.locations.collect { refreshTour() } }
+        viewModelScope.launch { runtime.status.collect { sdkStatus = it; updateLiveInputs() } }
+    }
 
-    /** 브리핑의 "시간 이동 시작": 프롤로그 내레이션으로. */
+    private fun now() = TourClock(System.currentTimeMillis(), SystemClock.elapsedRealtime(), bootId)
+    private fun safety() = if (isMock) TourSafety(foreground, mockParked == true, mockParked == true, mockParked == true)
+        else runtime.safety.value.copy(foreground = foreground && runtime.safety.value.foreground)
+    private fun location() = if (isMock) mockLocation.takeIf { mockWaypointId == currentWaypoint?.id } else runtime.locations.value
+    private fun record() = trip?.tourRecords?.firstOrNull { it.checkpointId == currentWaypoint?.id }
+
+    private suspend fun loadCurrentMode() {
+        loading = true
+        try {
+            val saved = store.load()
+            trip = saved.trips.firstOrNull { it.mode == mode }
+            applyStored(trip)
+            storageError = null
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (error: Exception) { storageError = error.message ?: "여행 기록을 읽지 못했습니다. 원본을 보존합니다." }
+        finally { loading = false; updateLiveInputs() }
+    }
+
+    private fun applyStored(value: StoredTrip?) {
+        story = value?.let { StoryState(Siyeok.episode, it.chapterIndex, it.phase, it.items, it.clues) }
+        storyStartedAtMs = value?.startedAtEpochMillis ?: 0L
+        showMap = value?.showMap ?: false
+    }
+
+    private fun refreshTour() {
+        val target = currentWaypoint ?: return
+        val clock = now()
+        tourStartGate = TourPolicy.startGate(mode, target, location(), safety(), clock)
+        tourGate = TourPolicy.unlockGate(record(), mode, target, location(), safety(), clock)
+        tourRemainingMillis = record()?.let {
+            when (val elapsed = TourPolicy.elapsed(it, clock)) {
+                is TourTimeResult.Valid -> if (isMock && it.debugTimeBypass) 0L else
+                    (TourPolicy.MIN_TOUR_MILLIS - elapsed.elapsedMillis).coerceAtLeast(0L)
+                is TourTimeResult.Pending -> null
+            }
+        }
+        if (screen == Screen.STORY && story?.phase == StoryPhase.EN_ROUTE && !showMap &&
+            tourStartGate == TourGate.READY && !saving && storageError == null
+        ) changeTrip { old ->
+            if (TourPolicy.startGate(mode, target, location(), safety(), now()) == TourGate.READY)
+                old?.copy(phase = StoryPhase.ARRIVED) else null
+        }
+    }
+
+    private fun updateLiveInputs() {
+        val previouslySafe = vehicle.parked == true
+        val safe = if (isMock) mockParked else runtime.safety.value.let {
+            when {
+                it.foreground && it.parked && it.stationary && it.carUxAllowed -> true
+                sdkStatus.carSafety.availability == SdkAvailability.READY && (!it.parked || !it.stationary) -> false
+                else -> null
+            }
+        }
+        vehicle = if (isMock) vehicle.copy(parked = mockParked) else VehicleState(
+            parked = safe, batteryPercent = sdkStatus.batteryPercent,
+        )
+        // Receiving the first live snapshot is a baseline, never a turn/lighting action.
+        game = game?.copy(lastVehicle = vehicle)
+        if (previouslySafe && safe != true) { safetyRevision++; stopAudio() }
+        refreshTour()
+    }
+
+    fun setForeground(value: Boolean) {
+        if (foreground == value) return
+        safetyRevision++
+        foregroundState = value
+        foregroundTicker?.cancel()
+        foregroundTicker = null
+        if (!value) {
+            mockParked = null; mockLocation = null; mockWaypointId = null
+            vehicle = VehicleState(); pendingNarration = null
+            runtime.stopAudio()
+        }
+        runtime.setForeground(value)
+        if (value) {
+            runtime.start()
+            foregroundTicker = viewModelScope.launch { while (foreground) { refreshTour(); delay(1_000) } }
+        } else runtime.stop()
+        refreshTour()
+    }
+
+    fun chooseMode(next: TourMode) {
+        if (!BuildConfig.DEBUG || next == mode || saving || screen != Screen.LOBBY) return
+        safetyRevision++
+        runtime.stopAudio()
+        pendingNarration = null; mockLocation = null; mockWaypointId = null; mockParked = null
+        vehicle = VehicleState(); story = null; trip = null; game = null
+        mode = next; loading = true
+        commands.trySend { loadCurrentMode() }
+    }
+
+    fun retryStorage() { if (!saving && !loading) commands.trySend { loadCurrentMode() } }
+    fun reconnectSdk() {
+        if (!foreground) return
+        safetyRevision++
+        runtime.stop(); runtime.setForeground(true); runtime.start()
+        refreshTour()
+    }
+    fun onPermissionsChanged() = reconnectSdk()
+    fun speakNarration(text: String): Boolean = parked && runtime.speak(text)
+    fun stopAudio() { runtime.stopAudio() }
+
+    /** Serialize a click against its original mode, session, phase and safety generation. */
+    private fun changeTrip(
+        afterSave: (() -> Unit)? = null,
+        transform: (StoredTrip?) -> StoredTrip?,
+    ) {
+        if (!parked || saving || loading || storageError != null) return
+        val previous = trip
+        val requestedMode = mode
+        val revision = safetyRevision
+        val liveRevision = runtime.revision
+        val sourceScreen = screen
+        commands.trySend {
+            if (mode != requestedMode || trip != previous || revision != safetyRevision || screen != sourceScreen || !parked ||
+                requestedMode == TourMode.LIVE && liveRevision != runtime.revision) return@trySend
+            saving = true
+            val next = transform(previous) ?: return@trySend
+            if (next == previous) { afterSave?.invoke(); return@trySend }
+            val saved = store.save(next)
+            if (mode == requestedMode) {
+                trip = saved; applyStored(saved)
+                if (revision == safetyRevision && screen == sourceScreen && parked) afterSave?.invoke()
+            }
+        }
+    }
+
+    fun goLobby() { safetyRevision++; stopAudio(); pendingNarration = null; screen = Screen.LOBBY }
+    fun openLockWorkshop() {
+        if (!parked || saving) return
+        safetyRevision++; stopAudio(); pendingNarration = null
+        lockWorkshop = LockWorkshopState()
+        screen = Screen.LOCK_WORKSHOP
+    }
+    private fun canEditWorkshop(kind: WorkshopLock = lockWorkshop.selected): Boolean =
+        parked && !saving && screen == Screen.LOCK_WORKSHOP && kind == lockWorkshop.selected
+
+    fun selectWorkshopLock(kind: WorkshopLock) {
+        if (canEditWorkshop()) lockWorkshop = lockWorkshop.copy(selected = kind, submitted = null)
+    }
+    fun changeWorkshopColors(value: List<DialColor>) {
+        if (canEditWorkshop(WorkshopLock.COLOR) && value.size == 4)
+            lockWorkshop = lockWorkshop.copy(colors = value.toList(), submitted = null)
+    }
+    fun changeWorkshopDirections(value: List<LockDirection>) {
+        if (canEditWorkshop(WorkshopLock.DIRECTION))
+            lockWorkshop = lockWorkshop.copy(directions = value.toList(), submitted = null)
+    }
+    fun changeWorkshopEnglish(value: String) {
+        if (canEditWorkshop(WorkshopLock.ENGLISH))
+            lockWorkshop = lockWorkshop.copy(english = LockInput.normalizeEnglish(value), submitted = null)
+    }
+    fun changeWorkshopNumbers(value: List<Int>) {
+        if (canEditWorkshop(WorkshopLock.NUMBER) && value.size == 4 && value.all { it in 0..9 })
+            lockWorkshop = lockWorkshop.copy(numbers = value.toList(), submitted = null)
+    }
+    fun submitWorkshopColors(value: List<DialColor>) {
+        if (canEditWorkshop(WorkshopLock.COLOR) && value == lockWorkshop.colors)
+            lockWorkshop = lockWorkshop.copy(submitted = value.joinToString(" · ") { it.label })
+    }
+    fun submitWorkshopDirections(value: List<LockDirection>) {
+        if (canEditWorkshop(WorkshopLock.DIRECTION) && value.isNotEmpty() && value == lockWorkshop.directions)
+            lockWorkshop = lockWorkshop.copy(submitted = value.joinToString(" ") { it.symbol })
+    }
+    fun submitWorkshopEnglish(value: String) {
+        if (canEditWorkshop(WorkshopLock.ENGLISH) && value.length == 5 && value == lockWorkshop.english)
+            lockWorkshop = lockWorkshop.copy(submitted = value)
+    }
+    fun submitWorkshopNumbers(value: List<Int>) {
+        if (canEditWorkshop(WorkshopLock.NUMBER) && value == lockWorkshop.numbers)
+            lockWorkshop = lockWorkshop.copy(submitted = value.joinToString(""))
+    }
+    fun goThemeSelect() { if (parked) screen = Screen.THEME_SELECT }
+    fun select(card: ThemeCard) { if (parked && card.playable) selectedCard = card }
+    fun goBriefing() {
+        if (!parked || !selectedCard.playable) return
+        screen = if (selectedCard.story != null) Screen.STORY_BRIEFING else Screen.BRIEFING
+    }
+    fun goStoryBriefing() { if (parked && selectedCard.story != null) screen = Screen.STORY_BRIEFING }
     fun goPrologue() {
-        val ep = selectedCard.story ?: return
-        prologuePage = 0
-        pendingNarration = prologuePagesOf(ep).first()
-        screen = Screen.STORY_PROLOGUE
+        if (!parked || saving) return
+        val episode = selectedCard.story ?: return
+        if (story != null && story?.phase != StoryPhase.ENDED) { resumeStory(); return }
+        prologuePage = 0; pendingNarration = prologuePagesOf(episode).first(); screen = Screen.STORY_PROLOGUE
     }
-
     fun prologueNext() {
-        val ep = selectedCard.story ?: return
-        val pages = prologuePagesOf(ep)
-        if (prologuePage < pages.lastIndex) {
-            prologuePage++
-            pendingNarration = pages[prologuePage]
-        } else startStory()
+        if (!parked) return
+        val episode = selectedCard.story ?: return
+        val pages = prologuePagesOf(episode)
+        if (prologuePage < pages.lastIndex) { prologuePage++; pendingNarration = pages[prologuePage] }
+        else startStory()
     }
-
     fun startStory() {
-        val ep = selectedCard.story ?: return
-        story = StoryEngine.start(ep)
-        storyStartedAtMs = System.currentTimeMillis()
-        showMap = true
-        screen = Screen.STORY
+        if (selectedCard.story?.id != Siyeok.episode.id) return
+        changeTrip(afterSave = { screen = Screen.STORY }) {
+            if (it != null && it.phase != StoryPhase.ENDED) it else StoredTrip(
+                mode = mode, sessionId = UUID.randomUUID().toString(), chapterIndex = 0,
+                phase = StoryPhase.EN_ROUTE, startedAtEpochMillis = System.currentTimeMillis(), showMap = true,
+            )
+        }
     }
+    fun resumeStory() { if (parked && story != null) { screen = Screen.STORY; refreshTour() } }
 
-    /** 지도의 "다음 장소 길 안내": 지도를 닫고 이동 중 음성 드라마를 시작한다. */
     fun startGuidance() {
-        showMap = false
-        story?.let { pendingNarration = it.chapter.travelDrama }
+        if (!parked || story == null) return
+        val target = currentWaypoint ?: return
+        if (!isMock && sdkStatus.navigation.availability != SdkAvailability.READY) {
+            sdkMessage = "길 안내 연결을 확인한 뒤 다시 시도해 주세요."; return
+        }
+        changeTrip(afterSave = {
+            if (isMock) sdkMessage = "시연 경로입니다. 실제 길 안내를 요청하지 않았습니다."
+            else sdkMessage = if (runtime.navigate(target)) "길 안내를 요청했습니다. 결과는 내비게이션에서 확인해 주세요."
+                else "길 안내를 요청하지 못했습니다. SDK 연결과 안전 상태를 확인해 주세요."
+        }) { it?.copy(showMap = false) }
     }
 
-    fun resumeStory() { if (story != null) screen = Screen.STORY }
-    fun demoArrive() = storyStep { StoryEngine.demoArrive(it, vehicle.parked) }
-    fun leaveCar() = storyStep { StoryEngine.leaveCar(it) }
-    fun returnToCar() = storyStep { StoryEngine.returnToCar(it) }
+    fun demoArrive() {
+        if (!isMock || !parked || story == null) return
+        val clock = now()
+        mockWaypointId = currentWaypoint?.id
+        mockLocation = TourLocation(TourMode.MOCK, accuracyMeters = 1.0,
+            timestampEpochMillis = clock.wallTimeMillis, receivedElapsedRealtimeMillis = clock.elapsedRealtimeMillis,
+            simulatedInsideRadius = true)
+        refreshTour()
+    }
+    fun leaveCar() {
+        refreshTour()
+        if (tourStartGate != TourGate.READY || story?.phase != StoryPhase.ARRIVED) return
+        changeTrip { old ->
+            if (old == null || TourPolicy.startGate(mode, currentWaypoint!!, location(), safety(), now()) != TourGate.READY) null
+            else {
+                val existing = old.tourRecords.firstOrNull { it.checkpointId == currentWaypoint!!.id }
+                val started = existing ?: TourStartRecord(old.sessionId, currentWaypoint!!.id, mode, now())
+                old.copy(phase = StoryPhase.EXPLORING,
+                    tourRecords = if (existing == null) old.tourRecords + started else old.tourRecords)
+            }
+        }
+    }
+    fun simElapseTour() {
+        if (!isMock || story?.phase != StoryPhase.EXPLORING) return
+        changeTrip { old -> old?.copy(tourRecords = old.tourRecords.map {
+            if (it.checkpointId == currentWaypoint?.id) it.copy(debugTimeBypass = true) else it
+        }) }
+    }
+    fun returnToCar() {
+        refreshTour()
+        if (tourGate != TourGate.READY || story?.phase != StoryPhase.EXPLORING) return
+        changeTrip { old ->
+            if (old == null || TourPolicy.unlockGate(record(), mode, currentWaypoint!!, location(), safety(), now()) != TourGate.READY) null
+            else StoryEngine.returnToCar(story!!).let { old.copy(phase = it.phase, items = it.items, clues = it.clues) }
+        }
+    }
     fun storyNext() {
-        storyStep { StoryEngine.next(it) }
-        val s = story ?: return
-        if (s.phase == StoryPhase.EN_ROUTE) showMap = true
+        if (story?.phase !in listOf(StoryPhase.REVEALED, StoryPhase.FINAL_REVEAL)) return
+        changeTrip { old -> old?.let {
+            val next = StoryEngine.next(story!!)
+            it.copy(chapterIndex = next.chapterIndex, phase = next.phase, items = next.items, clues = next.clues,
+                showMap = next.phase == StoryPhase.EN_ROUTE)
+        } }
     }
-    fun replayDrama() { story?.let { pendingNarration = it.chapter.travelDrama } }
-    fun endStory() { story = null; showMap = false; screen = Screen.LOBBY }
-    fun restartStory() { story = null; showMap = false; screen = Screen.STORY_BRIEFING }
+    fun replayDrama() { if (parked) story?.let { pendingNarration = it.chapter.travelDrama } }
+    // Leaving the screen preserves the durable trip. A new completed trip starts a new session.
+    fun endStory() { goLobby() }
+    fun restartStory() { if (parked) { pendingNarration = null; screen = Screen.STORY_BRIEFING } }
 
-    private fun storyStep(step: (StoryState) -> StoryState) { story = story?.let(step) }
-
+    // Retained puzzle demo. It never accepts unsafe or release mock inputs.
     fun startCase() {
+        if (!parked) return
         val episode = selectedCard.episode ?: return
         game = PuzzleEngine.onVehicle(PuzzleEngine.start(episode), vehicle)
-        startedAtMs = System.currentTimeMillis()
-        screen = Screen.PLAY
+        startedAtMs = System.currentTimeMillis(); screen = Screen.PLAY
     }
-
-    fun resume() { if (game != null) screen = if (game!!.finished) Screen.SUCCESS else Screen.PLAY }
-
+    fun resume() { if (parked && game != null) screen = if (game!!.finished) Screen.SUCCESS else Screen.PLAY }
     fun submitCode(input: String) { advance { PuzzleEngine.submitCode(it, input) } }
     fun submitChoice(index: Int) { advance { PuzzleEngine.submitChoice(it, index) } }
     fun showHint() { advance { PuzzleEngine.showHint(it) } }
-
-    /** 해금 연출을 닫고 다음 퍼즐(또는 탈출 성공)로. */
-    fun continueAfterSolved() {
-        screen = if (game?.finished == true) Screen.SUCCESS else Screen.PLAY
+    fun continueAfterSolved() { if (parked) screen = if (game?.finished == true) Screen.SUCCESS else Screen.PLAY }
+    fun abandon() { if (parked) { game = null; goLobby() } }
+    fun simSetParked(value: Boolean) {
+        if (!isMock || !foreground) return
+        mockParked = value; updateLiveInputs()
     }
-
-    fun abandon() {
-        game = null
-        screen = Screen.LOBBY
-    }
-
-    // ---- 시연용 차량 조작 (시뮬레이션 데이터) ----
-
-    fun simSetParked(parked: Boolean) = updateVehicle(vehicle.copy(parked = parked))
-    fun simToggleLowBeam() = updateVehicle(vehicle.copy(lowBeamOn = vehicle.lowBeamOn != true))
-    fun simToggleWiper() = updateVehicle(vehicle.copy(wiperOn = vehicle.wiperOn != true))
-    fun simSetBattery(percent: Int?) = updateVehicle(vehicle.copy(batteryPercent = percent))
-
-    /** 레버를 한 번 튕긴 것처럼: 켜짐 → 꺼짐 두 번의 신호를 보낸다. */
+    fun simToggleLowBeam() { if (isMock) updateMockVehicle(vehicle.copy(lowBeamOn = vehicle.lowBeamOn != true)) }
+    fun simToggleWiper() { if (isMock) updateMockVehicle(vehicle.copy(wiperOn = vehicle.wiperOn != true)) }
+    fun simSetBattery(percent: Int?) { if (isMock) updateMockVehicle(vehicle.copy(batteryPercent = percent)) }
     fun simTurnSignal(side: TurnSide) {
-        updateVehicle(vehicle.copy(turnSignal = side))
-        updateVehicle(vehicle.copy(turnSignal = null))
+        if (!isMock) return
+        updateMockVehicle(vehicle.copy(turnSignal = side)); updateMockVehicle(vehicle.copy(turnSignal = null))
     }
-
-    private fun updateVehicle(next: VehicleState) {
+    private fun updateMockVehicle(next: VehicleState) {
+        if (!isMock || !parked) return
         vehicle = next
-        if (screen == Screen.STORY) storyStep { StoryEngine.onParked(it, next.parked) }
         advance { PuzzleEngine.onVehicle(it, next) }
     }
-
     private fun advance(step: (GameState) -> GameState) {
+        if (!parked || screen != Screen.PLAY) return
         val before = game ?: return
-        if (screen != Screen.PLAY) {
-            // 해금 연출 중이나 다른 화면에서도 차량 상태는 계속 반영하되, 퍼즐 입력으로 쓰지 않는다.
-            game = before.copy(lastVehicle = vehicle)
-            return
-        }
-        val after = step(before)
-        game = after
-        if (after.feedback == Feedback.CORRECT && after.puzzleIndex > before.puzzleIndex) {
-            screen = Screen.SOLVED
-        }
+        val after = step(before); game = after
+        if (after.feedback == Feedback.CORRECT && after.puzzleIndex > before.puzzleIndex) screen = Screen.SOLVED
     }
+    override fun onCleared() { runtime.close(); commands.close(); super.onCleared() }
 }
 
 /** 프롤로그를 시안처럼 세 쪽으로 나눈다. */

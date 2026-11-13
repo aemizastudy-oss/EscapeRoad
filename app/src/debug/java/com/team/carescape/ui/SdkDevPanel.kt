@@ -1,0 +1,90 @@
+package com.team.carescape.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
+import com.team.carescape.game.TurnSide
+import com.team.carescape.model.TourMode
+
+/** Debug source set only. Selecting LIVE never substitutes any of these mock observations. */
+@Composable
+fun SdkDevPanel(vm: GameViewModel, modifier: Modifier = Modifier) {
+    var open by remember { mutableStateOf(false) }
+    Column(modifier, horizontalAlignment = Alignment.End) {
+        OutlineButton(if (vm.isMock) "시연 · SIM ${if (open) "▴" else "▾"}" else "개발 모드 ${if (open) "▴" else "▾"}",
+            { open = !open }, Modifier.testTag("sdk-dev-toggle"), minHeight = 36.dp, fontSize = 13)
+        if (open) Column(
+            Modifier.width(340.dp).heightIn(max = 580.dp).background(Color(0xF0101010))
+                .border(1.dp, Color(0xFF7FB2FF)).padding(12.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val canChoose = !vm.loading && !vm.saving && vm.screen == Screen.LOBBY
+            Text("입력 모드 · 자동 전환 없음", style = Esc.noto(13, Color(0xFFBFD8FF)))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlineButton("실제 SDK", { vm.chooseMode(TourMode.LIVE) }, Modifier.testTag("sdk-mode-live"), enabled = canChoose, minHeight = 44.dp, fontSize = 13)
+                OutlineButton("시연 MOCK", { vm.chooseMode(TourMode.MOCK) }, Modifier.testTag("sdk-mode-mock"), enabled = canChoose, minHeight = 44.dp, fontSize = 13)
+            }
+            if (!canChoose) {
+                Text("모드 선택은 로비에서 합니다. 저장된 여행은 보존합니다.", style = Esc.noto(12, Esc.label))
+                OutlineButton("로비에서 모드 선택", vm::goLobby, Modifier.testTag("sdk-dev-lobby"), enabled = !vm.loading && !vm.saving, minHeight = 44.dp, fontSize = 13)
+            }
+            if (vm.isMock) {
+                val vehicle = vm.vehicle
+                val canInput = vm.parked && !vm.loading && !vm.saving
+                Text("시뮬레이션 데이터 · 실제 차량 신호·관광 증빙 아님", style = Esc.noto(13, Color(0xFFBFD8FF)))
+                Text(if (vehicle.parked == null) "주차 상태 미확인 · P를 직접 확인하세요" else if (vehicle.parked == true) "P 시연 확인" else "주행 상태 시연", style = Esc.noto(13, Esc.creamSoft))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlineButton("P 정차", { vm.simSetParked(true) }, Modifier.testTag("sdk-sim-parked"), enabled = !vm.loading && !vm.saving, minHeight = 44.dp, fontSize = 13)
+                    OutlineButton("D 주행", { vm.simSetParked(false) }, Modifier.testTag("sdk-sim-driving"), enabled = !vm.loading && !vm.saving, minHeight = 44.dp, fontSize = 13)
+                }
+                if (vm.story != null) OutlineButton("현재 장소 위치 시연", vm::demoArrive,
+                    Modifier.testTag("sdk-sim-location"), enabled = canInput, minHeight = 44.dp, fontSize = 13)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlineButton("← 왼쪽", { vm.simTurnSignal(TurnSide.LEFT) }, enabled = canInput, minHeight = 44.dp, fontSize = 13)
+                    OutlineButton("오른쪽 →", { vm.simTurnSignal(TurnSide.RIGHT) }, enabled = canInput, minHeight = 44.dp, fontSize = 13)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlineButton("전조등 ${if (vehicle.lowBeamOn == true) "켜짐" else "전환"}", vm::simToggleLowBeam, enabled = canInput, minHeight = 44.dp, fontSize = 13)
+                    OutlineButton("와이퍼 ${if (vehicle.wiperOn == true) "켜짐" else "전환"}", vm::simToggleWiper, enabled = canInput, minHeight = 44.dp, fontSize = 13)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlineButton("배터리 모름", { vm.simSetBattery(null) }, enabled = canInput, minHeight = 44.dp, fontSize = 12)
+                    OutlineButton("30%", { vm.simSetBattery(30) }, enabled = canInput, minHeight = 44.dp, fontSize = 12)
+                    OutlineButton("80%", { vm.simSetBattery(80) }, enabled = canInput, minHeight = 44.dp, fontSize = 12)
+                }
+            } else {
+                Text("LIVE에서는 모의 입력을 제공하지 않습니다. 지원·권한은 SDK 상태에서 확인하세요.", style = Esc.noto(13, Esc.creamSoft))
+            }
+        }
+    }
+}
+
+@Composable
+fun MockArrivalAction(vm: GameViewModel, modifier: Modifier = Modifier) {
+    if (vm.isMock) OutlineButton("도착한 것으로 하기 (시연)", vm::demoArrive,
+        modifier.testTag("sdk-demo-arrive"), enabled = vm.parked && !vm.loading && !vm.saving)
+}
+
+@Composable
+fun MockTourTimeAction(vm: GameViewModel, modifier: Modifier = Modifier) {
+    if (vm.isMock) OutlineButton("15분 경과 시연", vm::simElapseTour,
+        modifier.testTag("sdk-demo-elapse"), enabled = vm.parked && vm.tourRemainingMillis != null && !vm.loading && !vm.saving)
+}

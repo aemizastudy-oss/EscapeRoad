@@ -14,10 +14,12 @@ class StoryEngineTest {
     private fun visit(s: StoryState): StoryState =
         StoryEngine.returnToCar(StoryEngine.leaveCar(drive(s)))
 
-    @Test fun `시역은 장소 5곳이고 마지막 장소는 둘러보기 없이 엔딩으로 간다`() {
+    @Test fun `시역은 장소 5곳이고 마지막 장소도 관광 단계가 있다`() {
         assertEquals(5, ep.chapters.size)
         assertEquals(null, ep.chapters.last().explore)
         ep.chapters.dropLast(1).forEach { assertTrue(it.place, it.explore != null) }
+        val final = StoryEngine.start(ep).copy(chapterIndex = ep.finalChapterIndex)
+        assertEquals(StoryPhase.EXPLORING, StoryEngine.leaveCar(StoryEngine.verifiedArrival(final)).phase)
     }
 
     @Test fun `출발지에 그대로 서 있으면 도착으로 보지 않는다`() {
@@ -28,6 +30,9 @@ class StoryEngineTest {
     @Test fun `정차 여부를 모르면 도착으로 보지 않는다`() {
         val s = StoryEngine.onParked(StoryEngine.onParked(StoryEngine.start(ep), false), null)
         assertEquals(StoryPhase.EN_ROUTE, s.phase)
+        val unknownThenParked = StoryEngine.onParked(StoryEngine.onParked(StoryEngine.start(ep), null), true)
+        assertEquals(StoryPhase.EN_ROUTE, unknownThenParked.phase)
+        assertFalse(unknownThenParked.movedSinceGuidance)
     }
 
     @Test fun `움직였다가 정차하면 도착한다`() {
@@ -54,6 +59,8 @@ class StoryEngineTest {
         assertTrue(s.isFinalChapter)
         assertTrue(s.isRevealed(ep.finalChapterIndex))
         s = StoryEngine.leaveCar(drive(s))
+        assertEquals(StoryPhase.EXPLORING, s.phase)
+        s = StoryEngine.returnToCar(s)
         assertEquals(StoryPhase.ENDED, s.phase)
         assertEquals(listOf("멈추지 않고 흐르는 물", "만 석의 들판에서 거둔 곡식", "완성한 백신"), s.items)
         assertEquals(4, s.clues.size)
@@ -64,5 +71,13 @@ class StoryEngineTest {
         assertEquals(s, StoryEngine.returnToCar(s))
         assertEquals(s, StoryEngine.next(s))
         assertEquals(s, StoryEngine.leaveCar(s))
+    }
+
+    @Test fun `검증된 도착은 이동 여부를 추정하지 않고 한 번만 반영한다`() {
+        val arrived = StoryEngine.verifiedArrival(StoryEngine.start(ep))
+        assertEquals(StoryPhase.ARRIVED, arrived.phase)
+        assertEquals(arrived, StoryEngine.verifiedArrival(arrived))
+        val exploring = StoryEngine.leaveCar(arrived)
+        assertEquals(exploring, StoryEngine.verifiedArrival(exploring))
     }
 }

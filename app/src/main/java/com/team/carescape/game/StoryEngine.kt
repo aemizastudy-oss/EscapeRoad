@@ -1,8 +1,11 @@
 package com.team.carescape.game
 
+import kotlinx.serialization.Serializable
+
 /** 한 장소 안에서의 진행 단계. */
+@Serializable
 enum class StoryPhase {
-    /** 다음 장소로 이동 중. 정차가 확인되면 도착으로 본다. */
+    /** 다음 장소로 이동 중. 실제 도착은 외부 위치·안전 정책을 통과한 뒤 확인한다. */
     EN_ROUTE,
     /** 도착 화면. */
     ARRIVED,
@@ -39,32 +42,37 @@ object StoryEngine {
 
     /**
      * 차량 정차 상태가 바뀔 때마다 부른다.
-     * 이동 중 단계에서 움직였다가(정차 아님) 다시 정차가 확인되면 도착으로 본다. 모르는 상태(null)는 정차로 보지 않는다.
+     * 기존 시연의 이동/정차 흐름만 처리한다. LIVE 도착 인증에는 쓰지 않는다.
+     * 모르는 상태(null)는 이동이나 도착의 증거로 사용하지 않는다.
      */
     fun onParked(state: StoryState, parked: Boolean?): StoryState {
         if (state.phase != StoryPhase.EN_ROUTE) return state
         return when {
-            parked != true -> state.copy(movedSinceGuidance = true)
-            state.movedSinceGuidance -> state.copy(phase = StoryPhase.ARRIVED, movedSinceGuidance = false)
+            parked == false -> state.copy(movedSinceGuidance = true)
+            parked == true && state.movedSinceGuidance -> verifiedArrival(state)
             else -> state
         }
     }
+
+    /** 호출자는 최신 위치·현재 모드·P·정지·CarUx·foreground·선행 챕터를 먼저 검증한다. */
+    fun verifiedArrival(state: StoryState): StoryState =
+        if (state.phase == StoryPhase.EN_ROUTE) state.copy(phase = StoryPhase.ARRIVED, movedSinceGuidance = false) else state
 
     /** 시연용: 실제로 달리지 않고 도착한 것으로 한다. 정차 중일 때만. */
     fun demoArrive(state: StoryState, parked: Boolean?): StoryState =
         if (state.phase == StoryPhase.EN_ROUTE && parked == true) state.copy(phase = StoryPhase.ARRIVED, movedSinceGuidance = false) else state
 
-    /** 도착 화면의 버튼. 마지막 장소는 둘러보기 없이 엔딩으로 간다. */
+    /** 모든 경유지는 관광 시작 저장 후 EXPLORING으로 간다. 마지막 장소도 15분 정책을 적용한다. */
     fun leaveCar(state: StoryState): StoryState {
         if (state.phase != StoryPhase.ARRIVED) return state
-        return if (state.chapter.explore == null) state.copy(phase = StoryPhase.ENDED)
-        else state.copy(phase = StoryPhase.EXPLORING)
+        return state.copy(phase = StoryPhase.EXPLORING)
     }
 
-    /** 둘러보고 차로 돌아왔을 때: 이 장소의 재료와 단서를 얻는다. */
+    /** 호출자가 관광 시간·최신 위치·안전 조건을 검증한 뒤 호출한다. */
     fun returnToCar(state: StoryState): StoryState {
         if (state.phase != StoryPhase.EXPLORING) return state
         val c = state.chapter
+        if (c.explore == null) return state.copy(phase = StoryPhase.ENDED)
         return state.copy(
             phase = StoryPhase.REVEALED,
             items = state.items + listOfNotNull(c.item),

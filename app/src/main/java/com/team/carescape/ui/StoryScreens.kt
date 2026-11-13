@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +39,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -44,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.team.carescape.game.StoryPhase
 import com.team.carescape.game.StoryState
+import com.team.carescape.game.TourGate
 import kotlinx.coroutines.delay
 
 /**
@@ -258,7 +262,12 @@ fun StoryPrologueScreen(vm: GameViewModel) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         pages.indices.forEach { i -> Box(Modifier.size(26.dp, 4.dp).background(if (i == page) Esc.gold else Esc.gold.copy(alpha = 0.35f))) }
                     }
-                    Text("게임 마스터 내레이션 재생 중", Modifier.weight(1f), style = Esc.noto(14, Esc.label))
+                    Text(when {
+                        vm.sdkStatus.speaking -> "음성 안내 중"
+                        !vm.speechReady -> "음성 지원·권한 확인 필요"
+                        vm.pendingNarration != null -> "음성 안내 대기"
+                        else -> "음성 연결 준비됨"
+                    }, Modifier.weight(1f), style = Esc.noto(14, Esc.label))
                     ParchmentButton("다음", vm::prologueNext, minWidth = 150.dp, minHeight = 50.dp)
                 }
             }
@@ -377,9 +386,11 @@ private fun TripMapScreen(s: StoryState, vm: GameViewModel) {
                     }
                 }
                 Box(Modifier.weight(1f))
+                Text("관광지 대표점 안내입니다. 지정 주차장은 없으며 합법적인 주차 위치는 직접 확인해 주세요.", style = Esc.noto(12, Esc.label))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlineButton("닫기", vm::goLobby, minWidth = 90.dp)
-                    ParchmentButton("다음 장소 길 안내", vm::startGuidance, Modifier.weight(1f), minWidth = 150.dp)
+                    ParchmentButton(if (vm.isMock) "시연 이동 시작" else "다음 장소 길 안내 요청", vm::startGuidance,
+                        Modifier.weight(1f).testTag("story-start-guidance"), enabled = !vm.loading && !vm.saving, minWidth = 150.dp)
                 }
             }
         }
@@ -436,10 +447,9 @@ fun StoryDrivingScreen(s: StoryState?, parkedActions: (@Composable () -> Unit)? 
                 Text("다음 목적지", style = Esc.noto(22, Esc.creamSoft))
                 Text(s?.chapter?.place ?: "주차 후 열람", style = Esc.nanum(58, lineHeight = 1.2f))
             }
-            val era = if ((s?.chapterIndex ?: 0) >= 3) "2026년" else "1795년"
             Text(
-                if (parkedActions == null) "${era}의 이야기가 들려오는 중 · 도착해서 주차하면 그 시대로 건너갑니다"
-                else "출발하면 ${era}의 이야기가 들려옵니다 · 도착해서 주차하면 그 시대로 건너갑니다",
+                if (parkedActions == null) "안전한 정차·차량 이용 허용 상태를 확인한 뒤 이야기를 엽니다"
+                else "이야기는 안전한 정차 중에만 듣습니다 · 도착은 새 위치로 별도 확인합니다",
                 style = Esc.noto(26, weight = FontWeight.Medium),
                 textAlign = TextAlign.Center,
             )
@@ -451,9 +461,17 @@ fun StoryDrivingScreen(s: StoryState?, parkedActions: (@Composable () -> Unit)? 
 
 @Composable
 private fun EnRouteActions(s: StoryState, vm: GameViewModel, narrator: Narrator?) {
-    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        OutlineButton("이동 중 이야기 다시 듣기", { narrator?.speak(s.chapter.travelDrama) })
-        OutlineButton("도착한 것으로 하기 (시연)", vm::demoArrive)
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(tourGateMessage(vm.tourStartGate), Modifier.testTag("story-arrival-reason"), style = Esc.noto(15, Esc.creamSoft))
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            if (!vm.isMock) {
+                OutlineButton("위치 다시 확인", vm::reconnectSdk, Modifier.testTag("story-location-retry"), enabled = !vm.loading && !vm.saving)
+                OutlineButton("길 안내 다시 요청", vm::startGuidance, Modifier.testTag("story-guidance-retry"), enabled = !vm.loading && !vm.saving)
+            }
+            OutlineButton("정차 중 이야기 다시 듣기", { narrator?.speak(s.chapter.travelDrama) },
+                Modifier.testTag("story-replay-narration"), enabled = narrator?.ready == true && !vm.saving)
+        }
+        MockArrivalAction(vm)
     }
 }
 
@@ -505,20 +523,25 @@ private fun ArrivalScreen(s: StoryState, vm: GameViewModel) {
                     listOf(0.92f, 0.78f, 0.86f, 0.60f).forEach { Box(Modifier.fillMaxWidth(it).height(10.dp).background(Color(90, 62, 42).copy(alpha = 0.22f))) }
                     Box(Modifier.weight(1f))
                     Text(
-                        if (c.explore == null) "약병을 열면 백신이 퍼져 나갑니다" else "둘러보고 오면 ${withSubject(l.letter)} 열립니다",
+                        "관광을 마치고 복귀 조건을 확인하면 ${withSubject(l.letter)} 열립니다",
                         style = Esc.noto(13, Esc.inkSoft),
                     )
                 }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 AwakeningGauge(0)
                 ParkBadge("장소 ${s.chapterIndex + 1} / ${s.episode.chapters.size} · ${c.place} 도착", boxed = true)
                 Text(l.script, style = Esc.pinyon(42))
                 Text(l.headline, style = Esc.nanum(40, lineHeight = 1.3f))
                 Text(l.body, style = Esc.noto(17, Esc.creamMuted, lineHeight = 1.75f))
                 if (c.explore != null) Text(c.explore, style = Esc.noto(15, Esc.creamSoft))
+                Text("모든 장소에서 관광 시작을 저장하고 최소 15분 후 복귀 위치·안전 상태를 다시 확인합니다.", style = Esc.noto(14, Esc.creamSoft))
+                Text(tourGateMessage(vm.tourStartGate), Modifier.testTag("tour-start-reason"), style = Esc.noto(14, Esc.gold))
                 MaterialsRow(ingredientCount(s))
-                Box(Modifier.padding(top = 6.dp)) { ParchmentButton(c.arrivalAction, vm::leaveCar, minWidth = 260.dp) }
+                Box(Modifier.padding(top = 6.dp)) {
+                    ParchmentButton("관광 시작", vm::leaveCar, Modifier.testTag("tour-start"),
+                        enabled = !vm.loading && !vm.saving && vm.tourStartGate == TourGate.READY, minWidth = 260.dp)
+                }
             }
         }
     }
@@ -529,13 +552,17 @@ private fun ArrivalScreen(s: StoryState, vm: GameViewModel) {
 @Composable
 private fun ExploringScreen(s: StoryState, vm: GameViewModel) {
     GoldFrame(padTop = 40.dp, padH = 40.dp, padBottom = 40.dp, fill = Color(0xB81E0508)) {
-        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(22.dp, Alignment.CenterVertically)) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)) {
             Text("Exploring · 둘러보는 중", style = Esc.cormorant(18, spacing = 0.3f))
             ParkBadge("장소 ${s.chapterIndex + 1} / ${s.episode.chapters.size} · ${s.chapter.place}", boxed = true)
             Text("${withObject(s.chapter.place)} 둘러보는 중", style = Esc.nanum(52, lineHeight = 1.2f))
-            Text(s.chapter.explore.orEmpty(), Modifier.widthIn(max = 900.dp), style = Esc.noto(22, Esc.creamMuted, lineHeight = 1.6f), textAlign = TextAlign.Center)
+            Text(s.chapter.explore ?: "마지막 장소도 최소 15분 둘러본 뒤 차량으로 돌아와 주세요.", Modifier.widthIn(max = 900.dp), style = Esc.noto(22, Esc.creamMuted, lineHeight = 1.6f), textAlign = TextAlign.Center)
             Text("차 문을 잠그고, 걸을 때는 주변을 살펴 주세요.", style = Esc.noto(16, Esc.creamSoft))
-            ParchmentButton("차로 돌아왔어요", vm::returnToCar, minWidth = 260.dp)
+            Text(tourRemainingMessage(vm.tourRemainingMillis), Modifier.testTag("tour-remaining"), style = Esc.noto(20, Esc.gold))
+            Text(tourGateMessage(vm.tourGate), Modifier.testTag("tour-unlock-reason"), style = Esc.noto(15, Esc.creamSoft))
+            ParchmentButton("차로 돌아왔어요", vm::returnToCar, Modifier.testTag("tour-return"),
+                enabled = !vm.loading && !vm.saving && vm.tourGate == TourGate.READY, minWidth = 260.dp)
+            MockTourTimeAction(vm)
             Flourish("Take your time, Agent", 120.dp, Esc.pinyon(30))
         }
     }
@@ -571,7 +598,7 @@ private fun RevealScreen(s: StoryState, vm: GameViewModel) {
                 Text("다음 행선지 · ${c.next ?: "??? — 모은 단서로 백신을 전달할 곳을 찾아야 합니다"}", style = Esc.noto(17, Esc.creamMuted, lineHeight = 1.6f))
                 MaterialsRow(ingredientCount(s))
                 Box(Modifier.padding(top = 6.dp)) {
-                    ParchmentButton(if (c.next == null) "모은 단서 펼쳐 보기" else "다음 장소 길 안내", vm::storyNext, minWidth = 260.dp)
+                    ParchmentButton(if (c.next == null) "모은 단서 펼쳐 보기" else "다음 장소 경로 보기", vm::storyNext, minWidth = 260.dp)
                 }
             }
         }
@@ -620,7 +647,7 @@ private fun FinalRevealScreen(s: StoryState, vm: GameViewModel) {
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 Text(s.episode.finalRevealText, Modifier.weight(1f), style = Esc.noto(15, Esc.creamMuted, lineHeight = 1.6f))
-                ParchmentButton("${target.place}으로 길 안내", vm::storyNext, minWidth = 280.dp)
+                ParchmentButton("${target.place} 경로 보기", vm::storyNext, minWidth = 280.dp)
             }
         }
     }

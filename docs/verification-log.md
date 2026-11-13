@@ -1,5 +1,72 @@
 # 검증 로그
 
+## 2026-11-14 · release/v0.2.0 공유 및 자물쇠 재검증
+
+- 현재 공유 브랜치: `release/v0.2.0`. 앱 버전 `0.2.0`, versionCode `2`. 기존 시역 UI·SDK 읽기·모드별 관광 저장과 정차용 자물쇠 4종을 포함합니다.
+- 직전 기기 자동 테스트는 11개 중 10개 통과, 방향 비활성 테스트 1개는 `No compose hierarchies found`로 실패했습니다. 해당 시각 내비게이션이 foreground로 전환된 로그를 관측했으며, 같은 테스트를 단독 재실행해 `OK (1 test)`를 확인했습니다. 이 재검증을 전체 11개 연속 통과로 표시하지 않습니다.
+- 이어 실제 Console Park·0km/h·DDS ready·browser active에서 LIVE 모드를 선택하고 체험 화면을 직접 조작했습니다. 색상 `노랑 · 빨강 · 빨강 · 빨강`, 방향 `↑ → ↓ ←`와 초기화, 영어 `WMWWW`, 숫자 `0003` 제출 표시를 각각 확인했습니다. 제출 전에는 답을 표시하지 않았습니다.
+- 영어 소프트 키보드 실제 표시와 넓은 W/M의 5칸 표시를 스크린샷으로 확인했습니다. 이 에뮬레이터의 `CarIME`는 기본 한글 배열로 열리며, 영문 배열의 자동 선택은 확인하지 못했습니다. ASCII 영문 입력·대문자 정규화와 IME 완료 시 미제출은 자동 테스트로 검증했습니다.
+- 테스트 전후 여행 파일 목록/해시는 동일했고, 앱 코드·기존 여행 진행은 테스트를 위해 바꾸지 않았습니다. 이전 절의 ADB offline 때문에 미확인이었던 LIVE 직접 조작은 이번 재검증에서 확인됐습니다. 단, 실차·실제 관광 방문·가청 음성·길 안내 완료는 이번 검증에 포함하지 않습니다.
+- 로컬 스크린샷·원시 테스트 로그·백업·APK·개인 SDK 설정·키는 업로드하지 않습니다. 기존 문서의 44개/기기 3개·51개/기기 11개 통과 기록은 해당 작업 시점의 이력으로 보존합니다.
+- 최종 검증 질문 “v0.2.0의 Debug·Release 빌드, 단위 테스트, Lint가 통과하는가?” → 통과. 관리 래퍼를 통해 원본 프로젝트의 `gradlew.bat :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug --offline`를 실행했습니다. 두 APK 메타데이터의 versionName `0.2.0`·versionCode `2`, JVM 51개 통과(실패/오류/건너뜀 0), Lint 오류 0·경고 8을 확인했습니다. 버전 변경만으로 기존 기기 테스트를 새 APK에서 다시 실행한 것으로 표시하지 않습니다.
+
+## 2026-11-13 · 원본 이미지 기반 정차용 자물쇠 4종
+
+**구현 완료 / 후보 Debug·Release 빌드 확인 / JVM 51개·자물쇠 기기 UI 11개 통과 / Lint 오류 0개.** 사용자 답변에 따라 로비의 ‘자물쇠 체험’에 4종을 배치했습니다. 색상·숫자는 4칸, 영어는 A–Z 대문자 5칸, 방향은 초기화 전까지 누적합니다. 실제 이야기의 정답·배치·관광 기록은 변경하지 않습니다.
+
+- `docs/img` PNG 4개를 변형하지 않고 `drawable-nodpi`에 복사했습니다. 네 원본/패키징 파일의 SHA-256 일치를 확인했습니다. 창의 값·터치 영역만 Compose로 겹칩니다.
+- 색상은 빨강/노랑/초록/파랑, 숫자는 0–9로 순환합니다. 탭은 다음 값, 상하 드래그는 한 번 놓을 때 한 단계이며 드래그 중 창이 따라 움직입니다. 조작만으로 제출하지 않습니다.
+- 방향은 가운데 원에서 시작한 상하좌우 스와이프를 놓을 때 한 방향을 추가합니다. 28dp 미만, 원 밖 시작, 취소·멀티터치는 입력하지 않습니다. 순서는 아래에 번호와 화살표로 표시하며 긴 입력은 가로로 스크롤합니다.
+- 영어 자물쇠 전체가 실제 `BasicTextField`이며 키보드 입력을 5개 창에 표시합니다. ASCII 영문만 대문자로 정규화하며 미완성 제출을 막습니다. IME 완료는 키보드만 닫고, 화면의 ‘제출’만 전체 답안을 전달합니다. 좁은 창에서도 W/M이 잘리지 않도록 글자 크기·자간을 이미지 배율에 맞췄습니다.
+- 공통 컴포넌트는 값·변경/제출 콜백·루트 modifier·enabled·피드백 슬롯을 받습니다. 체험 화면의 임시 상태와 ViewModel의 현재 안전/화면 조건 검증을 분리했습니다. P·실제 정지·CarUx·foreground가 풀리면 화면과 IME를 닫고 새 입력·제출을 거절합니다.
+
+| 검증 | 실제 결과 |
+| --- | --- |
+| 환경 | 기존 Windows/JBR 25/Gradle 9.1.0/AGP 9.0.1/Kotlin 2.2.21, Pleos API 34 emulator-5554/user 10 |
+| 빌드 질문 | “Do all four locks compile with their test APK, pass JVM tests, and pass debug lint?” → 통과. 관리 래퍼 `gradle_with_jbr.py` → 프로젝트 `gradlew.bat`로 `assembleDebug assembleRelease testDebugUnitTest assembleDebugAndroidTest lintDebug --offline`, 122.877초, exit 0 |
+| 원본 프로젝트 재빌드 | “원본 프로젝트에 적용한 자물쇠 코드로 Debug APK를 빌드할 수 있는가?” → 통과. 동일 관리 래퍼로 `C:\car_escape`의 `gradlew.bat :app:assembleDebug --offline`, 21.973초, exit 0. `app/build/outputs/apk/debug/app-debug.apk` 생성 |
+| 단위 테스트 | 기존 44개 + 입력 정규화·방향 경계 7개 = 51개. 실패·오류·건너뜀 0 |
+| 기기 UI | `LockComponentsTest` 10개 + `LockWorkshopLifecycleTest` 1개, `OK (11 tests)`. 탭·실제 스와이프·순서/초기화·영어 정규화·IME 완료 미제출·비활성·주행/foreground 차단 확인 |
+| Lint | 오류 0, 경고 8. 억제·baseline·새 라이브러리를 추가하지 않음 |
+| 데이터 | 기기 원본 APK 백업 후 `install -r`. 테스트 전후 여행 파일 목록/해시 동일(둘 다 여행 파일 없음). 저장소를 초기화하거나 기존 앱을 제거하지 않음 |
+| 추가 LIVE 화면 캡처 | 테스트 완료 후 ADB 셸이 응답하지 않았고 대상 연결만 재연결했으나 offline으로 남아 미확인. 에뮬레이터 강제 종료·데이터 초기화는 하지 않음. 앞서 통과한 UI 테스트와 별개이며 수동 LIVE 화면·소프트 키보드 가시성 성공으로 표시하지 않음 |
+
+실행 명령은 다음과 같습니다. 이 테스트는 실제 여행 저장소를 수정하지 않습니다.
+
+```text
+adb -s emulator-5554 shell am instrument --user 10 -w -r -e class com.team.carescape.ui.LockComponentsTest,com.team.carescape.ui.LockWorkshopLifecycleTest com.team.carescape.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+로컬 증거는 Git에서 제외한 `.gradle/car-escape-locks-20261113/verification`에 보관했습니다. SDK 실차·실제 관광 방문·Ubuntu 실행은 이번 검증에 포함하지 않습니다.
+
+## 2026-11-13 · 기존 시역 UI의 SDK·관광 저장 연결
+
+**구현 완료 / Debug·Release 빌드 확인 / JVM 44개·기기 UI 3개 통과 / Lint 오류 0개.** 기존 `release/v0.1.0`의 `com.team.carescape` 화면·시역 이야기·이미지·폰트를 유지하고, [요구 문서](ROAD_ESCAPE_sdk.md)에 맞춰 SDK 연결·설정 UI와 관광 15분·영구 저장을 추가했습니다. 문서는 `main`에서 원본 그대로 복원했으며 상세 API·제약·공유 경계는 [SDK 연결 안내](sdk-ui-integration.md)에 기록했습니다. 아래 2026-11-12 SIM 기록은 이전 구현 이력입니다.
+
+| 검증 | 실제 결과 |
+| --- | --- |
+| 환경 | Windows, JBR 25, Gradle 9.1.0, AGP 9.0.1, Kotlin 2.2.21, compile/target/min SDK 36/34/28 |
+| 최종 빌드 | `assembleDebug assembleRelease testDebugUnitTest assembleDebugAndroidTest lintDebug`, 오프라인 기존 캐시 사용, `sdk-candidate-final-build.log`에서 41초 성공 |
+| 실제 프로젝트 재검증 | 검증된 소스를 `C:\car_escape`의 `release/v0.1.0`에 적용한 뒤 Debug·Release·JVM·Lint를 다시 실행, `project-build.log`에서 1분 27초 성공 |
+| JVM | Content 6·PuzzleEngine 11·StoryEngine 8·TourPolicy 11·TripProgressStore 8, 총 44개. 실패·오류·건너뜀 0 |
+| 기기 UI | Pleos API 34 `emulator-5554`, 사용자 10. `TourLifecycleTest` 3개, `OK (3 tests)`, 63.049초. 실패·오류·건너뜀 0 |
+| UI 검증 내용 | 관광 시작 시각 보존·15분 전 차단·Activity 재생성 후 새 P와 위치 필요·MOCK 15분 시연 후 단서 진행; DRIVING/실제 stop-resume 중 화면·명령·음성 차단; LIVE 모의 입력 무시·MOCK/LIVE 기록 분리 |
+| Lint | 오류 0·경고 8·힌트 3. baseline이나 오류 무시 설정을 추가하지 않음 |
+| 실제 SDK 상태 화면 | 권한 변경 없이 NaviHelper 서비스 연결 준비·Vehicle 보조 표본 수신 확인. FusedLocation과 AAOS 안전은 권한 필요, 음성은 안전 상태 미확인으로 연결 전 |
+| 원본 데이터 | 테스트 직전 기존 앱 파일 1개와 APK를 새로 백업. 테스트 종료 후 원본 SHA-256 일치 복원, 생성된 관광 기록 파일만 제거 |
+
+기기 테스트는 설치 APK·테스트 APK의 SHA-256이 빌드 산출물과 같은지 확인한 뒤 다음 명령으로 실행했습니다.
+
+```text
+adb -s emulator-5554 shell am instrument --user 10 -w -r -e class com.team.carescape.ui.TourLifecycleTest com.team.carescape.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+이번 구현에서 원시 위치·안전 표본·음성 원문은 영구 저장하지 않습니다. `trip-progress.json`만 모드별로 원자 저장하고, 손상·미지원 버전을 빈 기록으로 자동 덮어쓰지 않습니다. 시작 시각은 중복 버튼으로 초기화하지 않습니다. foreground 복귀와 모드 전환에서 안전 상태를 다시 반영하며, background에서는 SDK와 화면 갱신 타이머를 중단합니다.
+
+SDK 어댑터는 기존 `main`의 검증된 API 경계를 현재 패키지로 이식했습니다. `LocationData.confidence`의 미터 정확도 계약을 확인하지 못해 **실제 LIVE 도착 인증은 보류**합니다. 권한·SDK READY 표시, MOCK 성공을 실제 방문·실차·가청 음성·길 안내 완료로 설명하지 않습니다. 이번 기기 UI는 대표 1챕터와 모드 전환을 확인했으며, 5개 챕터 전체 UI·실제 관광·시동 OFF/ON·Ubuntu 실행은 미확인입니다.
+
+초기 컴파일의 foreground setter/메서드 JVM 이름 충돌과 개인 `local.properties`의 드라이브 문자 이스케이프 Lint 오류를 수정했습니다. 제한 환경의 Gradle 네이티브 실행 차단·권한 검토 시간 초과는 코드 실패와 구분했고, 승인 후 기존 캐시의 오프라인 Gradle로 검증했습니다. 로그·APK·앱 데이터·소스 원본 백업은 Git에서 제외한 로컬 검증 작업 영역에 보관합니다. 사용자 기기에서 UI 테스트를 직접 실행하기 전에는 별도 백업이 필요합니다.
+
 ## 2026-11-12 · Escape Road 화면 1차 에뮬레이터 확인
 
 - 환경: Windows 11, Android Studio 내장 JDK(jbr), AVD `Pleos_Connect_v2.1.0` (2560×1440, 160dpi)
