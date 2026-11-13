@@ -25,6 +25,9 @@ class SiyeokCaseTest {
         is StoryLockDefinition.Choice -> StoryPuzzleInput.Choice(lock.answer)
         is StoryLockDefinition.Order -> StoryPuzzleInput.Order(lock.answer)
         is StoryLockDefinition.CarSequence -> StoryPuzzleInput.CarSequence(lock.answer)
+        is StoryLockDefinition.SymbolDial -> StoryPuzzleInput.Dial(lock.answer)
+        is StoryLockDefinition.UseItem -> StoryPuzzleInput.UseItem(lock.answer)
+        is StoryLockDefinition.Sequence -> StoryPuzzleInput.Sequence(lock.answer)
     }
     private fun wrong(lock: StoryLockDefinition): StoryPuzzleInput = when (lock) {
         is StoryLockDefinition.Choice -> StoryPuzzleInput.Choice(lock.options.first { it.id != lock.answer }.id)
@@ -186,5 +189,37 @@ class SiyeokCaseTest {
         assertNotNull(state.endingKind)
         val forged = trip.copy(puzzleProgress = trip.puzzleProgress.map { it.copy(verdictMisses = listOf("c1_plaque")) })
         assertTrue(runCatching { validateStoredTrip(forged) }.isFailure)
+    }
+
+    @Test fun everySceneAndStepSpeakerIsAKnownCharacter() {
+        val ids = episode.people.map { it.id }.toSet()
+        episode.chapters.forEachIndexed { i, c ->
+            assertTrue("travel scene $i", c.travelScene.isNotEmpty())
+            assertTrue("arrival scene $i", c.arrivalScene.isNotEmpty())
+            (c.travelScene + c.arrivalScene + c.revealScene).forEach { line ->
+                assertTrue(line.speaker ?: "narration", line.speaker == null || line.speaker in ids)
+            }
+            c.puzzleSteps.forEach { step -> assertTrue(step.id, step.speaker == null || step.speaker in ids) }
+            assertEquals(c.travelScene.spoken(), c.travelDrama)
+        }
+        (0 until episode.finalChapterIndex).forEach { assertTrue("reveal scene $it", episode.chapters[it].revealScene.isNotEmpty()) }
+        listOf("physician", "yeoni", "hancheol", "park", "kim", "curator").forEach { id ->
+            assertTrue("$id speaks", episode.chapters.any { c -> (c.travelScene + c.arrivalScene + c.revealScene).any { it.speaker == id } })
+        }
+    }
+
+    @Test fun peopleAppearOnArrivalAndRelationsResolveWithTheTruth() {
+        val first = StoryEngine.verifiedArrival(StoryEngine.start(episode, StoryCatalog.CASE_FLOW_VERSION))
+        assertEquals(listOf("physician", "yeoni"), first.visiblePeople.map { it.id })
+        val yeoni = episode.people.first { it.id == "yeoni" }
+        assertEquals("아는 아이?", first.personRelation(yeoni))
+        assertEquals(1, first.personNotes(yeoni).size)
+        val end = play()
+        assertFalse(end.visiblePeople.any { it.id == "agency" })
+        assertEquals("누이", end.personRelation(yeoni))
+        assertTrue(end.personNotes(yeoni).size >= 3)
+        val normal = play({ _, p -> if (p.id == "c5_truth_why") wrong(p.lock) else answer(p.lock) })
+        assertEquals("아는 아이?", normal.personRelation(yeoni))
+        assertFalse(normal.personNotes(yeoni).contains(yeoni.truthNote))
     }
 }

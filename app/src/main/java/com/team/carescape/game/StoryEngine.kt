@@ -72,8 +72,18 @@ data class StoryState(
         reached && (doc.afterStep == null || isStepDone(doc.afterStep))
     }
     val visiblePeople: List<CasePerson> get() = episode.people.filter { p ->
-        p.chapterIndex < chapterIndex || (p.chapterIndex == chapterIndex && phase.ordinal >= StoryPhase.ARRIVED.ordinal)
+        p.listed && (p.chapterIndex < chapterIndex || (p.chapterIndex == chapterIndex && phase.ordinal >= StoryPhase.ARRIVED.ordinal))
     }
+
+    /** 지금 가진 소지품(얻은 순서). */
+    val inventory: List<CaseItem> get() = episode.caseItems.filter { isStepDone(it.fromStep) }
+    fun isItemUsed(item: CaseItem): Boolean = item.usedBy != null && isStepDone(item.usedBy)
+
+    /** 인물 칸에 지금 보이는 기록(기본 설명 + 풀어서 얻은 기록 + 진상). */
+    fun personNotes(p: CasePerson): List<String> =
+        listOf(p.note) + p.notes.filter { isStepDone(it.afterStep) }.map { it.text } +
+            listOfNotNull(p.truthNote?.takeIf { truthSolved })
+    fun personRelation(p: CasePerson): String? = if (truthSolved && p.truthRelation != null) p.truthRelation else p.relation
 
     val truthSteps: List<StoryPuzzleDefinition> get() = episode.chapters.flatMap { it.puzzleSteps }.filter { it.verdict }
     /** 진상 추리를 모두 답했고 하나도 틀리지 않았는지. */

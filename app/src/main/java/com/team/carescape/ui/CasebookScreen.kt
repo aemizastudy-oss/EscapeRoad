@@ -28,7 +28,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.team.carescape.game.StoryState
 
-private enum class CaseTab(val label: String) { DOCS("문서"), PEOPLE("인물"), CLUES("단서") }
+private enum class CaseTab(val label: String) { DOCS("문서"), PEOPLE("인물"), ITEMS("소지품"), CLUES("단서") }
 
 /** 사건 기록부. 정차 중에만 열리며, 지금까지 모은 일지·인물·단서를 다시 읽는다. */
 @Composable
@@ -44,7 +44,7 @@ fun CasebookScreen(s: StoryState, onClose: () -> Unit) {
                     Text("Case Book", style = Esc.pinyon(34))
                     Text("사건 기록부", style = Esc.nanum(28))
                 }
-                CaseTab.entries.forEach { t ->
+                CaseTab.entries.filter { it != CaseTab.ITEMS || s.episode.caseItems.isNotEmpty() }.forEach { t ->
                     val on = t == tab
                     Box(
                         Modifier.border(if (on) 2.dp else 1.dp, if (on) Esc.gold else Esc.goldDim)
@@ -85,17 +85,39 @@ fun CasebookScreen(s: StoryState, onClose: () -> Unit) {
                     }
                 }
                 CaseTab.PEOPLE -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    s.visiblePeople.forEach { p ->
+                    val people = s.visiblePeople
+                    val center = people.firstOrNull { it.id == "physician" }
+                    val linked = people.mapNotNull { p -> s.personRelation(p)?.let { p to it } }
+                    if (center != null && linked.isNotEmpty()) RelationMap(center, linked)
+                    people.forEach { p ->
                         Row(Modifier.fillMaxWidth().background(Esc.panel).border(1.dp, Esc.goldDim).padding(14.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                            Column(Modifier.width(200.dp)) {
+                            SpeakerSeal(p, Esc.gold, 44)
+                            Column(Modifier.width(180.dp)) {
                                 Text(p.name, style = Esc.nanum(20))
                                 Text(p.role, style = Esc.noto(14, Esc.gold))
                             }
-                            Text(if (p.truthNote != null && s.truthSolved) p.truthNote else p.note,
-                                Modifier.weight(1f).testTag("casebook-person-${p.id}"), style = Esc.noto(16, Esc.creamMuted, lineHeight = 1.6f))
+                            Column(Modifier.weight(1f).testTag("casebook-person-${p.id}"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                s.personNotes(p).forEachIndexed { i, note ->
+                                    Text(if (i == 0) note else "· $note", style = Esc.noto(16, if (i == 0) Esc.creamMuted else Esc.cream, lineHeight = 1.6f))
+                                }
+                            }
                         }
                     }
                     Text("이 이야기의 인물과 기록은 허구입니다.", style = Esc.noto(13, Esc.label))
+                }
+                CaseTab.ITEMS -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val inv = s.inventory
+                    if (inv.isEmpty()) Text("아직 얻은 소지품이 없습니다.", style = Esc.noto(15, Esc.creamSoft))
+                    inv.forEach { item ->
+                        val used = s.isItemUsed(item)
+                        Row(Modifier.fillMaxWidth().background(Esc.panel).border(1.dp, Esc.goldDim).padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                            ItemTile(item, used, selected = false, enabled = false, onClick = null)
+                            Text(item.description, Modifier.weight(1f).testTag("casebook-item-${item.id}"),
+                                style = Esc.noto(16, if (used) Esc.locked else Esc.creamMuted, lineHeight = 1.6f))
+                        }
+                    }
+                    Text("소지품은 퍼즐을 풀면 들어오고, 자물쇠에서 ‘쓰기’로 사용합니다.", style = Esc.noto(13, Esc.label))
                 }
                 CaseTab.CLUES -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (s.clues.isEmpty()) Text("아직 확정된 단서가 없습니다.", style = Esc.noto(15, Esc.creamSoft))

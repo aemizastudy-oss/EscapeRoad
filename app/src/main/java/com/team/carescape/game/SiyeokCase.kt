@@ -8,8 +8,8 @@ package com.team.carescape.game
  * 축만제 1799년(정조 23년), 원천저수지=아랫방죽·신대저수지=웃방죽 별칭, 조선 봉수 5거 신호.
  */
 object SiyeokCase {
-    private fun opts(vararg pairs: Pair<String, String>) = pairs.map { ChoiceOption(it.first, it.second) }
-    private fun notes(vararg pairs: Pair<String, String>): (String) -> WrongNote? {
+    internal fun opts(vararg pairs: Pair<String, String>) = pairs.map { ChoiceOption(it.first, it.second) }
+    internal fun notes(vararg pairs: Pair<String, String>): (String) -> WrongNote? {
         val map = pairs.toMap()
         return { key -> map[key]?.let { WrongNote(it) } }
     }
@@ -20,9 +20,9 @@ object SiyeokCase {
     private val R = CarControl.TURN_RIGHT
 
     // ───────── CH.1 화성행궁 ─────────
-    private val ch1Steps = listOf(
+    internal val ch1Steps = listOf(
         StoryPuzzleDefinition(
-            id = "c1_testimony", kind = StepKind.TESTIMONY, replayNarration = true,
+            id = "c1_testimony", speaker = "physician", kind = StepKind.TESTIMONY, replayNarration = true,
             title = "이동 중 들은 말",
             prompt = "오는 길에 의원의 목소리를 들었습니다. 의원은 전하의 글을 어디에 숨겼다고 했나요?",
             hints = listOf("‘다시 듣기’로 이동 중 이야기를 다시 들을 수 있어요.", "곧 열릴 잔치와 관련 있어요.", "잔치가 열릴 전각입니다."),
@@ -51,7 +51,7 @@ object SiyeokCase {
             success = "밀서 끝에 한 글자가 떠오릅니다. 水 — 물을 따라가라.",
         ),
         StoryPuzzleDefinition(
-            id = "c1_bolt", kind = StepKind.SCENE,
+            id = "c1_bolt", speaker = "physician", kind = StepKind.SCENE,
             title = "행궁의 빗장",
             prompt = "“놈들이 들어오기 전에 문을 걸어라!”\n주변 차량과 보행자를 확인한 뒤 운전석 문을 열었다 닫고 버튼을 누르세요.",
             hints = emptyList(),
@@ -60,7 +60,7 @@ object SiyeokCase {
             success = "쿵 — 빗장이 걸렸습니다.",
         ),
         StoryPuzzleDefinition(
-            id = "c1_diary_lock", kind = StepKind.DEDUCE,
+            id = "c1_diary_lock", speaker = "yeoni", kind = StepKind.DEDUCE,
             title = "연이의 수첩",
             prompt = "사라진 궁녀 연이의 수첩이 잠겨 있습니다. 표지: “내가 모시는 분의 잔치 날을 잊지 마라.”\n사건 기록부의 의원 일지 1장을 보고 날짜 네 자리(월·일)를 맞추세요.",
             hints = listOf("사건 기록부 → 문서 → 의원 일지 1장을 열어 보세요.", "혜경궁 마마의 회갑연 날짜예요.", "윤2월 13일 → 0213"),
@@ -73,9 +73,9 @@ object SiyeokCase {
     )
 
     // ───────── CH.2 화홍문 ─────────
-    private val ch2Steps = listOf(
+    internal val ch2Steps = listOf(
         StoryPuzzleDefinition(
-            id = "c2_testimony", kind = StepKind.TESTIMONY, replayNarration = true,
+            id = "c2_testimony", speaker = "hancheol", kind = StepKind.TESTIMONY, replayNarration = true,
             title = "이동 중 들은 말",
             prompt = "장용영 병사가 말했습니다. 놈들이 다리 앞에서 멈춘 시각은?",
             hints = listOf("‘다시 듣기’로 병사의 말을 다시 들어 보세요.", "밤 9시에서 11시 사이를 부르는 이름이에요.", "해시입니다."),
@@ -84,7 +84,7 @@ object SiyeokCase {
             wrongDefault = "병사의 말을 다시 들어 보세요.",
         ),
         StoryPuzzleDefinition(
-            id = "c2_arches", kind = StepKind.OBSERVE,
+            id = "c2_arches", speaker = "hancheol", kind = StepKind.OBSERVE,
             title = "수문의 수",
             prompt = "물이 성을 지나는 무지개 구멍(홍예)은 몇 칸인가요?",
             hints = listOf("화홍문 다리 아래 아치를 세어 보세요.", "남쪽 수문(남수문)과는 칸 수가 달라요.", "7칸입니다."),
@@ -94,7 +94,7 @@ object SiyeokCase {
             wrongDefault = "다리 아래 무지개 구멍을 다시 세어 보세요.",
         ),
         StoryPuzzleDefinition(
-            id = "c2_compare", kind = StepKind.DEDUCE,
+            id = "c2_compare", speaker = "agency", kind = StepKind.DEDUCE,
             title = "두 기록 대조",
             prompt = "사건 기록부의 ‘장용영 순라 보고서’와 ‘수문 일지’를 나란히 읽으세요.\n놈들은 무엇 때문에 다리를 건너지 못했을까요?",
             hints = listOf("두 문서의 시각(해시·자시)을 맞춰 보세요.", "판문을 내려 물이 약해진 바로 그때 한 놈이 건넜어요.", "흐르는 물입니다."),
@@ -104,7 +104,7 @@ object SiyeokCase {
             success = "놈들은 흐르는 물을 건너지 못한다 — 규칙을 확인했습니다.",
         ),
         StoryPuzzleDefinition(
-            id = "c2_index", kind = StepKind.DEDUCE,
+            id = "c2_index", speaker = "physician", kind = StepKind.DEDUCE,
             title = "서고 색인함",
             prompt = "의원 일지 2장에 ‘그 아이에게 처음 쓴 약’을 싸 둔 보자기가 나옵니다. 서고 색인함에서 같은 이름의 카드를 고르세요.",
             hints = listOf("사건 기록부 → 의원 일지 2장을 읽어 보세요.", "보자기의 색과 천 이름이 정확히 같아야 해요.", "청포 보자기 → 乙-04"),
@@ -114,7 +114,7 @@ object SiyeokCase {
             success = "乙-04 서랍에서 연이의 진료 기록을 찾았습니다.",
         ),
         StoryPuzzleDefinition(
-            id = "c2_gates", kind = StepKind.CAR,
+            id = "c2_gates", speaker = "hancheol", kind = StepKind.CAR,
             title = "일곱 판문",
             prompt = "병사: “판문을 내려 물을 한 칸으로 모아야 약에 쓸 센 물을 뜰 수 있소. 하지만 일곱을 다 막으면 물이 멎고, 놈들이 건너오오.”\n수문 일지를 참고해 1번 칸부터 차례로 정하세요. 와이퍼 = 판문 내리기, 비상등 = 열어 두기.",
             hints = listOf("열어 둘 칸은 딱 하나예요.", "수문 일지: 물이 가장 깊은 곳은 한가운데 칸. 일곱 칸의 한가운데는?", "와이퍼 3번 → 비상등 → 와이퍼 3번"),
@@ -134,14 +134,14 @@ object SiyeokCase {
     )
 
     // ───────── CH.3 만석거 ─────────
-    private val waterMap = CarVisual.WaterMap(30, listOf(
+    internal val waterMap = CarVisual.WaterMap(30, listOf(
         Fork(25, "", 32, ""),
         Fork(27, "", 20, ""),
         Fork(18, "고인 우물", 15, "곡식 논"),
     ))
-    private val ch3Steps = listOf(
+    internal val ch3Steps = listOf(
         StoryPuzzleDefinition(
-            id = "c3_testimony", kind = StepKind.TESTIMONY, replayNarration = true,
+            id = "c3_testimony", speaker = "kim", kind = StepKind.TESTIMONY, replayNarration = true,
             title = "이동 중 들은 말",
             prompt = "둔전 노인이 말했습니다. 임금님이 이 저수지에 담은 바람은?",
             hints = listOf("‘다시 듣기’로 노인의 말을 다시 들어 보세요.", "‘만 석’이 무엇을 세는 말인지 생각해 보세요.", "만 석의 수확입니다."),
@@ -150,7 +150,7 @@ object SiyeokCase {
             wrongDefault = "노인의 말을 다시 들어 보세요.",
         ),
         StoryPuzzleDefinition(
-            id = "c3_pavilion", kind = StepKind.OBSERVE,
+            id = "c3_pavilion", speaker = "kim", kind = StepKind.OBSERVE,
             title = "둑 위의 정자",
             prompt = "만석거 둑 위에 있는 정자의 이름은?",
             hints = listOf("둑 위 정자와 안내판을 찾아보세요.", "화홍문 옆 정자(방화수류정)와는 달라요.", "영화정입니다."),
@@ -159,7 +159,7 @@ object SiyeokCase {
             feedback = notes("banghwa" to "그건 화홍문 곁의 정자다.", "yeonmu" to "그건 성 안의 활터다."),
         ),
         StoryPuzzleDefinition(
-            id = "c3_channel", kind = StepKind.CAR,
+            id = "c3_channel", speaker = "kim", kind = StepKind.CAR,
             title = "물길 돌리기",
             prompt = "농서 조각: “물은 높은 데서 낮은 데로만 간다. 곡식은 고인 물이 닿지 않은 것이어야 한다.”\n물은 화면 위에서 아래로 흐릅니다. 갈림길마다 깜빡이로 방향을 고르세요(왼쪽·오른쪽은 화면 기준).",
             hints = listOf("갈래의 숫자가 지금 높이보다 작아야 물이 갑니다.", "마지막 갈림길은 두 쪽 다 내리막이에요. 농서의 두 번째 문장을 보세요.", "왼 → 오른 → 오른"),
@@ -176,9 +176,9 @@ object SiyeokCase {
             success = "물길이 마을을 감싸고 곡식 논에 닿았습니다.",
         ),
         StoryPuzzleDefinition(
-            id = "c3_year", kind = StepKind.DEDUCE,
+            id = "c3_year", speaker = "kim", kind = StepKind.DEDUCE,
             title = "왕의 저수지",
-            prompt = "“만석거는 정조 19년, 1795년에 쌓았다. 축만제는 정조 23년에 쌓았다.” 축만제를 쌓은 해는?",
+            prompt = "노인: “전하께서는 이 고을에 큰 물을 여럿 만드셨소. 여기 만석거는 정조 19년, 1795년에 쌓았고, 서쪽 축만제는 정조 23년에 쌓으셨지.”\n축만제를 쌓은 해는?",
             hints = listOf("같은 왕의 몇 년째인지가 두 번 나와요.", "23 − 19 = 4", "1795 + 4 = 1799"),
             solution = "1795 + (23 − 19) = 1799. 축만제는 1799년에 쌓았습니다.",
             lock = StoryLockDefinition.Numeric("1799"),
@@ -187,7 +187,7 @@ object SiyeokCase {
             success = "마을 사람들이 곡식 한 자루를 내어 줍니다. 백신 재료 ‘만 석의 들판에서 거둔 곡식’을 얻었습니다.",
         ),
         StoryPuzzleDefinition(
-            id = "c3_hidden", kind = StepKind.DEDUCE,
+            id = "c3_hidden", speaker = "physician", kind = StepKind.DEDUCE,
             title = "붉은 먹점",
             prompt = "의원 일지 3장 몇 글자에만 붉은 먹점이 찍혀 있습니다. 먹점 글자만 이어 읽으면?",
             hints = listOf("사건 기록부 → 의원 일지 3장에서 붉게 표시된 글자를 찾으세요.", "여섯 글자입니다. 첫 글자는 ‘경’.", "경계를 넘었다"),
@@ -199,9 +199,9 @@ object SiyeokCase {
     )
 
     // ───────── CH.4 수원광교박물관 ─────────
-    private val ch4Steps = listOf(
+    internal val ch4Steps = listOf(
         StoryPuzzleDefinition(
-            id = "c4_testimony", kind = StepKind.TESTIMONY, replayNarration = true,
+            id = "c4_testimony", speaker = "curator", kind = StepKind.TESTIMONY, replayNarration = true,
             title = "이동 중 들은 말",
             prompt = "학예사가 찢어진 소식지 이야기를 했습니다. 소식지 뒷면에 무엇이 있다고 했나요?",
             hints = listOf("‘다시 듣기’로 학예사의 말을 다시 들어 보세요.", "조각이 맞아야 이어진다고 했어요.", "숫자 획입니다."),
@@ -210,7 +210,7 @@ object SiyeokCase {
             wrongDefault = "학예사의 말을 다시 들어 보세요.",
         ),
         StoryPuzzleDefinition(
-            id = "c4_uigwe", kind = StepKind.OBSERVE,
+            id = "c4_uigwe", speaker = "curator", kind = StepKind.OBSERVE,
             title = "기록을 되살린 사람",
             prompt = "이 박물관에 이름을 남긴 수집가가 다시 세상에 내놓은, 화성을 쌓은 과정의 기록은?",
             hints = listOf("기증자의 이름이 붙은 전시를 찾아보세요.", "‘의궤’로 끝나요.", "화성성역의궤"),
@@ -220,7 +220,7 @@ object SiyeokCase {
             wrongDefault = "성을 ‘쌓은’ 기록을 찾으세요.",
         ),
         StoryPuzzleDefinition(
-            id = "c4_paper", kind = StepKind.DEDUCE,
+            id = "c4_paper", speaker = "curator", kind = StepKind.DEDUCE,
             title = "찢어진 소식지",
             prompt = "게임 속 기록 「고을 소식」이 여섯 조각으로 찢겨 있습니다. 찢긴 모양이 맞물리도록 처음부터 차례로 고르세요. 종이 가장자리(┃)는 처음과 끝에만 있습니다.",
             hints = listOf("조각 오른쪽 끝 기호와 다음 조각 왼쪽 기호가 맞물려요. ▶ 다음은 ◀, ▲ 다음은 ▼, 나머지는 같은 기호끼리.", "첫 조각은 ‘광교산 아래’로 시작해요.", "광교산 아래 → 두 저수지가 있다 → 마을 사람들은 → 위를 웃방죽 → 아래를 → 아랫방죽이라 부른다"),
@@ -237,7 +237,7 @@ object SiyeokCase {
             success = "조각을 뒤집자 숫자 획이 이어집니다: 4 1 7 2. 사건 기록부에 소식지가 추가되었습니다.",
         ),
         StoryPuzzleDefinition(
-            id = "c4_index", kind = StepKind.DEDUCE,
+            id = "c4_index", speaker = "physician", kind = StepKind.DEDUCE,
             title = "감초 상자",
             prompt = "의원 일지 4장에 비방 마지막 장을 넣어 둔 상자가 나옵니다. 서고 색인함에서 고르세요.",
             hints = listOf("사건 기록부 → 의원 일지 4장을 읽어 보세요.", "약재 이름과 그릇 이름이 둘 다 같아야 해요.", "감초 상자 → 丙-17"),
@@ -247,7 +247,7 @@ object SiyeokCase {
             success = "丙-17 자리에서 봉화로만 열리는 함을 찾았습니다.",
         ),
         StoryPuzzleDefinition(
-            id = "c4_beacon", kind = StepKind.CAR,
+            id = "c4_beacon", speaker = "physician", kind = StepKind.CAR,
             title = "봉화함",
             prompt = "함의 문구: “그날 고을의 형편을 봉화로 알려야 열린다.”\n봉수 신호: 1 평시 · 2 적이 나타남 · 3 적이 경계에 다가옴 · 4 적이 경계를 넘음 · 5 맞붙어 싸움\nP단에서 전조등을 켰다 끄는 횟수로 봉화를 올리세요(상향등 금지).",
             hints = listOf("만석거에서 찾은 의원 일지 3장을 다시 보세요.", "숨은 글자 ‘경계를 넘었다’ + 본문 ‘아직 칼을 뽑지 않았다’.", "봉화 4개 — 전조등 4번"),
@@ -263,7 +263,7 @@ object SiyeokCase {
             success = "함이 열렸습니다. 비방 마지막 장과 약재 ‘감초’를 얻었습니다.",
         ),
         StoryPuzzleDefinition(
-            id = "c4_vaccine", kind = StepKind.DEDUCE,
+            id = "c4_vaccine", speaker = "physician", kind = StepKind.DEDUCE,
             title = "백신 조합",
             prompt = "재료 카드에서 넣을 것만 순서대로 고르세요. 넣지 말아야 할 재료가 하나 섞여 있습니다.\n① 밀서: “시작은 흐르는 것이다.”  ② 농서 뒷면: “곡식은 마지막이 아니다.”  ③ 비방 마지막 장: “약재는 곡식을 감싼 뒤에 넣는다. 성 밖의 물은 쓰지 마라.”",
             hints = listOf("세 문장이 각각 다른 순서 정보를 줘요.", "처음(흐르는 것)과 ‘마지막이 아닌 것’을 먼저 정하세요. 성 밖의 물은 빼요.", "흐르는 물 → 곡식 → 감초"),
@@ -274,7 +274,7 @@ object SiyeokCase {
             success = "약이 맑게 가라앉습니다. 백신이 완성되었습니다.",
         ),
         StoryPuzzleDefinition(
-            id = "c4_map", kind = StepKind.DEDUCE,
+            id = "c4_map", speaker = "kim", kind = StepKind.DEDUCE,
             title = "물길 그림",
             prompt = "노인의 구술: “위 방죽에서 물이 흘러 아래 방죽으로 모인다.” 비방: “약은 물이 모이는 곳에 풀어라.”\n게임 속 물길 그림의 두 호수 가운데 약을 풀 곳은?",
             hints = listOf("물은 위에서 아래로 흘러 모여요.", "소식지는 아래 것을 뭐라고 불렀나요?", "아래 호수(아랫방죽)"),
@@ -283,7 +283,7 @@ object SiyeokCase {
             feedback = notes("upper" to "물은 그곳에서 아래로 흘러 내려간다."),
         ),
         StoryPuzzleDefinition(
-            id = "c4_place", kind = StepKind.DEDUCE,
+            id = "c4_place", speaker = "agency", kind = StepKind.DEDUCE,
             title = "백신을 전달할 곳",
             prompt = "모은 단서: 水 — 물을 따라가라 / 약은 물이 모이는 곳에 풀어라 / 광교산 아래 두 방죽이 있다 / 아래를 아랫방죽이라 부른다.\n지금 향할 곳은?",
             hints = listOf("두 방죽을 품은 공원을 찾으세요.", "광교저수지는 방죽이 하나뿐이에요.", "광교호수공원(원천호수)"),
@@ -294,9 +294,9 @@ object SiyeokCase {
     )
 
     // ───────── CH.5 광교호수공원 ─────────
-    private val ch5Steps = listOf(
+    internal val ch5Steps = listOf(
         StoryPuzzleDefinition(
-            id = "c5_testimony", kind = StepKind.TESTIMONY, replayNarration = true,
+            id = "c5_testimony", speaker = "yeoni", kind = StepKind.TESTIMONY, replayNarration = true,
             title = "이동 중 들은 말",
             prompt = "오는 길에 들린 속삭임. 연이는 누구를 불렀나요?",
             hints = listOf("‘다시 듣기’로 속삭임을 다시 들어 보세요.", "연이의 수첩에도 같은 말이 나와요.", "오라버니"),
@@ -314,7 +314,7 @@ object SiyeokCase {
             success = "물소리 사이로, 무언가 물가를 서성입니다.",
         ),
         StoryPuzzleDefinition(
-            id = "c5_lake", kind = StepKind.DEDUCE,
+            id = "c5_lake", speaker = "physician", kind = StepKind.DEDUCE,
             title = "두 호수",
             prompt = "이 공원에는 호수가 두 개 있습니다. 약을 풀 곳은?",
             hints = listOf("소식지의 마지막 문장을 떠올려 보세요.", "물은 위 방죽에서 아래 방죽으로 모여요.", "원천호수(아랫방죽)"),
@@ -323,7 +323,7 @@ object SiyeokCase {
             feedback = notes("sindae" to "여긴 웃방죽이다. 물은 아래로 흐른다."),
         ),
         StoryPuzzleDefinition(
-            id = "c5_bottle", kind = StepKind.DEDUCE,
+            id = "c5_bottle", speaker = "physician", kind = StepKind.DEDUCE,
             title = "약병 선반",
             prompt = "약병 선반에 번호가 붙은 병이 넷 있습니다. 소식지 뒷면에서 이어진 번호의 병을 고르세요.",
             hints = listOf("박물관에서 맞춘 소식지 뒷면을 떠올려 보세요.", "조각을 거꾸로 읽은 숫자가 미끼예요.", "4172"),
@@ -333,7 +333,7 @@ object SiyeokCase {
             success = "약병의 마개가 열립니다.",
         ),
         StoryPuzzleDefinition(
-            id = "c5_truth_who", kind = StepKind.VERDICT, verdict = true,
+            id = "c5_truth_who", speaker = "agency", kind = StepKind.VERDICT, verdict = true,
             title = "진상 추리 ①",
             prompt = "약이 퍼지기 전, 마지막 질문입니다. 사건 기록부의 문서를 모두 떠올려 보세요.\n첫 감염자는 누구인가요?",
             hints = listOf("연이의 수첩 — ‘오라버니가 준 약을 먹은 뒤로’.", "乙-04: ‘시험 삼아 새 처방 한 첩, 기록자 서’.", "연이"),
@@ -341,7 +341,7 @@ object SiyeokCase {
             lock = StoryLockDefinition.Choice(opts("yeoni" to "궁녀 연이", "hancheol" to "병사 한철", "kim" to "둔전 노인 김씨", "park" to "수문지기 박 서방"), "yeoni"),
         ),
         StoryPuzzleDefinition(
-            id = "c5_truth_why", kind = StepKind.VERDICT, verdict = true,
+            id = "c5_truth_why", speaker = "agency", kind = StepKind.VERDICT, verdict = true,
             title = "진상 추리 ②",
             prompt = "의원 서도윤은 왜 비방을 찢어 숨겼을까요?",
             hints = listOf("의원 일지 4장 — ‘아무도 그 아이를 탓하게 둘 수 없다’.", "연이는 의원을 ‘오라버니’라 불렀어요.", "누이를 지키려고"),
@@ -350,42 +350,133 @@ object SiyeokCase {
         ),
     )
 
-    private val chapters: List<StoryChapter> = IntegratedSiyeok.episode.chapters.mapIndexed { index, base ->
+    private fun narr(text: String) = Line(null, text)
+    private fun say(who: String, text: String) = Line(who, text)
+
+    // ───────── 장면 대사 (인물은 모두 허구) ─────────
+    private val travel = listOf(
+        listOf(
+            narr("회갑연을 사흘 앞둔 행궁. 수라간 앞에서 궁녀 하나가 검은 피를 토하며 쓰러졌다. 의원이 맥을 짚었을 때, 그 몸은 이미 차가웠다. 그런데 그날 밤, 그 궁녀가 사라졌다."),
+            say("physician", "회갑연 사흘 전이오. 전하의 글은 잔치가 열릴 전각에 숨겼소."),
+        ),
+        listOf(
+            narr("윤2월 11일 밤. 북쪽 들판에서 그것들이 몰려왔다. 북수문 다리 앞에 횃불이 늘어선다."),
+            say("hancheol", "판문을 올려라! 물을 세게 흘려라! 놈들은 흐르는 물을 건너지 못한다!"),
+            say("hancheol", "해시에 놈들이 다리 앞에서 멈췄소. 물소리가 컸지."),
+        ),
+        listOf(
+            narr("장안문 밖 너른 들판. 왕이 새로 일군 둔전 마을 사람들이, 그해 봄 쌓은 저수지 둑 위로 피했다. 물만이 그들을 지켜 줄 수 있었다."),
+            say("kim", "만 석이 나야 고을이 산다고 임금님이 둑을 쌓으셨지. 위 방죽, 아래 방죽 얘기는 나중에 해 주리다."),
+        ),
+        listOf(
+            say("agency", "요원, 2026년으로 돌아간다. 의원은 그해의 기록을 차마 모두 태우지 못했다. 비방의 마지막 장은 이 시대 어딘가에 남아 있다."),
+            say("curator", "조사국이시죠? 기증 자료에서 찢어진 소식지가 들어왔어요. 뒷면에 숫자 획이 있네요."),
+        ),
+        listOf(
+            say("agency", "요원, 백신은 완성됐다. 1795년의 들판 위로 2026년의 도시가 겹쳐 보이기 시작한다."),
+            narr("바람 소리 사이로 여린 목소리가 스친다."),
+            say("yeoni", "오라버니… 물소리가 무서워요."),
+        ),
+    )
+
+    private val arrivals = listOf(
+        listOf(
+            narr("1795년 윤2월 10일, 화성행궁. 사흘 뒤면 혜경궁의 회갑연이 열립니다. 행궁은 잔치 준비로 분주하지만, 어젯밤 쓰러진 궁녀 이야기에 모두 목소리를 낮추고 있습니다."),
+            say("physician", "조사국에서 오신 분이오? 나는 내의원 의원 서도윤이오. 어젯밤 쓰러진 아이는 연이라는 궁녀요. …내가 아는 아이요."),
+            say("physician", "전하의 밀서는 잔치가 열릴 전각에 숨겨 두었소. 보는 눈이 많으니, 구경하는 척 천천히 둘러보시오. 현판을 잘 보아 두시오."),
+            say("agency", "요원, 의원의 말은 사건 기록부에 남겨 둔다. 차로 돌아오면 그의 일지를 읽을 수 있다."),
+        ),
+        listOf(
+            narr("화홍문에 도착했습니다. 무지개 구멍 아래로 수원천이 흐릅니다. 다리 앞에는 밤새 지킨 병사들이 지친 얼굴로 서 있습니다."),
+            say("hancheol", "장용영 한철이오. 어젯밤 자시 말에 한 놈이 물을 건넜소. 누가 판문을 내리라 했는지 모르겠소."),
+            say("park", "수문지기 박가요! 위에서 시켜서 셋을 내렸을 뿐이오. 물 깊이는 내가 다 적어 두었소."),
+            say("hancheol", "다리 아래 무지개 구멍이 몇 칸인지 세어 두시오. 판문을 다시 정하려면 그것부터 알아야 하오."),
+        ),
+        listOf(
+            narr("만석거에 도착했습니다. 둑 위로 둔전 마을 사람들이 피해 올라와 있습니다. 한 노인이 당신의 소매를 붙잡습니다."),
+            say("kim", "둔전 부치는 김가요. 전하께서 우리를 위해 만드신 물이니, 이 물만 있으면 놈들이 못 들어오지."),
+            say("kim", "아까 의원 나리가 곡식 자루를 지고 둑을 건너갔소. 얼굴이 사색이더군. 누굴 찾는 눈치였소."),
+            say("kim", "둑 위 정자에 올라 보시오. 정자 이름이 적힌 현판이랑 안내판이 있을 게요."),
+        ),
+        listOf(
+            narr("2026년, 수원광교박물관에 도착했습니다. 로비에서 흰 장갑을 낀 학예사가 기다리고 있습니다."),
+            say("curator", "오셨네요. 1795년 무렵의 의원 일지 몇 장과 「고을 소식」 한 장이 기증 자료 사이에서 나왔어요."),
+            say("curator", "일지를 쓴 사람은 ‘서’라고만 서명했어요. 이상하게 마지막 장 하나는 비어 있고요."),
+            say("agency", "기증 전시실에서, 이 성을 쌓은 기록을 다시 세상에 내놓은 수집가의 이야기를 찾아라. 그다음 기록을 맞춘다."),
+        ),
+        listOf(
+            narr("광교호수공원에 도착했습니다. 두 방죽은 지금 커다란 호수 둘이 되어 있습니다. 해가 지고, 물가에서 무언가 움직이기 시작합니다."),
+            say("physician", "여기까지 와 주었구려. 물이 모이는 곳이오. 약병은 선반에 번호를 붙여 두었소."),
+            say("yeoni", "…오라버니, 거기 있어요?"),
+            say("agency", "목소리에 대답하지 마라, 요원. 호숫가를 걸으며 두 호수의 위치를 살피고 돌아와라."),
+        ),
+    )
+
+    private val reveals = listOf(
+        listOf(
+            narr("밀서 끝에 한 글자가 떠오릅니다. 水 — 물을 따라가라. 내의원 비방의 첫 장도 함께 나왔습니다."),
+            say("physician", "이 약에는 흐르는 물과 만 석의 들판에서 거둔 곡식이 드오. 섞는 순서는 기록에 남겼소. 완성한 약은 모든 물길이 모이는 곳에 풀어야 하오."),
+            say("physician", "…연이의 수첩을 열었소? 거기 적힌 건, 부디 아무에게도 말하지 마시오."),
+            say("agency", "의원이 무언가 숨기고 있다. 다음은 물이 성 안으로 드나드는 무지개 문이다."),
+        ),
+        listOf(
+            narr("판문 여섯을 내리고 가운데 한 칸만 열어 두자, 물이 그 칸으로 세차게 몰렸습니다. 놈들은 다리 앞에서 멈춰 섰습니다."),
+            say("park", "가운데 칸은 바닥이 깊게 파여 있소. 여기서 뜬 물은 멈추지 않는 물이오."),
+            say("hancheol", "의원 나리가 그러셨소. 약은 물이 모이는 곳에 풀어야 한다고. …그런데 그 양반, 연이라는 이름만 나오면 얼굴이 굳더이다."),
+            say("agency", "백신 재료 하나를 얻었다. 다음은 북쪽, 왕이 백성을 위해 만든 큰 물이다."),
+        ),
+        listOf(
+            narr("물길이 마을을 감싸 흐르자, 마을 사람들이 곡식 한 자루를 내어 줍니다."),
+            say("kim", "광교산 아래에 방죽이 둘 있지. 위에서 내려온 물이 아래로 모여. 이름은 박물관 양반들이 더 잘 알 거요."),
+            say("physician", "(일지 3장) …다행히 둑 아래 물은 아직 흐르고, 장용영은 아직 칼을 뽑지 않았다."),
+            say("agency", "붉은 먹점이 그날의 형편을 말해 준다. 다음은 2026년, 흩어진 기록이 모인 곳이다."),
+        ),
+        listOf(
+            narr("봉화함에서 비방 마지막 장을 찾아, 흐르는 물·곡식·감초 순서로 백신을 완성했습니다."),
+            say("curator", "소식지 앞면이 이어졌어요. ‘광교산 아래 두 저수지… 아래를 아랫방죽이라 부른다.’ 뒷면 번호는 4172고요."),
+            say("physician", "(일지 4장) 내가 만든 병을 내가 거두어야 한다. 아무도 그 아이를 탓하게 둘 수 없다."),
+            say("agency", "백신을 전달할 곳은 두 방죽을 품은 광교호수공원이다. 해가 지기 전에 출발하라."),
+        ),
+    )
+
+    private val arrivalBg = listOf(SceneBg.PALACE_DUSK, SceneBg.SLUICE_NIGHT, SceneBg.RESERVOIR_DAWN, SceneBg.MUSEUM, SceneBg.LAKE_NIGHT)
+    private val revealBg = listOf(SceneBg.PALACE_NIGHT, SceneBg.SLUICE_NIGHT, SceneBg.RESERVOIR_DAWN, SceneBg.MUSEUM)
+    private fun List<Line>.startingIn(bg: SceneBg?) = mapIndexed { i, l -> if (i == 0 && bg != null) l.copy(bg = bg) else l }
+
+    internal val chapters: List<StoryChapter> = IntegratedSiyeok.episode.chapters.mapIndexed { index, base ->
+        val withScenes = base.copy(
+            travelScene = travel[index], travelDrama = travel[index].spoken(),
+            arrivalScene = arrivals[index].startingIn(arrivalBg[index]), arrival = arrivals[index].spoken(),
+            revealScene = reveals.getOrElse(index) { emptyList() }.startingIn(revealBg.getOrNull(index)),
+            revealText = reveals.getOrNull(index)?.spoken() ?: base.revealText,
+            puzzle = null,
+        )
         when (index) {
-            0 -> base.copy(
-                travelDrama = base.travelDrama + " 어둠 속에서 의원의 목소리가 들린다. \"회갑연 사흘 전이오. 전하의 글은 잔치가 열릴 전각에 숨겼소.\"",
+            0 -> withScenes.copy(
                 explore = "정문 신풍루를 지나, 회갑연이 열릴 전각을 둘러보세요. 전각의 현판을 꼭 확인하고 차로 돌아오세요.",
-                revealText = "밀서 끝에 한 글자가 적혀 있습니다. 水 — 물을 따라가라. 내의원 비방의 첫 장도 얻었습니다. \"이 약에는 흐르는 물과 만 석의 들판에서 거둔 곡식이 든다. 섞는 순서는 기록에 남겼다. 완성한 약은 모든 물길이 모이는 곳에 풀어라.\" 잠겨 있던 연이의 수첩에는 이상한 증상이 적혀 있었습니다.",
                 clue = "水 — 물을 따라가라",
-                puzzle = null, steps = ch1Steps,
+                next = "물이 성 안으로 드나드는 무지개 문, 화홍문",
+                steps = ch1Steps,
             )
-            1 -> base.copy(
-                travelDrama = base.travelDrama + " 장용영 병사가 숨을 고르며 말한다. \"해시에 놈들이 다리 앞에서 멈췄소. 물소리가 컸지.\"",
+            1 -> withScenes.copy(
                 explore = "수문 사이로 흐르는 수원천을 둘러보세요. 다리 아래 무지개 구멍(홍예)이 몇 칸인지 세어 두고 차로 돌아오세요.",
                 revealTitle = "물은 멈추지 않았다",
-                revealText = "판문 여섯을 내리고 가운데 한 칸만 열어 두자, 물이 그 칸으로 세차게 몰렸습니다. 놈들은 다리 앞에서 멈춰 섰습니다. 백신 재료 '멈추지 않고 흐르는 물'을 떴습니다. 병사가 말합니다. \"약은 물이 모이는 곳에 풀어야 하오.\"",
                 clue = "약은 물이 모이는 곳에 풀어라",
-                puzzle = null, steps = ch2Steps,
+                steps = ch2Steps,
             )
-            2 -> base.copy(
-                travelDrama = base.travelDrama + " 노인이 말한다. \"만 석이 나야 고을이 산다고 임금님이 둑을 쌓으셨지. 위 방죽, 아래 방죽 얘기는 나중에 해 주리다.\"",
+            2 -> withScenes.copy(
                 explore = "둑 위 정자에 올라, 정자의 이름과 안내판을 확인하고 차로 돌아오세요.",
-                revealText = "물길이 마을을 감싸 흐르자, 마을 사람들이 곡식 한 자루를 내어 줍니다. 백신 재료 '만 석의 들판에서 거둔 곡식'을 얻었습니다. 노인이 덧붙입니다. \"광교산 아래에 방죽이 둘 있지. 위에서 내려온 물이 아래로 모여.\" 의원 일지 3장의 붉은 먹점이 그날의 형편을 말해 줍니다.",
                 clue = "광교산 아래 두 방죽이 있다",
-                puzzle = null, steps = ch3Steps,
+                steps = ch3Steps,
             )
-            3 -> base.copy(
-                travelDrama = base.travelDrama + " 2026년, 학예사의 전화가 걸려 온다. \"찢어진 소식지가 들어왔어요. 뒷면에 숫자 획이 있네요.\"",
+            3 -> withScenes.copy(
                 explore = "기증 전시실에서, 이 성을 쌓은 기록을 다시 세상에 내놓은 수집가의 이야기를 둘러보고 차로 돌아오세요.",
-                revealText = "봉화함에서 비방 마지막 장을 찾아, 흐르는 물·곡식·감초 순서로 백신을 완성했습니다. 「고을 소식」은 광교산 아래 두 방죽 가운데 아래를 아랫방죽이라 부른다고 적고 있습니다. 뒷면의 번호는 4172. 백신을 전달할 곳은 두 방죽을 품은 광교호수공원입니다.",
                 clue = "아래를 아랫방죽이라 부른다",
-                puzzle = null, steps = ch4Steps,
+                steps = ch4Steps,
             )
-            4 -> base.copy(
-                travelDrama = base.travelDrama + " 바람 소리 사이로 여린 목소리가 스친다. \"오라버니… 물소리가 무서워요.\"",
-                arrival = "광교호수공원에 도착했습니다. 두 방죽은 지금 커다란 호수 둘이 되어 있습니다. 해가 지고, 물가에서 무언가 움직이기 시작합니다.",
+            4 -> withScenes.copy(
                 explore = "호숫가를 걸으며 두 호수의 위치를 살펴보고 차로 돌아오세요. 밤길은 조심히 걸어 주세요.",
-                puzzle = null, steps = ch5Steps,
+                steps = ch5Steps,
             )
             else -> error("Unexpected story chapter")
         }
@@ -423,13 +514,30 @@ object SiyeokCase {
     )
 
     val people = listOf(
-        CasePerson("physician", "서도윤", "내의원 의원", "비방과 감염 경과를 기록했다. 일지를 다섯 장으로 나누어 숨겼다.", 0),
-        CasePerson("yeoni", "연이", "행궁 궁녀", "회갑연 사흘 전 쓰러졌다가 사라졌다. 수첩에 ‘오라버니’가 나온다. 의원과의 관계는?", 0,
+        CasePerson("physician", "서도윤", "내의원 의원", "비방과 감염 경과를 기록했다. 일지를 다섯 장으로 나누어 숨겼다.", 0,
+            notes = listOf(
+                PersonNote("c2_index", "乙-04: 연이에게 ‘시험 삼아 새 처방 한 첩’. 기록자 서."),
+                PersonNote("c4_index", "일지 4장: ‘그 아이에게 먼저 쓴 약이 화근이었다.’"),
+            ),
+            truthNote = "누이를 지키려고 비방을 찢어 숨겼다. 병을 만든 것도, 거둔 것도 그였다."),
+        CasePerson("yeoni", "연이", "행궁 궁녀", "회갑연 사흘 전 쓰러졌다가 사라졌다.", 0,
+            relation = "아는 아이?", truthRelation = "누이",
+            notes = listOf(
+                PersonNote("c1_diary_lock", "수첩: ‘오라버니가 준 약을 먹은 뒤로 목이 마르다. 물소리가 무섭다.’ 첫 감염 증상이다."),
+                PersonNote("c5_testimony", "호수로 오는 길에 ‘오라버니…’라고 불렀다."),
+            ),
             truthNote = "서도윤의 누이. 의원이 시험 삼아 먹인 약으로 처음 병에 걸렸다."),
-        CasePerson("hancheol", "한철", "장용영 병사", "놈들이 언제 어디서 멈췄는지 시각을 기록했다.", 1),
-        CasePerson("park", "박 서방", "화홍문 수문지기", "판문을 올리고 내린 시각과 물 깊이를 적었다.", 1),
-        CasePerson("kim", "김씨", "둔전 노인", "만석거 둑으로 피한 마을 사람. 두 방죽 이야기를 알고 있다.", 2),
-        CasePerson("curator", "학예사", "2026년 박물관", "찢어진 소식지와 의원 일지를 복원하고 있다.", 3),
+        CasePerson("hancheol", "한철", "장용영 병사", "북수문 다리 앞을 지켰다. 놈들이 언제 멈추고 언제 건넜는지 시각을 기록했다.", 1,
+            relation = "의원의 말을 전함",
+            notes = listOf(PersonNote("c2_gates", "‘의원 나리는 연이라는 이름만 나오면 얼굴이 굳더이다.’"))),
+        CasePerson("park", "박 서방", "화홍문 수문지기", "판문을 올리고 내린 시각과 물 깊이를 적었다. 자시에 ‘위에서 시켜’ 판문 셋을 내렸다.", 1,
+            relation = "판문을 내린 사람"),
+        CasePerson("kim", "김씨", "둔전 노인", "만석거 둑으로 피한 마을 사람. 두 방죽 이야기를 알고 있다.", 2,
+            relation = "둑에서 의원을 봄",
+            notes = listOf(PersonNote("c3_testimony", "‘의원 나리가 곡식 자루를 지고 둑을 건너갔소. 누굴 찾는 눈치였소.’"))),
+        CasePerson("curator", "학예사", "2026년 수원광교박물관", "찢어진 소식지와 의원 일지를 복원하고 있다. 일지의 마지막 장 하나는 비어 있다.", 3,
+            relation = "일지를 복원함"),
+        CasePerson("agency", "조사국", "시간 조사국 본부", "요원에게 지시를 내리는 목소리.", 0, listed = false),
     )
 
     private const val INTRO = "약병의 마개가 열린다. 감초 향 사이로 오래 묵은 곡식 냄새가 번진다. 의원 서도윤의 목소리가 아주 가까이에서 들린다. \"물이 모이는 곳이오. 여기서 시작해, 고을로 퍼질 것이오.\""

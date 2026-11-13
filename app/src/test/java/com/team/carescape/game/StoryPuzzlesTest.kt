@@ -17,6 +17,9 @@ class StoryPuzzlesTest {
         is StoryLockDefinition.Choice -> StoryPuzzleInput.Choice(lock.answer)
         is StoryLockDefinition.Order -> StoryPuzzleInput.Order(lock.answer)
         is StoryLockDefinition.CarSequence -> StoryPuzzleInput.CarSequence(lock.answer)
+        is StoryLockDefinition.SymbolDial -> StoryPuzzleInput.Dial(lock.answer)
+        is StoryLockDefinition.UseItem -> StoryPuzzleInput.UseItem(lock.answer)
+        is StoryLockDefinition.Sequence -> StoryPuzzleInput.Sequence(lock.answer)
     }
     private fun atPuzzle(state: StoryState) = StoryEngine.returnToCar(
         StoryEngine.leaveCar(StoryEngine.verifiedArrival(state)),

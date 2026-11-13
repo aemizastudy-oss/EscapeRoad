@@ -46,6 +46,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.team.carescape.game.StoryPhase
+import com.team.carescape.game.Line
+import com.team.carescape.game.SceneBg
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.team.carescape.game.EndingKind
 import com.team.carescape.game.StoryCatalog
 import com.team.carescape.game.StoryState
@@ -215,6 +220,13 @@ fun StoryPrologueScreen(vm: GameViewModel) {
     val ep = vm.selectedCard.story ?: return
     val pages = prologuePagesOf(ep)
     val page = vm.prologuePage.coerceIn(0, pages.lastIndex)
+    if (ep.prologueScene.isNotEmpty()) {
+        // 인물 초상은 정식 퍼즐판의 인물 목록에서 찾는다.
+        val cast = ep.copy(people = StoryCatalog.episodeFor(StoryCatalog.CURRENT_FLOW_VERSION).people)
+        ScenePlayer(cast, ep.prologueScene, page, "Prologue · 1795", onNext = vm::prologueNext, onSkip = vm::startStory,
+            lastLabel = "사건 시작", fallbackBg = SceneBg.AGENCY)
+        return
+    }
     Box(Modifier.fillMaxSize()) {
         Canvas(Modifier.fillMaxSize()) {
             inDesignUnits {
@@ -285,13 +297,44 @@ fun StoryScreen(vm: GameViewModel, narrator: Narrator?) {
     }
     when (s.phase) {
         StoryPhase.EN_ROUTE -> StoryDrivingScreen(s) { EnRouteActions(s, vm, narrator) }
-        StoryPhase.ARRIVED -> ArrivalScreen(s, vm)
+        StoryPhase.ARRIVED -> SceneGate(s, vm, "arrival", s.chapter.arrivalScene, "${s.chapter.place} · 도착", "둘러볼 준비") { ArrivalScreen(s, vm, it) }
         StoryPhase.EXPLORING -> ExploringScreen(s, vm)
         StoryPhase.PUZZLE -> StoryPuzzleScreen(vm)
-        StoryPhase.REVEALED -> RevealScreen(s, vm)
+        StoryPhase.REVEALED -> SceneGate(s, vm, "reveal", s.chapter.revealScene, "${s.chapter.place} · 단서", "단서 확인") { RevealScreen(s, vm, it) }
         StoryPhase.FINAL_REVEAL -> FinalRevealScreen(s, vm)
-        StoryPhase.ENDED -> EndingScreen(s, vm)
+        StoryPhase.ENDED -> SceneGate(s, vm, "ending", endingScene(s), "Epilogue", "기록 보기", SceneBg.LAKE_NIGHT) { EndingScreen(s, vm, it) }
     }
+}
+
+/** 장면을 먼저 보여 주고, 끝나면(또는 건너뛰면) [content]를 보여 준다. content에는 장면 다시 보기 동작을 넘긴다. */
+@Composable
+private fun SceneGate(
+    s: StoryState, vm: GameViewModel, key: String, lines: List<Line>, title: String, lastLabel: String,
+    fallback: SceneBg = SceneBg.PALACE_NIGHT, content: @Composable (replay: (() -> Unit)?) -> Unit,
+) {
+    var done by rememberSaveable(s.chapterIndex, key) { mutableStateOf(false) }
+    var index by rememberSaveable(s.chapterIndex, key) { mutableIntStateOf(0) }
+    if (!done && lines.isNotEmpty()) {
+        ScenePlayer(
+            s.episode, lines, index, title,
+            onNext = { if (index < lines.lastIndex) index++ else done = true },
+            onSkip = { done = true },
+            onPrev = { if (index > 0) index-- },
+            onLine = vm::speakLine,
+            lastLabel = lastLabel, fallbackBg = fallback,
+        )
+    } else content(if (lines.isEmpty()) null else ({ index = 0; done = false }))
+}
+
+/** 엔딩을 장면으로: 도입 → 1795년 본문 → 2026년 마무리. */
+private fun endingScene(s: StoryState): List<Line> {
+    val kind = s.endingKind ?: return emptyList()
+    val ending = s.episode.endings[kind] ?: return emptyList()
+    val intro = listOfNotNull(s.episode.endingIntro?.let { Line(null, it, SceneBg.LAKE_NIGHT) })
+    val body = ending.body.split("\n\n").map { Line(null, it.trim()) }
+    val epilogue = Line(null, ending.epilogue, if (kind == EndingKind.BAD) SceneBg.LAKE_NIGHT else SceneBg.MUSEUM)
+    val head = if (intro.isEmpty()) body.mapIndexed { i, l -> if (i == 0) l.copy(bg = SceneBg.LAKE_NIGHT) else l } else intro + body
+    return head + epilogue
 }
 
 // ---- 로드트립 지도 (TripMap.dc.html) ----
@@ -506,7 +549,7 @@ private fun MaterialsRow(count: Int) {
 }
 
 @Composable
-private fun ArrivalScreen(s: StoryState, vm: GameViewModel) {
+private fun ArrivalScreen(s: StoryState, vm: GameViewModel, onReplay: (() -> Unit)? = null) {
     val l = looks[s.chapterIndex]
     val c = s.chapter
     GoldFrame {
@@ -529,19 +572,24 @@ private fun ArrivalScreen(s: StoryState, vm: GameViewModel) {
                     )
                 }
             }
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 AwakeningGauge(s.awakening.coerceAtMost(10))
                 ParkBadge("장소 ${s.chapterIndex + 1} / ${s.episode.chapters.size} · ${c.place} 도착", boxed = true)
-                Text(l.script, style = Esc.pinyon(42))
-                Text("${c.place}에 도착했습니다", style = Esc.nanum(40, lineHeight = 1.3f))
-                Text(c.arrival, style = Esc.noto(17, Esc.creamMuted, lineHeight = 1.75f))
-                if (c.explore != null) Text(c.explore, style = Esc.noto(15, Esc.creamSoft))
-                Text("모든 장소에서 관광 시작을 저장하고 최소 15분 후 복귀 위치·안전 상태를 다시 확인합니다.", style = Esc.noto(14, Esc.creamSoft))
+                Text(l.script, style = Esc.pinyon(36))
+                Text("${c.place}에 도착했습니다", style = Esc.nanum(34, lineHeight = 1.25f))
+                // 대사가 길어도 '관광 시작' 버튼은 늘 화면 안에 둔다. 대사 영역만 스크롤한다.
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (c.arrivalScene.isNotEmpty()) DialogueBlock(s.episode, c.arrivalScene)
+                    else Text(c.arrival, style = Esc.noto(17, Esc.creamMuted, lineHeight = 1.75f))
+                    if (c.explore != null) Text(c.explore, style = Esc.noto(15, Esc.creamSoft))
+                    Text("모든 장소에서 관광 시작을 저장하고 최소 15분 후 복귀 위치·안전 상태를 다시 확인합니다.", style = Esc.noto(14, Esc.creamSoft))
+                }
                 Text(tourGateMessage(vm.tourStartGate), Modifier.testTag("tour-start-reason"), style = Esc.noto(14, Esc.gold))
                 MaterialsRow(ingredientCount(s))
-                Box(Modifier.padding(top = 6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ParchmentButton("관광 시작", vm::leaveCar, Modifier.testTag("tour-start"),
                         enabled = !vm.loading && !vm.saving && vm.tourStartGate == TourGate.READY, minWidth = 260.dp)
+                    if (onReplay != null) OutlineButton("장면 다시 보기", onReplay, Modifier.testTag("scene-replay"), minHeight = 56.dp)
                 }
             }
         }
@@ -573,7 +621,7 @@ private fun ExploringScreen(s: StoryState, vm: GameViewModel) {
 // ---- 단서 해금 (Unlock 시안의 'The Seal is Broken' 양식) ----
 
 @Composable
-private fun RevealScreen(s: StoryState, vm: GameViewModel) {
+private fun RevealScreen(s: StoryState, vm: GameViewModel, onReplay: (() -> Unit)? = null) {
     val l = looks[s.chapterIndex]
     val c = s.chapter
     GoldFrame {
@@ -587,21 +635,26 @@ private fun RevealScreen(s: StoryState, vm: GameViewModel) {
                     Text("Fragment ${roman(s.chapterIndex + 1)} · ${l.tag}", style = Esc.cormorant(13, Esc.inkLabel))
                     Text(c.revealTitle, style = Esc.nanum(24, Esc.wine))
                     Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFB9A882)))
-                    Text(c.revealText, style = Esc.noto(14, Esc.inkBody, lineHeight = 1.7f))
+                    if (c.revealScene.isNotEmpty()) DialogueBlock(s.episode, c.revealScene, onParchment = true)
+                    else Text(c.revealText, style = Esc.noto(14, Esc.inkBody, lineHeight = 1.7f))
                 }
                 WaxSeal(Modifier.offset(360.dp, 390.dp).size(96.dp))
             }
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 AwakeningGauge(s.awakening.coerceAtMost(10))
                 ParkBadge("장소 ${s.chapterIndex + 1} / ${s.episode.chapters.size} · ${c.place}", boxed = true)
-                Text("The Seal is Broken", style = Esc.pinyon(42))
-                if (c.clue != null) Text("“${c.clue}”", style = Esc.nanum(30, lineHeight = 1.35f))
-                if (c.item != null) Text("얻은 것 · ${c.item}", style = Esc.noto(17, Esc.gold))
-                Text("다음 행선지 · ${c.next ?: "??? — 모은 단서로 백신을 전달할 곳을 찾아야 합니다"}", style = Esc.noto(17, Esc.creamMuted, lineHeight = 1.6f))
+                Text("The Seal is Broken", style = Esc.pinyon(36))
+                // 버튼은 늘 화면 안에 두고, 단서 글만 스크롤한다.
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (c.clue != null) Text("“${c.clue}”", style = Esc.nanum(28, lineHeight = 1.35f))
+                    if (c.item != null) Text("얻은 것 · ${c.item}", style = Esc.noto(17, Esc.gold))
+                    Text("다음 행선지 · ${c.next ?: "??? — 모은 단서로 백신을 전달할 곳을 찾아야 합니다"}", style = Esc.noto(17, Esc.creamMuted, lineHeight = 1.6f))
+                }
                 MaterialsRow(ingredientCount(s))
-                Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ParchmentButton(if (c.next == null) "모은 단서 펼쳐 보기" else "다음 장소 경로 보기", vm::storyNext, enabled = vm.parked && !vm.loading && !vm.saving, minWidth = 260.dp)
                     CasebookButton(s, vm)
+                    if (onReplay != null) OutlineButton("장면 다시 보기", onReplay, Modifier.testTag("scene-replay"), minHeight = 56.dp)
                 }
             }
         }
@@ -667,7 +720,7 @@ private fun CasebookButton(s: StoryState, vm: GameViewModel) {
 }
 
 @Composable
-private fun EndingScreen(s: StoryState, vm: GameViewModel) {
+private fun EndingScreen(s: StoryState, vm: GameViewModel, onReplay: (() -> Unit)? = null) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
     val sec = ((now - vm.storyStartedAtMs) / 1000).coerceAtLeast(0)
@@ -700,6 +753,7 @@ private fun EndingScreen(s: StoryState, vm: GameViewModel) {
                     OutlineButton("로비로", vm::endStory, minWidth = 180.dp)
                     CasebookButton(s, vm)
                     ParchmentButton("처음부터 다시", vm::restartStory, minWidth = 240.dp)
+                    if (onReplay != null) OutlineButton("장면 다시 보기", onReplay, Modifier.testTag("scene-replay"))
                 }
                 Text(s.episode.disclaimer, style = Esc.noto(13, Esc.label, lineHeight = 1.5f))
             }

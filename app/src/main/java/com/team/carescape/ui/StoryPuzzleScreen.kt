@@ -1,5 +1,8 @@
 package com.team.carescape.ui
 
+import com.team.carescape.game.CasePerson
+import com.team.carescape.game.CaseItem
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -44,11 +47,15 @@ data class StoryPuzzleDraft(
     val choice: String? = null,
     val order: List<String> = emptyList(),
     val car: List<CarControl> = emptyList(),
+    val dial: List<Int> = emptyList(),
+    val seq: List<String> = emptyList(),
+    val item: String? = null,
 ) {
     companion object {
         /** 숫자 자물쇠는 정답 자릿수만큼 0으로 채운다(정답 값은 담지 않는다). */
         fun forLock(lock: StoryLockDefinition?): StoryPuzzleDraft = when (lock) {
             is StoryLockDefinition.Numeric -> StoryPuzzleDraft(numbers = List(lock.answer.length) { 0 })
+            is StoryLockDefinition.SymbolDial -> StoryPuzzleDraft(dial = List(lock.wheels.size) { 0 })
             else -> StoryPuzzleDraft()
         }
     }
@@ -86,6 +93,11 @@ fun StoryPuzzleScreen(vm: GameViewModel) {
             onCarChange = vm::changeStoryCar,
             onCasebook = if (caseMode) vm::openCasebook else null,
             onReplay = if (definition.replayNarration) vm::replayDrama else null,
+            speaker = story.episode.speakerFor(definition.speaker),
+            inventory = story.inventory.map { it to story.isItemUsed(it) },
+            onDialChange = vm::changeStoryDial,
+            onSequenceChange = vm::changeStorySequence,
+            onItemChange = vm::changeStoryItem,
         )
     }
 }
@@ -117,6 +129,11 @@ fun StoryPuzzleContent(
     onCarChange: (List<CarControl>) -> Unit = {},
     onCasebook: (() -> Unit)? = null,
     onReplay: (() -> Unit)? = null,
+    speaker: CasePerson? = null,
+    inventory: List<Pair<CaseItem, Boolean>> = emptyList(),
+    onDialChange: (List<Int>) -> Unit = {},
+    onSequenceChange: (List<String>) -> Unit = {},
+    onItemChange: (String) -> Unit = {},
 ) {
     val mayInteract by rememberUpdatedState(enabled && gate == TourGate.READY)
     val latestDraft by rememberUpdatedState(draft)
@@ -160,6 +177,7 @@ fun StoryPuzzleContent(
                         .padding(24.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
+                    if (speaker != null) SpeakerTag(speaker)
                     Text(definition.title, style = Esc.nanum(27, Esc.ink))
                     Text(definition.prompt, Modifier.testTag("story-puzzle-prompt"), style = Esc.noto(19, Esc.inkBody, lineHeight = 1.75f))
                     Text(
@@ -245,6 +263,24 @@ fun StoryPuzzleContent(
                         lock, draft.car, enabled, definition.kind == StepKind.SCENE,
                         { if (mayInteract) onCarChange(it) },
                         { if (mayInteract) onSubmit(StoryPuzzleInput.CarSequence(latestDraft.car)) },
+                        feedback,
+                    )
+                    is StoryLockDefinition.SymbolDial -> SymbolDialLock(
+                        lock, draft.dial.ifEmpty { List(lock.wheels.size) { 0 } }, enabled,
+                        { if (mayInteract) onDialChange(it) },
+                        { if (mayInteract) onSubmit(StoryPuzzleInput.Dial(latestDraft.dial.ifEmpty { List(lock.wheels.size) { 0 } })) },
+                        feedback,
+                    )
+                    is StoryLockDefinition.UseItem -> UseItemLock(
+                        inventory, draft.item, enabled,
+                        { if (mayInteract) onItemChange(it) },
+                        { latestDraft.item?.let { if (mayInteract) onSubmit(StoryPuzzleInput.UseItem(it)) } },
+                        feedback,
+                    )
+                    is StoryLockDefinition.Sequence -> SequenceLock(
+                        lock, draft.seq, enabled,
+                        { if (mayInteract) onSequenceChange(it) },
+                        { if (mayInteract) onSubmit(StoryPuzzleInput.Sequence(latestDraft.seq)) },
                         feedback,
                     )
                 }

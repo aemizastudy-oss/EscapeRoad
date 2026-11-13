@@ -91,7 +91,7 @@ class StoryIntegrationTest {
         assertTrue(puzzleStart.clues.isEmpty())
 
         // flow3 첫 단계는 오디오 증언 보기 문제다. 오답 보기를 골라 UI 제출 버튼으로만 평가한다.
-        assertEquals(StoryCatalog.CASE_FLOW_VERSION, puzzleStart.flowVersion)
+        assertEquals(StoryCatalog.ITEM_FLOW_VERSION, puzzleStart.flowVersion)
         clickTag("choice-gate")
         clickSubmit()
         awaitState { !it.saving && it.storyPuzzleProgress?.wrongAttempts == 1 }
@@ -259,6 +259,9 @@ class StoryIntegrationTest {
         assertEquals(5, completed.tourRecords.size)
         completed.tourRecords.forEach { assertEquals(firstClocks[it.checkpointId], it.startedAt) }
         assertEquals(EndingKind.TRUE, vm.story?.endingKind)
+        // 엔딩 장면이 먼저 나온다. 진 엔딩 장면에는 2026년 마무리(박물관)가 있다.
+        awaitTag("scene-player")
+        clickTag("scene-skip")
         awaitTag("ending-title")
     }
 
@@ -269,6 +272,9 @@ class StoryIntegrationTest {
         is StoryLockDefinition.Choice -> StoryPuzzleInput.Choice(lock.answer)
         is StoryLockDefinition.Order -> StoryPuzzleInput.Order(lock.answer)
         is StoryLockDefinition.CarSequence -> StoryPuzzleInput.CarSequence(lock.answer)
+        is StoryLockDefinition.SymbolDial -> StoryPuzzleInput.Dial(lock.answer)
+        is StoryLockDefinition.UseItem -> StoryPuzzleInput.UseItem(lock.answer)
+        is StoryLockDefinition.Sequence -> StoryPuzzleInput.Sequence(lock.answer)
     }
 
     /** 현재 단계의 정답을 화면 초안에 넣고 제출한다(평가는 ViewModel·엔진이 한다). */
@@ -283,6 +289,9 @@ class StoryIntegrationTest {
                 is StoryPuzzleInput.Choice -> vm.changeStoryChoice(input.id)
                 is StoryPuzzleInput.Order -> vm.changeStoryOrder(input.ids)
                 is StoryPuzzleInput.CarSequence -> vm.changeStoryCar(input.value)
+                is StoryPuzzleInput.Dial -> vm.changeStoryDial(input.value)
+                is StoryPuzzleInput.UseItem -> vm.changeStoryItem(input.id)
+                is StoryPuzzleInput.Sequence -> vm.changeStorySequence(input.ids)
             }
             vm.submitStoryPuzzle(input)
         }
@@ -320,6 +329,8 @@ class StoryIntegrationTest {
         clickTag("sdk-sim-location")
         awaitState { !it.saving && it.story?.phase == StoryPhase.ARRIVED }
         closeDevPanel()
+        // 도착 장면(드라마)을 건너뛰면 관광 시작 화면이 나온다.
+        clickTag("scene-skip")
         clickTag("tour-start")
         awaitState { !it.saving && it.story?.phase == StoryPhase.EXPLORING }
         val exploring = storedMock()

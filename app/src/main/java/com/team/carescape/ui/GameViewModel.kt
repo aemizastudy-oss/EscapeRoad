@@ -427,6 +427,26 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (!canEditStoryPuzzle() || value.size > lock.maxLength || value.any { it !in lock.controls }) return
         storyPuzzleDraft = storyPuzzleDraft.copy(car = value.toList()); storyPuzzleMessage = null
     }
+    fun changeStoryDial(value: List<Int>) {
+        val lock = storyPuzzle?.lock as? StoryLockDefinition.SymbolDial ?: return
+        if (!canEditStoryPuzzle() || value.size != lock.wheels.size || value.indices.any { value[it] !in lock.wheels[it].indices }) return
+        storyPuzzleDraft = storyPuzzleDraft.copy(dial = value.toList()); storyPuzzleMessage = null
+    }
+    fun changeStorySequence(ids: List<String>) {
+        val lock = storyPuzzle?.lock as? StoryLockDefinition.Sequence ?: return
+        if (!canEditStoryPuzzle() || ids.size > lock.maxLength || ids.any { id -> lock.tokens.none { it.id == id } }) return
+        storyPuzzleDraft = storyPuzzleDraft.copy(seq = ids.toList()); storyPuzzleMessage = null
+    }
+    /** 가진 소지품 가운데 아직 쓰지 않은 것만 고를 수 있다. */
+    fun changeStoryItem(id: String) {
+        val lock = storyPuzzle?.lock as? StoryLockDefinition.UseItem ?: return
+        val s = story ?: return
+        if (!canEditStoryPuzzle() || id !in lock.pool || s.inventory.none { it.id == id && !s.isItemUsed(it) }) return
+        storyPuzzleDraft = storyPuzzleDraft.copy(item = id); storyPuzzleMessage = null
+    }
+    /** 정차 중 장면 한 줄을 음성으로 읽는다. */
+    fun speakLine(text: String) { if (parked) pendingNarration = text }
+
     private fun draftInput(): StoryPuzzleInput? = when (storyPuzzle?.lock) {
         is StoryLockDefinition.Numeric -> StoryPuzzleInput.Numeric(storyPuzzleDraft.numbers.joinToString(""))
         is StoryLockDefinition.Directions -> StoryPuzzleInput.Directions(storyPuzzleDraft.directions.toList())
@@ -434,6 +454,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         is StoryLockDefinition.Choice -> StoryPuzzleInput.Choice(storyPuzzleDraft.choice ?: "")
         is StoryLockDefinition.Order -> StoryPuzzleInput.Order(storyPuzzleDraft.order.toList())
         is StoryLockDefinition.CarSequence -> StoryPuzzleInput.CarSequence(storyPuzzleDraft.car.toList())
+        is StoryLockDefinition.SymbolDial -> StoryPuzzleInput.Dial(storyPuzzleDraft.dial.toList())
+        is StoryLockDefinition.UseItem -> StoryPuzzleInput.UseItem(storyPuzzleDraft.item ?: "")
+        is StoryLockDefinition.Sequence -> StoryPuzzleInput.Sequence(storyPuzzleDraft.seq.toList())
         null -> null
     }
 
@@ -529,7 +552,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
 /** 프롤로그를 시안처럼 세 쪽으로 나눈다. */
 fun prologuePagesOf(ep: StoryEpisode): List<String> =
-    if (ep.rules.isNotEmpty()) listOf(ep.prologue) + ep.rules.map { "이야기의 규칙\n$it" }
+    if (ep.prologueScene.isNotEmpty()) ep.prologueScene.map { it.text }
+    else if (ep.rules.isNotEmpty()) listOf(ep.prologue) + ep.rules.map { "이야기의 규칙\n$it" }
     else if (ep.id != "siyeok") listOf(ep.prologue)
     else listOf(
         "\"요원, 브리핑을 시작한다. 1795년 윤2월, 화성에 정체불명의 역병이 돌았다.\n죽은 자가 다시 일어나는 병이다.\"",

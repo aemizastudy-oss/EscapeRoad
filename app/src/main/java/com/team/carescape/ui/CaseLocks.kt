@@ -145,7 +145,7 @@ fun CarSequenceLock(
     feedback: @Composable () -> Unit,
 ) {
     LockPanel(if (scene) "In the Car" else "Car Controls", "차량 신호 연동 전 · 화면 버튼으로 입력") {
-        CarVisualView(lock.visual, value)
+        LockVisual(lock.visual, value.map { it.name })
         if (!scene) Text(
             if (value.isEmpty()) "아직 입력이 없습니다" else value.joinToString("  →  ") { it.short },
             Modifier.testTag("car-sequence"), style = Esc.noto(15, Esc.gold), textAlign = TextAlign.Center,
@@ -166,7 +166,9 @@ fun CarSequenceLock(
 }
 
 @Composable
-private fun CarVisualView(visual: CarVisual, value: List<CarControl>) {
+internal fun LockVisual(visual: CarVisual, value: List<String>) {
+    fun isLeft(k: String?) = k == CarControl.TURN_LEFT.name || k == "L"
+    fun isRight(k: String?) = k == CarControl.TURN_RIGHT.name || k == "R"
     when (visual) {
         CarVisual.None -> Unit
         is CarVisual.Sluice -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
@@ -178,8 +180,8 @@ private fun CarVisualView(visual: CarVisual, value: List<CarControl>) {
                         Modifier.size(32.dp, 58.dp)
                             .border(if (current) 2.dp else 1.dp, if (current) Esc.gold else Esc.goldDim)
                             .background(when (state) {
-                                CarControl.WIPER -> Esc.inkSoft
-                                CarControl.HAZARD -> Color(0xFF6F8AA0)
+                                CarControl.WIPER.name -> Esc.inkSoft
+                                CarControl.HAZARD.name -> Color(0xFF6F8AA0)
                                 else -> Color.Transparent
                             }),
                     )
@@ -192,14 +194,14 @@ private fun CarVisualView(visual: CarVisual, value: List<CarControl>) {
             visual.forks.forEachIndexed { i, fork ->
                 val pick = value.getOrNull(i)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    ForkCell("${fork.left}${if (fork.leftNote.isNotEmpty()) " · ${fork.leftNote}" else ""}", pick == CarControl.TURN_LEFT, Modifier.weight(1f))
+                    ForkCell("${fork.left}${if (fork.leftNote.isNotEmpty()) " · ${fork.leftNote}" else ""}", isLeft(pick), Modifier.weight(1f))
                     Text("갈림 ${i + 1}", style = Esc.noto(12, if (i == value.size) Esc.gold else Esc.creamSoft))
-                    ForkCell("${fork.right}${if (fork.rightNote.isNotEmpty()) " · ${fork.rightNote}" else ""}", pick == CarControl.TURN_RIGHT, Modifier.weight(1f))
+                    ForkCell("${fork.right}${if (fork.rightNote.isNotEmpty()) " · ${fork.rightNote}" else ""}", isRight(pick), Modifier.weight(1f))
                 }
             }
         }
         is CarVisual.Beacon -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val lit = value.count { it == CarControl.HEADLIGHT }
+            val lit = value.count { it == CarControl.HEADLIGHT.name || it == "FIRE" }
             repeat(visual.pits) { i ->
                 Canvas(Modifier.size(40.dp, 52.dp)) {
                     drawRect(Esc.goldDim, Offset(4f, size.height * 0.55f), Size(size.width - 8f, size.height * 0.45f), style = Stroke(2f))

@@ -1,5 +1,30 @@
 package com.team.carescape.game
 
+/** 장면 배경. 화면 쪽에서 장소별 그림으로 그린다. */
+enum class SceneBg { AGENCY, TIME_RIFT, PALACE_DUSK, PALACE_NIGHT, SLUICE_NIGHT, RESERVOIR_DAWN, MUSEUM, LAKE_NIGHT }
+
+/**
+ * 장면 속 한 줄. [speaker]는 인물 id([StoryEpisode.speakerFor])이고, null이면 지문(내레이션)이다.
+ * [bg]가 있으면 이 줄부터 배경이 바뀐다.
+ */
+data class Line(val speaker: String?, val text: String, val bg: SceneBg? = null)
+
+/**
+ * 사건 기록부 소지품. [fromStep]을 풀면 얻고, [usedBy] 단계를 풀면 '사용함'이 된다.
+ * [glyph]는 소지품 칸에 새기는 한 글자.
+ */
+data class CaseItem(
+    val id: String,
+    val name: String,
+    val description: String,
+    val glyph: String,
+    val fromStep: String,
+    val usedBy: String? = null,
+)
+
+/** 대사 줄을 음성 안내용 한 문단으로 잇는다. 인물의 말은 따옴표로 감싼다. */
+fun List<Line>.spoken(): String = joinToString(" ") { if (it.speaker == null) it.text else "\"${it.text}\"" }
+
 /** 스토리형 테마의 한 장소. 원본 flow1은 puzzle 없이 보존한다. */
 data class StoryChapter(
     val place: String,
@@ -26,6 +51,12 @@ data class StoryChapter(
     val puzzle: StoryPuzzleDefinition? = null,
     /** flow3: 이 장소에서 차례로 푸는 단계들. 비어 있으면 [puzzle] 하나가 유일한 단계다. */
     val steps: List<StoryPuzzleDefinition> = emptyList(),
+    /** flow3: 이동 중 오디오 장면(주행 중에는 소리로만). 비어 있으면 [travelDrama]만 쓴다. */
+    val travelScene: List<Line> = emptyList(),
+    /** flow3: 도착 장면 대사. 비어 있으면 [arrival] 문단을 그대로 보여 준다. */
+    val arrivalScene: List<Line> = emptyList(),
+    /** flow3: 단서 해금 장면 대사. 비어 있으면 [revealText]. */
+    val revealScene: List<Line> = emptyList(),
 ) {
     val puzzleSteps: List<StoryPuzzleDefinition> get() = steps.ifEmpty { listOfNotNull(puzzle) }
 }
@@ -41,7 +72,14 @@ data class CaseDocument(
     val afterStep: String? = null,
 )
 
-/** 사건 기록부의 인물. 관계는 진상 추리를 맞혀야 채워진다. */
+/** 인물 칸에 덧붙는 기록. [afterStep]을 풀어야 보인다. */
+data class PersonNote(val afterStep: String, val text: String)
+
+/**
+ * 사건 기록부의 인물. [chapterIndex] 장소에 도착하면 기록부에 오른다.
+ * [relation]은 관계도에서 서도윤과 잇는 말이고, 진상 추리를 맞히면 [truthRelation]·[truthNote]로 바뀐다.
+ * [listed]가 false면 대사에만 나오고 기록부에는 오르지 않는다(조사국).
+ */
 data class CasePerson(
     val id: String,
     val name: String,
@@ -49,6 +87,10 @@ data class CasePerson(
     val note: String,
     val chapterIndex: Int,
     val truthNote: String? = null,
+    val relation: String? = null,
+    val truthRelation: String? = null,
+    val notes: List<PersonNote> = emptyList(),
+    val listed: Boolean = true,
 )
 
 enum class EndingKind(val label: String) { TRUE("진 엔딩"), NORMAL("일반 엔딩"), BAD("배드 엔딩") }
@@ -72,8 +114,13 @@ data class StoryEpisode(
     /** 비어 있으면 [ending] 하나만 쓴다(flow1·2). */
     val endings: Map<EndingKind, StoryEnding> = emptyMap(),
     val endingIntro: String? = null,
+    /** flow4: 소지품. */
+    val caseItems: List<CaseItem> = emptyList(),
+    /** 출발 전 프롤로그 장면. 비어 있으면 [prologue] 문단과 규칙을 페이지로 보여 준다. */
+    val prologueScene: List<Line> = emptyList(),
 ) {
     val finalChapterIndex: Int get() = chapters.lastIndex
+    fun speakerFor(id: String?): CasePerson? = id?.let { key -> people.firstOrNull { it.id == key } }
 }
 
 /**

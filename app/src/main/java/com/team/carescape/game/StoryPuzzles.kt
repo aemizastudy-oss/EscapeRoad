@@ -33,6 +33,8 @@ data class StoryPuzzleDefinition(
     val replayNarration: Boolean = false,
     /** 정답 직후 보여 줄 짧은 이야기. */
     val success: String? = null,
+    /** 이 단계를 건네는 인물 id. 화면에 이름과 신분을 붙인다. null이면 지문. */
+    val speaker: String? = null,
 )
 
 data class ChoiceOption(val id: String, val label: String)
@@ -81,6 +83,23 @@ sealed interface StoryLockDefinition {
             require(answer.isNotEmpty() && answer.distinct().size == answer.size && answer.all { a -> items.any { it.id == a } })
         }
     }
+    /** 글자 바퀴를 돌려 맞추는 자물쇠(예: 십이지 시각). [answer]는 바퀴마다 고른 칸 번호. */
+    data class SymbolDial(val wheels: List<List<String>>, val answer: List<Int>) : StoryLockDefinition {
+        init { require(wheels.isNotEmpty() && wheels.size == answer.size && answer.indices.all { answer[it] in wheels[it].indices }) }
+    }
+    /** 소지품 하나를 골라 쓴다. [pool]은 고를 수 있는 모든 소지품 id(입력 검증용). */
+    data class UseItem(val answer: String, val pool: List<String>) : StoryLockDefinition {
+        init { require(answer in pool && pool.distinct().size == pool.size) }
+    }
+    /** 앱 안에서 누르는 순서 입력(물길 고르기, 봉화 올리기). 차량 신호는 쓰지 않는다. */
+    data class Sequence(
+        val tokens: List<ChoiceOption>,
+        val answer: List<String>,
+        val visual: CarVisual = CarVisual.None,
+        val maxLength: Int = answer.size + 2,
+    ) : StoryLockDefinition {
+        init { require(answer.isNotEmpty() && answer.all { a -> tokens.any { it.id == a } } && maxLength >= answer.size) }
+    }
     data class CarSequence(
         val answer: List<CarControl>,
         val controls: List<CarControl>,
@@ -98,6 +117,9 @@ sealed interface StoryPuzzleInput {
     data class Choice(val id: String) : StoryPuzzleInput
     data class Order(val ids: List<String>) : StoryPuzzleInput
     data class CarSequence(val value: List<CarControl>) : StoryPuzzleInput
+    data class Dial(val value: List<Int>) : StoryPuzzleInput
+    data class UseItem(val id: String) : StoryPuzzleInput
+    data class Sequence(val ids: List<String>) : StoryPuzzleInput
 }
 
 enum class StoryPuzzleResult { CORRECT, WRONG, INVALID_INPUT, LOCKED }
@@ -167,6 +189,25 @@ object StoryPuzzles {
                 }
                 value == lock.answer
             }
+            is StoryLockDefinition.SymbolDial -> {
+                val value = (input as? StoryPuzzleInput.Dial)?.value ?: return StoryPuzzleResult.INVALID_INPUT
+                if (value.size != lock.wheels.size || value.indices.any { value[it] !in lock.wheels[it].indices }) {
+                    return StoryPuzzleResult.INVALID_INPUT
+                }
+                value == lock.answer
+            }
+            is StoryLockDefinition.UseItem -> {
+                val id = (input as? StoryPuzzleInput.UseItem)?.id ?: return StoryPuzzleResult.INVALID_INPUT
+                if (id !in lock.pool) return StoryPuzzleResult.INVALID_INPUT
+                id == lock.answer
+            }
+            is StoryLockDefinition.Sequence -> {
+                val ids = (input as? StoryPuzzleInput.Sequence)?.ids ?: return StoryPuzzleResult.INVALID_INPUT
+                if (ids.isEmpty() || ids.size > lock.maxLength || ids.any { id -> lock.tokens.none { it.id == id } }) {
+                    return StoryPuzzleResult.INVALID_INPUT
+                }
+                ids == lock.answer
+            }
         }
         return if (matches) StoryPuzzleResult.CORRECT else StoryPuzzleResult.WRONG
     }
@@ -179,6 +220,9 @@ object StoryPuzzles {
         is StoryPuzzleInput.Choice -> input.id
         is StoryPuzzleInput.Order -> input.ids.joinToString(",")
         is StoryPuzzleInput.CarSequence -> input.value.joinToString(",") { it.name }
+        is StoryPuzzleInput.Dial -> input.value.joinToString(",")
+        is StoryPuzzleInput.UseItem -> input.id
+        is StoryPuzzleInput.Sequence -> input.ids.joinToString(",")
     }
 
     /** flow3 힌트 비용: 1단계 0, 2단계 +1, 3단계 이상 +2. */
