@@ -421,3 +421,33 @@ SDK 어댑터는 기존 `main`의 검증된 API 경계를 현재 패키지로 �
 - 통합본 관리형 Gradle: `:app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest :app:lintDebug` 성공. 단위 193개 성공, 오류/실패 0, Lint 오류 0(Warning 66, Hint 3). Release unsigned 상태 유지.
 - 바뀐 상자 정답에서 봉화로 이어지는 기기 회귀 `StoryIntegrationTest#museumBeaconUsesCurrentMockCountAndPreservesCompletionAfterRecreation` 1개 성공. 기존 MOCK/LIVE 저장 기록과 콘솔 원래 상태를 보존했다. 독서등 실제 SDK 수신과 독립 UI 검증은 바로 위 5개 성공 결과를 재사용했으며 다시 실행했다고 표시하지 않는다.
 - staging 검사에서 실제 인증/환경/서명키/빌드 산출물 경로와 토큰 패턴 없음. local.properties·nearby.properies.env·.gradle·app/build는 제외했다. 강제 푸시나 원격 기록 삭제는 사용하지 않는다. 실제 원격 반영 commit은 Git 상태와 공유 결과를 따른다.
+
+
+## 2026-11-15 — 다섯 봉화 복원과 기본 불씨 1개
+
+- 사용자 후속 요청 반영: 봉화는 최대 5개, 부싯돌로 켠 첫 봉화 1개는 고정. 앞·뒤 좌우 독서등의 현재 ON 수 0~4개를 더해 봉화 1~5개로 표시·판정한다. 정답은 기존 봉화 4개이므로 실제 독서등 3개가 필요하며, 네 독서등 모두 ON은 봉화 5개로 유효한 오답이다. 기본 불씨는 게임 표현이고 차량 조명을 앱이 자동 제어하지 않는다.
+- 기존 `LockVisual(CarVisual.Beacon)` 그림을 다섯 칸으로 재사용했다. 별도 조명 카드·버튼 제거. 일반 MOCK은 2~5번 봉화 자체를 눌러 각각 켜고 끄며, 첫 봉화 클릭은 무효다. 실제 SDK 모드는 읽기 전용이며 미확인 표시와 제출 차단을 유지한다. 모든 판정·저장은 명시적 제출에만 일어난다.
+- `BeaconLightMapping`이 기본 불씨 합산을 담당한다. SDK snapshot·VM draft·제출 입력·최신성/연결 세대 확인은 원래 독서등 raw 0~4 기준을 유지한다. 정답 도우미는 `requiredLights`, 오답 피드백은 봉화 수를 사용한다. 완료 단계 ID·아이템·flow3/4의 기존 퍼즐은 보존한다.
+- 관리형 Gradle workflow `15bca77d70602022a9b4b628f00b2116`: `:app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug` 성공. 단위 194개, 실패/오류/skip 0. Lint 오류 0(Warning 66, Hint 3). 이번 변경의 Release APK 빌드는 실행하지 않았다.
+- Pleos emulator-5554 / API 34 / Android 사용자 10, Debug app/test APK 설치. `InteriorLightCountLockTest` 기존 3개 및 `StoryIntegrationTest#museumBeaconUsesCurrentMockCountAndPreservesCompletionAfterRecreation` 1개, 총 **4개 성공**. 고정 불씨 터치 무효·raw4 봉화5 오답·하나 꺼 raw3 봉화4 정답·제출 전 미저장·중복지급 방지·Activity 재생성 완료 보존 확인. 기존 여행·archive·schema 내용은 테스트 전후 동일하며 테스트용 여행을 남기지 않았다.
+- 실제 캡처 파일을 테스트가 `cache/beacon-five/beacon-1.png`, `beacon-5.png`, `beacon-4.png`에 생성했고, 호스트 `C:/my-car-buddy/.gradle/car-escape-beacon-five-20261115/`의 같은 파일명으로 꺼내 확인했다. 단순 테스트 성공만으로 캡처를 추정하지 않고 PNG 파일 존재·유효성과 봉화 1/5/4 표시를 별도로 확인했다. 자동 픽셀 기준 비교를 수행한 것은 아니다.
+- 실제 SDK 독서등 0→3→4→3 수신은 앞선 검증 결과를 재사용했다. 이번 실행은 변경된 수식·그림·MOCK 조작·저장 경로를 검증했으며 SDK 수신 테스트나 실차/전체 LIVE 관광을 새로 검증했다고 설명하지 않는다.
+- 구현 및 Debug 빌드·기기 검증 완료. 변경은 현재 로컬 `release/v0.4.0`에 있으며 이번 요청에는 commit/push를 수행하지 않았다.
+
+
+## 2026-11-15 — 봉화 불 아이콘 복원
+
+- 사용자 요청으로 `e58afa3`의 `InteriorLightCountLock`에서 사용하던 `🔥` / `Esc.noto(24)` 불꽃을 복원했다. 주황 원 대신 이전 불꽃을 표시하고 기존 화구 받침을 유지한다. 기본 봉화 1개+독서등 4개, 정답 4개, 시연 직접 터치, SDK 읽기 전용, 미확인 차단, 제출/저장 로직은 그대로다.
+- 관리형 Gradle workflow `dd5ad9cb0ec8eddeded3118297eed76e`, 질문 “이전 불꽃 아이콘 복원 후 Debug APK 빌드가 통과하는가?”: `:app:assembleDebug` 성공. 아이콘 표시만 변경하여 이 단계에서 단위·기기 자동 테스트를 새로 실행하지 않았다.
+- Pleos emulator-5554 / Android 사용자 10에 Debug APK를 재설치하고 설치 전후 여행 저장 내용이 같음을 확인했다. 기존 4장 수사를 재개하고 시연 P·현재 장소 위치를 갱신하여 봉화 화면의 이전 불꽃 모양을 직접 확인했다. 실제 SDK 입력을 새로 검증한 것은 아니다.
+- 실제 화면: `C:/my-car-buddy/.gradle/car-escape-beacon-five-20261115/flame-restored.png`. 현재 로컬 변경이며 이번 요청에서 commit/push는 하지 않았다.
+
+
+## 2026-11-15 — 봉화는 좌석과 무관하게 왼쪽부터 채움
+
+- 사용자 후속 요청: 봉화와 독서등 좌석의 고정 대응을 제거했다. 원래 SDK의 앞·뒤 좌우 `ReadingLightState` 원시값은 그대로 읽되, 표시만 기본 불씨 1개+ON 개수로 왼쪽부터 연속 채운다. 뒤 오른쪽만 ON이어도 1·2번 봉화가 켜지고, 조합이 달라도 개수가 같으면 같은 모습이다. 자리 이름은 표시하지 않는다. 이전 🔥 불꽃은 유지한다.
+- MOCK에서는 꺼진 봉화 클릭으로 조명 수 +1, 켜진 봉화 클릭으로 -1(고정 첫 봉화 제외)이며 항상 왼쪽부터 채운다. 기존 raw Boolean 목록과 onToggle 콜백을 사용하고, 클릭 시 최신 상태에서 꺼진 항목/켜진 항목을 선택한다. 실제 SDK는 여전히 읽기 전용이다. 미수신/오래됨/불완전한 신호는 고정 불씨 외 네 칸을 미확인으로 표시하고 제출을 막는다. 자동 제출·정답·저장 방식은 바꾸지 않았다.
+- 관리형 Gradle workflow `caef9862011b9f67c27fc44106e5b8df`: “봉화 왼쪽 채움 변경 후 앱과 UI 테스트 APK가 빌드되는가?”에 대해 `:app:assembleDebug :app:assembleDebugAndroidTest` 성공.
+- Pleos emulator-5554 / Android 사용자 10에 app/test APK 설치. 기존 `InteriorLightCountLockTest` 3개를 보강하여 전부 통과: MOCK 끝 봉화 반복 클릭과 켜진 봉화 감소, SDK의 떨어진 좌석 조합별 동일 개수 표시, base 고정, SDK 터치 불가, 불완전 상태 차단, 보관된 콜백의 최신 상태·안전 가드 확인. SDK 테스트는 제어된 상태를 주입한 UI 계약 검증이며 실제 콘솔 신호 수신을 새로 실행한 것은 아니다. 설치·테스트 전후 여행 저장 내용은 동일했다. 이번에는 단위 전체/Lint/Release를 재실행하지 않았다.
+- 자동 UI 검증 후 앱을 다시 전면으로 가져와 안전 상태 확인 화면까지 확인했으나, 봉화 화면 재개 전 에뮬레이터 프로세스가 종료되고 ADB 연결이 끊겼다. 따라서 이번 왼쪽 채움의 수동 봉화 화면 캡처는 확보하지 못했다. 위 3개 UI 테스트는 봉화 상태·개수·콜백을 semantics로 검증한 결과이며, 별도 스크린샷 기록이나 픽셀 기준 비교 성공을 뜻하지 않는다. 사용자의 여행을 초기화하거나 봉화 정답을 제출하지 않았다.
+- 현재 로컬 `release/v0.4.0` 변경이며 이 요청에서 commit/push는 수행하지 않았다.

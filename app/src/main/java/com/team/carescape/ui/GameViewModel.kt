@@ -46,9 +46,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         InteriorLightSnapshot.AREAS.map { interiorLightSnapshot.states[it].takeIf { valid } }
     }
     val interiorLightMessage get() = if (usesVehiclePuzzleSdk) {
-        if (currentInteriorLightCount() != null) "실제 차량 독서등 상태 · 현재 켜진 개수를 제출합니다."
+        if (currentInteriorLightCount() != null) "실제 차량 독서등 상태 · 기본 불씨 1개와 합쳐 제출합니다."
         else interiorLightSnapshot.message.takeIf { !interiorLightSnapshot.ready } ?: "최신 실내등 상태를 기다리고 있습니다."
-    } else "시연용 독서등 · 실제 차량을 제어하지 않습니다."
+    } else "꺼진 봉화를 누르면 불이 하나 늘고, 켜진 봉화를 누르면 하나 줄어듭니다."
 
     private fun currentInteriorLightCount(): Int? {
         if (!usesVehiclePuzzleSdk) return storyPuzzleDraft.interiorLights.count { it }

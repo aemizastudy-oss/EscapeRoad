@@ -28,7 +28,7 @@ class SiyeokCaseTest {
         is StoryLockDefinition.SymbolDial -> StoryPuzzleInput.Dial(lock.answer)
         is StoryLockDefinition.UseItem -> StoryPuzzleInput.UseItem(lock.answer)
         is StoryLockDefinition.Sequence -> StoryPuzzleInput.Sequence(lock.answer)
-        is StoryLockDefinition.InteriorLightCount -> StoryPuzzleInput.InteriorLightCount(lock.answer)
+        is StoryLockDefinition.InteriorLightCount -> StoryPuzzleInput.InteriorLightCount(lock.requiredLights)
     }
     private fun wrong(lock: StoryLockDefinition): StoryPuzzleInput = when (lock) {
         is StoryLockDefinition.Choice -> StoryPuzzleInput.Choice(lock.options.first { it.id != lock.answer }.id)

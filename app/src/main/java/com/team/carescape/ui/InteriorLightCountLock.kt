@@ -4,18 +4,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -23,8 +25,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.team.carescape.game.BeaconLightMapping
+import com.team.carescape.game.CarVisual
 
-/** Current states in front-left, front-right, rear-left, rear-right order. */
+/** Fill from the left using one base flame plus the number of current ON reading lamps. */
 @Composable
 internal fun InteriorLightCountLock(
     lights: List<Boolean?>,
@@ -36,14 +40,15 @@ internal fun InteriorLightCountLock(
     modifier: Modifier = Modifier,
     feedbackContent: @Composable () -> Unit = {},
 ) {
-    val allKnown = lights.size == 4 && lights.all { it != null }
+    val allKnown = lights.size == BeaconLightMapping.LIGHT_COUNT && lights.all { it != null }
+    val litCount = if (allKnown) BeaconLightMapping.beaconCount(lights.count { it == true }) else null
     val canSubmit = enabled && allKnown
+    val latestLights by rememberUpdatedState(lights)
     val latestEnabled by rememberUpdatedState(enabled)
     val latestSdkInput by rememberUpdatedState(sdkInput)
     val latestCanSubmit by rememberUpdatedState(canSubmit)
     val latestOnToggle by rememberUpdatedState(onToggle)
     val latestOnSubmit by rememberUpdatedState(onSubmit)
-    val positions = listOf("앞 왼쪽", "앞 오른쪽", "뒤 왼쪽", "뒤 오른쪽")
 
     Column(
         modifier = modifier
@@ -54,61 +59,81 @@ internal fun InteriorLightCountLock(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("봉화와 실내 조명", style = Esc.noto(20, Esc.cream))
+        Text("봉화", style = Esc.noto(20, Esc.cream))
+        Text("첫 봉화는 항상 켜져 있습니다.", style = Esc.noto(14, Esc.creamSoft), textAlign = TextAlign.Center)
         Text(
-            text = if (sdkInput) "차량에서 읽은 실내 조명 상태" else "MOCK 시연 · 조명 카드를 눌러 바꿔 보세요",
+            text = if (sdkInput) "켜진 실내 독서등 수만큼 왼쪽부터 표시합니다." else "MOCK 시연 · 꺼진 봉화 +1 / 켜진 봉화 −1",
             style = Esc.noto(13, Esc.creamSoft),
             textAlign = TextAlign.Center,
         )
-        repeat(2) { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                repeat(2) { column ->
-                    val index = row * 2 + column
-                    val light = lights.getOrNull(index)
-                    val state = when (light) {
-                        true -> "켜짐"
-                        false -> "꺼짐"
-                        null -> "미확인"
-                    }
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 100.dp)
-                            .background(if (light == true) Esc.gold.copy(alpha = 0.18f) else Color.Transparent)
-                            .border(1.dp, if (light == true) Esc.gold else Esc.goldDim)
-                            .testTag("interior-light-$index")
-                            .semantics(mergeDescendants = true) {
-                                contentDescription = "${positions[index]} 실내 조명"
-                                stateDescription = state
-                            }
-                            .then(
-                                if (sdkInput) Modifier else Modifier.clickable(
-                                    enabled = enabled,
-                                    role = Role.Button,
-                                    onClick = {
-                                        if (latestEnabled && !latestSdkInput) latestOnToggle(index)
-                                    },
-                                ),
-                            )
-                            .padding(10.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
-                    ) {
-                        Text(positions[index], style = Esc.noto(14, Esc.cream))
-                        Text(
-                            text = if (light == true) "🔥" else if (light == null) "?" else "○",
-                            style = Esc.noto(24, if (light == true) Esc.gold else Esc.creamSoft),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            repeat(BeaconLightMapping.BEACON_COUNT) { slot ->
+                val fixed = slot < BeaconLightMapping.BASE_LIT
+                val lightIndex = slot - BeaconLightMapping.BASE_LIT
+                val light = if (fixed) true else litCount?.let { slot < it }
+                val state = when (light) {
+                    true -> "켜짐"
+                    false -> "꺼짐"
+                    null -> "미확인"
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .widthIn(min = 48.dp)
+                        .heightIn(min = 128.dp)
+                        .testTag(if (fixed) "beacon-base" else "interior-light-$lightIndex")
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = if (fixed) "1번 봉화, 항상 켜짐, 고정"
+                                else "${slot + 1}번 봉화"
+                            stateDescription = if (fixed) "항상 켜짐 · 고정" else state
+                        }
+                        .then(
+                            if (fixed || sdkInput) Modifier else Modifier.clickable(
+                                enabled = canSubmit,
+                                role = Role.Button,
+                                onClick = {
+                                    val current = latestLights
+                                    if (latestEnabled && !latestSdkInput &&
+                                        current.size == BeaconLightMapping.LIGHT_COUNT && current.all { it != null }
+                                    ) {
+                                        val count = BeaconLightMapping.beaconCount(current.count { it == true })
+                                        val rawIndex = if (slot < count) current.indexOfLast { it == true }
+                                            else current.indexOfFirst { it == false }
+                                        if (rawIndex >= 0) latestOnToggle(rawIndex)
+                                    }
+                                },
+                            ),
                         )
-                        Text(state, style = Esc.noto(14, Esc.creamSoft))
+                        .padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+                ) {
+                    Text("${slot + 1}", style = Esc.noto(13, Esc.gold))
+                    Box(Modifier.size(40.dp, 52.dp), contentAlignment = Alignment.Center) {
+                        // Keep each beacon pit and restore the previous reading-light flame icon.
+                        LockVisual(CarVisual.Beacon(1), emptyList())
+                        if (light == true) {
+                            Text("🔥", Modifier.align(Alignment.TopCenter), style = Esc.noto(24, Esc.gold))
+                        } else if (light == null) {
+                            Text("?", Modifier.padding(bottom = 18.dp), style = Esc.noto(22, Esc.cream))
+                        }
                     }
+                    Text(
+                        text = if (fixed) "기본\n고정" else "추가\n불씨",
+                        style = Esc.noto(12, Esc.creamSoft),
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(state, style = Esc.noto(13, Esc.creamSoft), textAlign = TextAlign.Center)
                 }
             }
         }
         Text(
-            text = if (allKnown) "켜진 실내 조명: ${lights.count { it == true }}개" else "켜진 실내 조명 수 확인 중",
+            text = if (allKnown) {
+                "켜진 봉화: $litCount / ${BeaconLightMapping.BEACON_COUNT}"
+            } else "봉화 수 확인 중",
             modifier = Modifier.testTag("interior-light-count"),
             style = Esc.noto(16, Esc.cream),
             textAlign = TextAlign.Center,
@@ -116,7 +141,7 @@ internal fun InteriorLightCountLock(
         if (message.isNotBlank()) {
             Text(message, style = Esc.noto(13, Esc.creamSoft), textAlign = TextAlign.Center)
         }
-        Text("상태를 맞춘 뒤 제출하세요.", style = Esc.noto(13, Esc.creamSoft))
+        Text("봉화를 맞춘 뒤 제출하세요.", style = Esc.noto(13, Esc.creamSoft))
         ParchmentButton(
             text = "제출",
             onClick = { if (latestCanSubmit) latestOnSubmit() },

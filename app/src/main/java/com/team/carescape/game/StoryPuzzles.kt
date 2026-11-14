@@ -64,9 +64,10 @@ sealed interface CarVisual {
 data class Fork(val left: Int, val leftNote: String, val right: Int, val rightNote: String)
 
 sealed interface StoryLockDefinition {
-    /** 앞·뒤 좌우 독서등의 현재 켜진 개수를 제출한다. 누적 조작 횟수가 아니다. */
+    /** 정답은 기본 불씨 1개를 포함한 봉화 수. 제출 입력은 실제 켜진 독서등 수다. */
     data class InteriorLightCount(val answer: Int = 4) : StoryLockDefinition {
-        init { require(answer in 0..4) }
+        init { require(answer in BeaconLightMapping.BASE_LIT..BeaconLightMapping.BEACON_COUNT) }
+        val requiredLights: Int get() = answer - BeaconLightMapping.BASE_LIT
     }
     data class Numeric(val answer: String) : StoryLockDefinition {
         init { require(answer.isNotEmpty() && answer.all { it in '0'..'9' }) }
@@ -172,8 +173,8 @@ object StoryPuzzles {
         val matches = when (val lock = puzzle.lock) {
             is StoryLockDefinition.InteriorLightCount -> {
                 val count = (input as? StoryPuzzleInput.InteriorLightCount)?.count ?: return StoryPuzzleResult.INVALID_INPUT
-                if (count !in 0..4) return StoryPuzzleResult.INVALID_INPUT
-                count == lock.answer
+                if (count !in 0..BeaconLightMapping.LIGHT_COUNT) return StoryPuzzleResult.INVALID_INPUT
+                BeaconLightMapping.beaconCount(count) == lock.answer
             }
             is StoryLockDefinition.Numeric -> {
                 val value = (input as? StoryPuzzleInput.Numeric)?.value
@@ -240,7 +241,8 @@ object StoryPuzzles {
 
     /** 오답 대사를 고르는 안정된 문자열 키. */
     fun answerKey(input: StoryPuzzleInput): String = when (input) {
-        is StoryPuzzleInput.InteriorLightCount -> input.count.toString()
+        is StoryPuzzleInput.InteriorLightCount -> if (input.count in 0..BeaconLightMapping.LIGHT_COUNT)
+            BeaconLightMapping.beaconCount(input.count).toString() else "INVALID_INTERIOR_LIGHT_COUNT"
         is StoryPuzzleInput.Numeric -> input.value
         is StoryPuzzleInput.Directions -> input.value.joinToString(",") { it.name }
         is StoryPuzzleInput.Device -> "${input.channel},${input.level}"

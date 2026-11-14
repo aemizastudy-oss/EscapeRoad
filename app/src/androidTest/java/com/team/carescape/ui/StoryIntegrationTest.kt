@@ -4,6 +4,8 @@ import java.io.File
 import com.team.carescape.game.LockDirection
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.captureToImage
 import android.graphics.Bitmap
 import android.os.SystemClock
 import android.util.Log
@@ -592,16 +594,42 @@ class StoryIntegrationTest {
         awaitTag("ending-title")
     }
 
+    @OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
     @Test
     fun museumBeaconUsesCurrentMockCountAndPreservesCompletionAfterRecreation() {
         prepareMuseumBeacon()
+        if (exists("item-acquired-ok")) clickTag("item-acquired-ok")
+        if (exists("explore-guide-close")) clickTag("explore-guide-close")
         val before = storedMock()
         val chapterId = TourCatalog.checkpoints[3].id
         val beforeAttempts = before.puzzleProgress.single { it.checkpointId == chapterId }.wrongAttempts
 
-        repeat(3) { clickTag("interior-light-$it") }
-        rule.onNodeWithText("켜진 실내 조명: 3개").assertExists()
-        assertEquals("Changing current lights must not persist an attempt", before, storedMock())
+        fun captureBeacon(name: String) {
+            val lock = rule.onNodeWithTag("interior-light-lock")
+            runCatching { lock.performScrollTo() }
+            rule.waitForIdle()
+            val bitmap = lock.captureToImage().asAndroidBitmap()
+            try {
+                val directory = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "beacon-five")
+                assertTrue("Beacon screenshot directory must exist", directory.isDirectory || directory.mkdirs())
+                val file = File(directory, "$name.png")
+                file.outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+                assertTrue("Beacon screenshot must be written", file.isFile && file.length() > 0L)
+                Log.i("CarEscapeBeaconTest", "MOCK_UI_SCREENSHOT:${file.absolutePath}")
+            } finally { bitmap.recycle() }
+        }
+
+        rule.onNodeWithText("켜진 봉화: 1 / 5").assertExists()
+        rule.onNodeWithTag("beacon-base").performTouchInput { click() }
+        rule.runOnIdle { assertEquals(List(4) { false }, vm.storyPuzzleDraft.interiorLights) }
+        assertEquals("The fixed base beacon must not change saved progress", before, storedMock())
+        captureBeacon("beacon-1")
+
+        repeat(4) { clickTag("interior-light-$it") }
+        rule.onNodeWithText("켜진 봉화: 5 / 5").assertExists()
+        rule.runOnIdle { assertEquals(List(4) { true }, vm.storyPuzzleDraft.interiorLights) }
+        assertEquals("Changing four current lights must not persist an attempt", before, storedMock())
+        captureBeacon("beacon-5")
         clickSubmit()
         awaitState { !it.saving && it.storyPuzzleProgress?.wrongAttempts == beforeAttempts + 1 }
         val afterWrong = storedMock()
@@ -611,15 +639,17 @@ class StoryIntegrationTest {
         assertEquals(before.tourRecords, afterWrong.tourRecords)
 
         clickTag("interior-light-3")
-        rule.onNodeWithText("켜진 실내 조명: 4개").assertExists()
-        assertEquals("Four lit lights still require explicit submission", afterWrong, storedMock())
+        rule.onNodeWithText("켜진 봉화: 4 / 5").assertExists()
+        rule.runOnIdle { assertEquals(listOf(true, true, true, false), vm.storyPuzzleDraft.interiorLights) }
+        assertEquals("Three raw lights plus the base still require explicit submission", afterWrong, storedMock())
+        captureBeacon("beacon-4")
         clickSubmit()
         awaitState { !it.saving && it.story?.isStepDone("c4_beacon") == true }
         val completed = storedMock()
         assertEquals(before.sessionId, completed.sessionId)
         assertEquals(before.tourRecords, completed.tourRecords)
         assertEquals(1, completed.puzzleProgress.single { it.checkpointId == chapterId }.solvedSteps.count { it == "c4_beacon" })
-        rule.runOnUiThread { vm.submitStoryPuzzle(StoryPuzzleInput.InteriorLightCount(4)) }
+        rule.runOnUiThread { vm.submitStoryPuzzle(StoryPuzzleInput.InteriorLightCount(3)) }
         rule.waitForIdle()
         assertEquals("A completed beacon cannot grant twice", completed, storedMock())
 
@@ -660,7 +690,7 @@ class StoryIntegrationTest {
         is StoryLockDefinition.SymbolDial -> StoryPuzzleInput.Dial(lock.answer)
         is StoryLockDefinition.UseItem -> StoryPuzzleInput.UseItem(lock.answer)
         is StoryLockDefinition.Sequence -> StoryPuzzleInput.Sequence(lock.answer)
-        is StoryLockDefinition.InteriorLightCount -> StoryPuzzleInput.InteriorLightCount(lock.answer)
+        is StoryLockDefinition.InteriorLightCount -> StoryPuzzleInput.InteriorLightCount(lock.requiredLights)
     }
 
     /** 현재 단계의 정답을 화면 초안에 넣고 제출한다(평가는 ViewModel·엔진이 한다). */

@@ -27,15 +27,29 @@ class InteriorLightSnapshotTest {
         assertNull(all.validCount(999))
     }
 
+    @Test fun oneBaseFireMakesAllFiveSignalsReachableAndFeedbackUsesBeaconCount() {
+        val current = SiyeokFlow5.episode.chapters[3].puzzleSteps.single { it.id == "c4_beacon" }
+        for (lights in 0..4) {
+            val beacons = lights + 1
+            assertEquals(beacons, BeaconLightMapping.beaconCount(lights))
+            assertEquals(lights, StoryLockDefinition.InteriorLightCount(beacons).requiredLights)
+            assertEquals(beacons.toString(), StoryPuzzles.answerKey(StoryPuzzleInput.InteriorLightCount(lights)))
+        }
+        assertEquals(3, (current.lock as StoryLockDefinition.InteriorLightCount).requiredLights)
+        assertNotNull(current.feedback("5"))
+        assertNotEquals(current.feedback("3"), current.feedback("5"))
+    }
+
     @Test fun currentFlowUsesCountWhileLegacyBeaconAndCompletedIdsStayCompatible() {
         val current = SiyeokFlow5.episode.chapters[3].puzzleSteps.single { it.id == "c4_beacon" }
         val old = SiyeokFlow4.episode.chapters[3].puzzleSteps.single { it.id == "c4_beacon" }
         assertTrue(current.lock is StoryLockDefinition.InteriorLightCount)
         assertTrue(old.lock is StoryLockDefinition.Sequence)
         assertEquals(current.id, old.id)
-        assertEquals(StoryPuzzleResult.CORRECT, StoryPuzzles.evaluate(current, StoryPuzzleInput.InteriorLightCount(4)))
-        for (count in 0..3) assertEquals(StoryPuzzleResult.WRONG, StoryPuzzles.evaluate(current, StoryPuzzleInput.InteriorLightCount(count)))
+        assertEquals(StoryPuzzleResult.CORRECT, StoryPuzzles.evaluate(current, StoryPuzzleInput.InteriorLightCount(3)))
+        for (count in listOf(0, 1, 2, 4)) assertEquals(StoryPuzzleResult.WRONG, StoryPuzzles.evaluate(current, StoryPuzzleInput.InteriorLightCount(count)))
         assertEquals(StoryPuzzleResult.INVALID_INPUT, StoryPuzzles.evaluate(current, StoryPuzzleInput.InteriorLightCount(-1)))
+        assertEquals(StoryPuzzleResult.INVALID_INPUT, StoryPuzzles.evaluate(current, StoryPuzzleInput.InteriorLightCount(5)))
         assertEquals(StoryPuzzleResult.INVALID_INPUT, StoryPuzzles.evaluate(current, StoryPuzzleInput.Sequence(List(4) { "FIRE" })))
         assertEquals(StoryPuzzleResult.CORRECT, StoryPuzzles.evaluate(old, StoryPuzzleInput.Sequence(List(4) { "FIRE" })))
     }
