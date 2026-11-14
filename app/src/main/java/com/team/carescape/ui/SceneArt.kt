@@ -77,7 +77,7 @@ private fun DrawnBackdrop(bg: SceneBg, modifier: Modifier) {
                 SceneBg.SLUICE_NIGHT -> sluice()
                 SceneBg.RESERVOIR_DAWN -> reservoir()
                 SceneBg.MUSEUM -> museum()
-                SceneBg.LAKE_NIGHT -> lake()
+                SceneBg.LAKE_NIGHT, SceneBg.LAKE_MODERN -> lake()
             }
             // 아래쪽은 대사 상자가 놓이므로 어둡게 깐다.
             drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC0A0204)), 430f, BH), Offset(0f, 430f), Size(BW, BH - 430f))

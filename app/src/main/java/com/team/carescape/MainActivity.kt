@@ -10,6 +10,8 @@ import androidx.compose.material3.darkColorScheme
 import com.team.carescape.ui.EscapeApp
 import com.team.carescape.ui.GameViewModel
 import com.team.carescape.platform.sdk.PleosSdkRuntime
+import com.team.carescape.drive.DriveService
+import com.team.carescape.drive.DemoArrival
 
 class MainActivity : ComponentActivity() {
     private val vm: GameViewModel by viewModels()
@@ -19,6 +21,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DriveService.watch(this) // 주행 중 안내: 진행 중인 여행이 생기면 백그라운드 서비스 시작
+        DemoArrival.watch(this, vm) // 주행 중 안내: 시연 주행이 도착해 정차하면 시연 도착 처리
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 EscapeApp(vm, ::requestSdkPermissions)

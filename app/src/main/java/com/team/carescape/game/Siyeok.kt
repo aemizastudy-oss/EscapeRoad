@@ -1,7 +1,7 @@
 package com.team.carescape.game
 
 /** 장면 배경. 화면 쪽에서 장소별 그림으로 그린다. */
-enum class SceneBg { AGENCY, TIME_RIFT, PALACE_DUSK, PALACE_NIGHT, SLUICE_NIGHT, RESERVOIR_DAWN, MUSEUM, LAKE_NIGHT }
+enum class SceneBg { AGENCY, TIME_RIFT, PALACE_DUSK, PALACE_NIGHT, SLUICE_NIGHT, RESERVOIR_DAWN, MUSEUM, LAKE_NIGHT, LAKE_MODERN }
 
 /**
  * 장면 속 한 줄. [speaker]는 인물 id([StoryEpisode.speakerFor])이고, null이면 지문(내레이션)이다.

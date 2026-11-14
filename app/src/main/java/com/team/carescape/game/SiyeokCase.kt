@@ -315,11 +315,11 @@ object SiyeokCase {
         ),
         StoryPuzzleDefinition(
             id = "c5_lake", speaker = "physician", kind = StepKind.DEDUCE,
-            title = "두 호수",
-            prompt = "이 공원에는 호수가 두 개 있습니다. 약을 풀 곳은?",
-            hints = listOf("소식지의 마지막 문장을 떠올려 보세요.", "물은 위 방죽에서 아래 방죽으로 모여요.", "원천호수(아랫방죽)"),
-            solution = "아랫방죽은 원천호수(원천저수지)입니다.",
-            lock = StoryLockDefinition.Choice(opts("wonchon" to "원천호수", "sindae" to "신대호수"), "wonchon"),
+            title = "두 방죽",
+            prompt = "광교산 아래에 방죽이 두 개 있습니다. 약을 풀 곳은?",
+            hints = listOf("소식지의 마지막 문장을 떠올려 보세요.", "물은 위 방죽에서 아래 방죽으로 모여요.", "아랫방죽 · 훗날 원천호수"),
+            solution = "약을 풀 곳은 아랫방죽입니다. 훗날의 원천호수(원천저수지)예요.",
+            lock = StoryLockDefinition.Choice(opts("wonchon" to "아랫방죽 · 훗날 원천호수", "sindae" to "웃방죽 · 훗날 신대호수"), "wonchon"),
             feedback = notes("sindae" to "여긴 웃방죽이다. 물은 아래로 흐른다."),
         ),
         StoryPuzzleDefinition(
@@ -373,7 +373,7 @@ object SiyeokCase {
             say("curator", "조사국이시죠? 기증 자료에서 찢어진 소식지가 들어왔어요. 뒷면에 숫자 획이 있네요."),
         ),
         listOf(
-            say("agency", "요원, 백신은 완성됐다. 1795년의 들판 위로 2026년의 도시가 겹쳐 보이기 시작한다."),
+            say("agency", "요원, 백신은 완성됐다. 약은 그해의 물에 풀어야 한다. 호수에 닿으면 다시 1795년으로 건너간다."),
             narr("바람 소리 사이로 여린 목소리가 스친다."),
             say("yeoni", "오라버니… 물소리가 무서워요."),
         ),
@@ -405,10 +405,11 @@ object SiyeokCase {
             say("agency", "기증 전시실에서, 이 성을 쌓은 기록을 다시 세상에 내놓은 수집가의 이야기를 찾아라. 그다음 기록을 맞춘다."),
         ),
         listOf(
-            narr("광교호수공원에 도착했습니다. 두 방죽은 지금 커다란 호수 둘이 되어 있습니다. 해가 지고, 물가에서 무언가 움직이기 시작합니다."),
+            narr("광교호수공원에 도착했습니다. 해가 지자 호수 위로 바람 소리가 커집니다. 계기판의 숫자가 다시 거꾸로 돕니다. 2026… 1929… 1800…"),
+            Line(null, "1795년 윤2월 12일 해 질 녘. 아파트 불빛이 사라진 자리에 초가지붕이 보입니다. 광교산 아래 아랫방죽, 물가에서 무언가 움직이기 시작합니다.", SceneBg.LAKE_NIGHT),
             say("physician", "여기까지 와 주었구려. 물이 모이는 곳이오. 약병은 선반에 번호를 붙여 두었소."),
             say("yeoni", "…오라버니, 거기 있어요?"),
-            say("agency", "목소리에 대답하지 마라, 요원. 호숫가를 걸으며 두 호수의 위치를 살피고 돌아와라."),
+            say("agency", "목소리에 대답하지 마라, 요원. 둑길을 걸으며 두 방죽의 위치를 살피고 돌아와라."),
         ),
     )
 
@@ -439,7 +440,7 @@ object SiyeokCase {
         ),
     )
 
-    private val arrivalBg = listOf(SceneBg.PALACE_DUSK, SceneBg.SLUICE_NIGHT, SceneBg.RESERVOIR_DAWN, SceneBg.MUSEUM, SceneBg.LAKE_NIGHT)
+    private val arrivalBg = listOf(SceneBg.PALACE_DUSK, SceneBg.SLUICE_NIGHT, SceneBg.RESERVOIR_DAWN, SceneBg.MUSEUM, SceneBg.LAKE_MODERN)
     private val revealBg = listOf(SceneBg.PALACE_NIGHT, SceneBg.SLUICE_NIGHT, SceneBg.RESERVOIR_DAWN, SceneBg.MUSEUM)
     private fun List<Line>.startingIn(bg: SceneBg?) = mapIndexed { i, l -> if (i == 0 && bg != null) l.copy(bg = bg) else l }
 

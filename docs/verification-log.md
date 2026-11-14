@@ -352,3 +352,15 @@ SDK 어댑터는 기존 `main`의 검증된 API 경계를 현재 패키지로 �
 - 시각 확인: `WaterHeightGridUiTest`가 25개 셀의 표시·배치 순서·중앙 시작 표시를 검사했다. 격리된 MOCK 화면의 실제 캡처 `C:\my-car-buddy\.gradle\car-escape-water-grid-20261114\water-grid-before-submit.png`를 저장해 표·규칙·자물쇠의 배치를 직접 확인했다. 스크린샷 기준 이미지 자동 비교를 실행했다는 뜻은 아니다.
 - 데이터 경계: 테스트 후 사용자 MOCK/LIVE·archive·schema와 여행 설정을 복원·대조했다. 차량 콘솔 상태도 변경되지 않았다. 원시 저장·로그·캡처는 위 로컬 비공개 경로에만 보관한다. 실제 차량·실제 관광 인증·Ubuntu 실행은 이번 확인 범위가 아니다. 커밋·푸시는 실행하지 않았다.
 - 재현: Android Studio에서 `C:\car_escape` → app Run, 일반 MOCK의 도착 3 → 둑 위 종이 → 둑 끝 수문. Ubuntu에서는 `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug` 후 테스트 APK를 설치하고 `adb -s emulator-5554 shell am instrument --user 10 -w -r -e class com.team.carescape.ui.StoryIntegrationTest#reservoirHeightGridCentralSwipesSubmitSaveAndResumeCompletedChannel,com.team.carescape.ui.WaterHeightGridUiTest com.team.carescape.test/androidx.test.runner.AndroidJUnitRunner`로 재현할 수 있다(기기·사용자 번호는 환경에 맞게 변경). 위 Ubuntu 명령은 안내이며 이 Windows 환경에서 Ubuntu 실행했다고 표시하지 않는다.
+
+
+## release/v0.4.0 원격 병합 검증
+
+- 사용자 푸시 요청에 따라 로컬 SDK 입력·관광 위치 노후화 예외·화홍문 깜빡이 수문·만석거 높이표 방향 자물쇠를 `5c615e0`에 커밋하고, 원격의 `990a207`(1795년 호수 장면), `00c8efc`(주행 챕터), `cbcfd73`(장면 BGM)을 병합했다. 강제 푸시나 원격 이력 삭제를 사용하지 않는다.
+- 충돌 해결: 로컬 `TourPolicy`·회귀 테스트의 확인된 방문과 신선도 예외 기준을 유지한다. 원격의 관광 시작 뒤 위치 검사를 모두 생략하는 변경은 채택하지 않았다. 1795년 호수 장면과 실제 창문 입력 설명을 결합하고, debug HTTP 설정은 127.0.0.1/localhost만 허용하는 `vehicle_console_test_network.xml`로 통합했다.
+- 연결 보완: 일반 MOCK의 출발하기만 자동 시연 주행을 요청한다. 시연 관광+실제 SDK 입력에서는 새 콘솔 기어·속도 자동 변경 요청을 하지 않는다. 서비스의 허용 기본값은 false이며 매 요청에 명시적으로 전달·소모한다. 이미 시작한 시연 주행을 모드 변경 시 취소하는 새 기능을 구현했다는 의미는 아니다.
+- 검증 중 발견한 원격 코드 오류 수정: NaviHelper **3.0.5** 원본의 `requestNavigationScreen`에 명시된 일반 권한 `pleos.car.permission.NAVI_CUSTOM_MAP`을 선언하고 호출 전에 확인한다. `startForeground(id, notification, type)`는 API 29 이상에서만 호출하고 API 28에는 두 인자 호출을 사용한다. 권한 실패를 숨기거나 Lint baseline으로 오류를 제외하지 않았다.
+- 빌드 확인: 관리형 `gradle-run` 질문 “원격 변경과 통합한 release/v0.4.0의 빌드·단위 테스트·Lint가 통과하는가?”에 `:app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug` 최종 exit 0(70.339초). JVM **196개**, 실패·오류·건너뜀 0개. Lint 오류 0개, 경고 **66개**. 앞선 두 실행에서 확인한 권한 누락·API 호환성 오류는 수정 후 같은 검증을 통과했다.
+- 에뮬레이터 시연 확인: Pleos Connect v2.1.0/API 34, emulator-5554/사용자 10에서 병합본의 `StoryIntegrationTest` **6개 통과**, 건너뜀 0개. 일반 MOCK의 다섯 장소 진행, 오답·힌트·관광 시작 시각, 출발·백그라운드 제한, 만석거 11방향 실제 스와이프·제출·일기 해금·재실행 보존, MOCK 관광+실제 SDK P/깜빡이 RRRLRRR의 UI 제출·저장을 확인했다.
+- 보존·한계: 테스트 전후 사용자 여행 JSON·여행 설정·콘솔 상태를 대조하고 주행 서비스의 로컬 설정도 초기 상태로 복원했다. 인증값·원시 저장·백업·기기 로그는 커밋하지 않는다. 이번 병합 기기 테스트는 자동 시연 주행 버튼이나 실제 내비 화면 전환·실차 오디오·API 28 기기를 직접 실행한 검증이 아니다. 기존 LIVE 위치 정확도 미확정 상태는 유지한다. 원격 주행 기능의 이전 관측은 [주행 챕터](drive-chapter.md)의 별도 이력이다.
+- 재현: Android Studio에서 car_escape의 app을 Pleos 기기에 Run한다. Ubuntu에서는 `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug`와 테스트 APK 설치 후 `adb -s emulator-5554 shell am instrument --user 10 -w -r -e vehicleConsoleControls true -e class com.team.carescape.ui.StoryIntegrationTest com.team.carescape.test/androidx.test.runner.AndroidJUnitRunner`를 사용한다. 테스트는 MOCK 여행을 격리·복원한다. Ubuntu 자체 실행은 확인하지 않았다.

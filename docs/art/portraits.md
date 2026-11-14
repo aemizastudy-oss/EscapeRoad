@@ -60,7 +60,8 @@
 | `scene_sluice_night.jpg` | 밤의 화홍문 일곱 홍예와 수원천, 횃불, 판문 |
 | `scene_reservoir_dawn.jpg` | 새벽 만석거 둑과 영화정, 둑 위로 피한 마을 사람들 |
 | `scene_museum.jpg` | 2026년 박물관 수장고·진열장, 찢어진 문서 |
-| `scene_lake_night.jpg` | 밤의 광교호수공원 원천호수, 도시 불빛, 물가의 검은 그림자들 |
+| `scene_lake_night.jpg` | 1795년 해 질 녘 아랫방죽. 한옥·초가 마을, 둑길 등불 (마지막 탐색 장면) |
+| `scene_lake_modern.jpg` | 2026년 밤의 원천호수, 아파트 불빛과 산책로 (5장 도착 첫 장면, 배드 엔딩) |
 
 > 2026-11-14: 인물 초상 7장과 장면 배경 8장을 모두 넣었다(`.webp`). 배경을 다시 그리면 조사할 곳 좌표(`game/SiyeokFlow5.kt`)도 그림에 맞게 고쳐야 한다. `ExploreSceneCaptureTest`로 확인한다.
 

@@ -223,6 +223,7 @@ class PleosSdkRuntime(context: Context) : AutoCloseable {
     companion object {
         val declaredSdkPermissions = listOf(
             "pleos.car.permission.FUSED_LOCATION", "pleos.car.permission.NAVI_ROUTE", "pleos.car.permission.NAVI_ROUTE_SEARCH",
+            "pleos.car.permission.NAVI_CUSTOM_MAP",
             "pleos.car.permission.CAR_WINDOWS", "pleos.car.permission.CAR_LIGHTS",
             "pleos.car.permission.CAR_DRIVE", "pleos.car.permission.CAR_ENERGY", "pleos.car.permission.TTS_SERVICE",
             "pleos.car.permission.STT_SERVICE", "android.car.permission.CAR_SPEED", "android.car.permission.CAR_POWERTRAIN",

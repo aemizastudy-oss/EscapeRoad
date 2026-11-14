@@ -28,6 +28,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.team.carescape.drive.DriveService
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
@@ -530,7 +532,21 @@ private fun EnRouteActions(s: StoryState, vm: GameViewModel, narrator: Narrator?
                 Modifier.testTag("story-replay-narration"), enabled = narrator?.ready == true && !vm.saving)
         }
         MockArrivalAction(vm)
+        DepartButton(s, allowDemoDrive = vm.isMock && !vm.mockVehiclePuzzleSdk)
     }
+}
+
+/** 주행 중 안내: 목적지를 내비에 찍고 출발을 준비한다. 기어 D가 되면 내비 화면·BGM·이동 장면 음성이 시작된다. */
+@Composable
+private fun DepartButton(s: StoryState, allowDemoDrive: Boolean) {
+    val context = LocalContext.current
+    var ready by rememberSaveable(s.chapterIndex, allowDemoDrive) { mutableStateOf(false) }
+    ParchmentButton(
+        if (ready) "출발 준비 완료 · 기어 D로 출발하세요" else "출발하기",
+        { DriveService.depart(context, allowDemoDrive); ready = true },
+        Modifier.padding(top = 6.dp).testTag("story-depart"),
+        minWidth = 320.dp,
+    )
 }
 
 // ---- 5. 도착 · 1795년으로 (Unlock.dc.html) ----
