@@ -6,15 +6,18 @@ object StoryCatalog {
     const val INTEGRATED_FLOW_VERSION = 2
     /** 정식 퍼즐판: 장소당 여러 단계, 사건 기록부, 각성도와 엔딩 분기. flow3 저장 기록은 그대로 읽는다. */
     const val CASE_FLOW_VERSION = 3
-    /** 소지품·앱 안 자물쇠를 늘리고 차량 조작을 줄인 판. 새 여행은 이 버전으로 시작한다. */
+    /** 소지품·앱 안 자물쇠를 늘리고 차량 조작을 줄인 판. flow4 저장 기록은 그대로 읽는다. */
     const val ITEM_FLOW_VERSION = 4
-    const val CURRENT_FLOW_VERSION = ITEM_FLOW_VERSION
+    /** 화성행궁을 탐색 장면으로 푸는 판(시험판). 새 여행은 이 버전으로 시작한다. */
+    const val EXPLORE_FLOW_VERSION = 5
+    const val CURRENT_FLOW_VERSION = EXPLORE_FLOW_VERSION
 
     fun episodeFor(flowVersion: Int): StoryEpisode = when (flowVersion) {
         LEGACY_FLOW_VERSION -> Siyeok.episode
         INTEGRATED_FLOW_VERSION -> IntegratedSiyeok.episode
         CASE_FLOW_VERSION -> SiyeokCase.episode
         ITEM_FLOW_VERSION -> SiyeokFlow4.episode
+        EXPLORE_FLOW_VERSION -> SiyeokFlow5.episode
         else -> throw IllegalArgumentException("지원하지 않는 스토리 진행 버전입니다.")
     }
 

@@ -54,7 +54,7 @@ class SiyeokFlow4Test {
     }
 
     @Test fun newTripsStartOnFlowFourAndFlowThreeStaysReadable() {
-        assertEquals(StoryCatalog.ITEM_FLOW_VERSION, StoryCatalog.CURRENT_FLOW_VERSION)
+        assertTrue(StoryCatalog.CURRENT_FLOW_VERSION >= StoryCatalog.ITEM_FLOW_VERSION)
         assertTrue(StoryCatalog.episodeFor(StoryCatalog.CASE_FLOW_VERSION).chapters[2].puzzleSteps.any { it.id == "c3_channel" && it.lock is StoryLockDefinition.CarSequence })
     }
 

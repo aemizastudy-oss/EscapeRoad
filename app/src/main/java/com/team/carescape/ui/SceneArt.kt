@@ -50,7 +50,7 @@ fun SceneBackdrop(bg: SceneBg, modifier: Modifier = Modifier) {
     val res = artResource("scene_" + bg.name.lowercase())
     if (res != 0) {
         Box(modifier) {
-            Image(painterResource(res), null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+            Image(painterResource(res), null, Modifier.matchParentSize(), contentScale = ContentScale.FillBounds)
             // 대사 상자 쪽은 그림이 밝아도 글이 읽히게 어둡게 깐다.
             Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color(0xCC0A0204))))
         }

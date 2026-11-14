@@ -180,15 +180,35 @@ internal fun validateStoredTrip(trip: StoredTrip, archivedTrips: List<StoredTrip
             val index = TourCatalog.checkpoints.indexOfFirst { it.id == progress.checkpointId }
             requireValid(index in trip.legacyCompletedCount..trip.chapterIndex)
             val steps = episode.chapters[index].puzzleSteps
+            val scene = episode.chapters[index].scene
             requireValid(progress.wrongAttempts >= 0 && progress.awakening >= 0 && progress.hintsUsed >= 0)
-            if (progress.solved) {
+            if (scene != null) {
+                // flow5 탐색 장면: 순서 없는 자물쇠·찾은 곳·자물쇠별 힌트만 쓴다.
+                val stepIds = steps.map { it.id }
+                requireValid(progress.hintsShown == 0)
+                requireValid(progress.stepIndex == if (progress.solved) steps.size else 0)
+                requireValid(progress.solvedSteps.distinct().size == progress.solvedSteps.size && progress.solvedSteps.all { it in stepIds })
+                requireValid(!progress.solved || progress.solvedSteps.containsAll(stepIds))
+                val recordIds = scene.hotspots.filter { it.record }.map { it.id }
+                requireValid(progress.found.distinct().size == progress.found.size && progress.found.all { it in recordIds })
+                requireValid(progress.stepHints.all { (id, n) -> steps.firstOrNull { it.id == id }?.let { n in 0..it.hints.size } == true })
+                val verdicts = steps.filter { it.verdict }.map { it.id }
+                requireValid(progress.verdictMisses.distinct().size == progress.verdictMisses.size &&
+                    progress.verdictMisses.all { it in verdicts && it in progress.solvedSteps })
+            } else {
+                requireValid(progress.solvedSteps.isEmpty() && progress.found.isEmpty() && progress.stepHints.isEmpty())
+            }
+            if (scene != null) {
+                // 위에서 검증했다.
+            } else if (progress.solved) {
                 requireValid(progress.stepIndex == 0 || progress.stepIndex == steps.size)
                 requireValid(progress.hintsShown in 0..steps.last().hints.size)
             } else {
                 requireValid(progress.stepIndex in steps.indices)
                 requireValid(progress.hintsShown in 0..steps[progress.stepIndex].hints.size)
             }
-            val verdictIds = steps.take(if (progress.solved) steps.size else progress.stepIndex).filter { it.verdict }.map { it.id }
+            val verdictIds = if (scene != null) steps.filter { it.verdict }.map { it.id } else
+                steps.take(if (progress.solved) steps.size else progress.stepIndex).filter { it.verdict }.map { it.id }
             requireValid(progress.verdictMisses.distinct().size == progress.verdictMisses.size &&
                 progress.verdictMisses.all { it in verdictIds })
             if (!StoryCatalog.usesAwakening(trip.flowVersion)) {
@@ -270,6 +290,9 @@ internal fun upsertTrip(previous: TripStoreState, trip: StoredTrip): TripStoreSt
             requireValid(next != null && (!saved.solved || next.solved))
             requireValid(next != null && next.awakening >= saved.awakening && next.hintsUsed >= saved.hintsUsed &&
                 next.verdictMisses.containsAll(saved.verdictMisses))
+            // 탐색 장면에서 푼 자물쇠·찾은 곳·연 힌트는 되돌릴 수 없다.
+            requireValid(next != null && next.solvedSteps.containsAll(saved.solvedSteps) && next.found.containsAll(saved.found) &&
+                saved.stepHints.all { (id, n) -> (next.stepHints[id] ?: 0) >= n })
             // 한 단계 안에서는 힌트가 줄지 않고, 단계는 뒤로 가지 않는다.
             requireValid(next != null && (next.solved || next.stepIndex > saved.stepIndex ||
                 (next.stepIndex == saved.stepIndex && next.hintsShown >= saved.hintsShown)))

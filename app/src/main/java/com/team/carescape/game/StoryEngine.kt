@@ -32,8 +32,12 @@ data class StoryState(
     val flowVersion: Int = 1,
     val legacyCompletedCount: Int = 0,
     val puzzleProgress: List<StoryPuzzleProgress> = emptyList(),
+    /** flow5 탐색 장면에서 지금 열어 둔 자물쇠 단계(화면 상태, 저장하지 않는다). */
+    val exploreFocus: String? = null,
 ) {
     val chapter: StoryChapter get() = episode.chapters[chapterIndex]
+    /** 이 장소를 탐색 장면으로 푸는지. */
+    val isExplore: Boolean get() = StoryCatalog.usesPuzzles(flowVersion) && chapter.scene != null
     val isFinalChapter: Boolean get() = chapterIndex == episode.finalChapterIndex
     val puzzleProgressForCurrent: StoryPuzzleProgress? get() =
         puzzleProgress.firstOrNull { it.checkpointId == TourCatalog.checkpoints.getOrNull(chapterIndex)?.id }
@@ -43,10 +47,39 @@ data class StoryState(
     val currentPuzzle: StoryPuzzleDefinition? get() {
         val all = steps
         if (all.isEmpty()) return null
+        if (isExplore) {
+            // 탐색 장면에서는 장면에서 고른 자물쇠만 연다. 이미 푼 것이나 아직 보이지 않는 것은 열지 않는다.
+            val focus = exploreFocus ?: return null
+            val step = all.firstOrNull { it.id == focus } ?: return null
+            val spot = chapter.scene!!.hotspots.firstOrNull { focus in it.locks } ?: return null
+            // 두 번째 자물쇠는 첫 자물쇠를 푼 뒤에만 열린다.
+            if (focus == spot.thenLock && spot.lockStep != null && !isStepDone(spot.lockStep)) return null
+            return step.takeIf { !isStepDone(it.id) && isHotspotVisible(spot) }
+        }
         val index = puzzleProgressForCurrent?.takeUnless { it.solved }?.stepIndex ?: 0
         return all.getOrNull(index) ?: all.last()
     }
-    val currentStepIndex: Int get() = puzzleProgressForCurrent?.let { if (it.solved) steps.size else it.stepIndex } ?: 0
+    val currentStepIndex: Int get() = puzzleProgressForCurrent?.let {
+        when {
+            it.solved -> steps.size
+            isExplore -> it.solvedSteps.size
+            else -> it.stepIndex
+        }
+    } ?: 0
+
+    /** 탐색 장면의 조사할 곳이 지금 보이는지. */
+    fun isHotspotVisible(spot: Hotspot): Boolean = spot.requires == null || isStepDone(spot.requires)
+    /** 조사할 곳을 다 본 상태인지(자물쇠는 풀었는지, 기록할 곳은 기록했는지). */
+    fun isHotspotDone(spot: Hotspot): Boolean = when {
+        spot.lockStep != null -> spot.locks.all { isStepDone(it) }
+        spot.record -> isStepDone(spot.id)
+        else -> false
+    }
+    /** 이 조사할 곳에서 지금 열 자물쇠(첫 자물쇠를 풀었으면 두 번째). */
+    fun activeLock(spot: Hotspot): String? = spot.locks.firstOrNull { !isStepDone(it) }
+    /** 지금 손댈 수 있는 조사할 곳(힌트 반짝임 후보). */
+    val actionableHotspots: List<Hotspot> get() =
+        chapter.scene?.hotspots.orEmpty().filter { isHotspotVisible(it) && !isHotspotDone(it) && (it.lockStep != null || it.record) }
 
     /** 시귀 각성도(0 이상, 화면에는 10까지). */
     val awakening: Int get() = puzzleProgress.sumOf { it.awakening }
@@ -57,11 +90,17 @@ data class StoryState(
 
     /** 단계를 이미 풀었는지(진상 추리는 답을 내고 넘어갔으면 푼 것으로 본다). */
     fun isStepDone(stepId: String): Boolean {
-        val chapterIdx = episode.chapters.indexOfFirst { c -> c.puzzleSteps.any { it.id == stepId } }
+        val chapterIdx = episode.chapters.indexOfFirst { c ->
+            c.puzzleSteps.any { it.id == stepId } || c.scene?.hotspots.orEmpty().any { it.id == stepId }
+        }
         if (chapterIdx < 0) return false
-        val index = episode.chapters[chapterIdx].puzzleSteps.indexOfFirst { it.id == stepId }
         val id = TourCatalog.checkpoints.getOrNull(chapterIdx)?.id ?: return false
         val progress = puzzleProgress.firstOrNull { it.checkpointId == id } ?: return false
+        if (StoryCatalog.usesPuzzles(flowVersion) && episode.chapters[chapterIdx].scene != null) {
+            return progress.solved || stepId in progress.solvedSteps || stepId in progress.found
+        }
+        val index = episode.chapters[chapterIdx].puzzleSteps.indexOfFirst { it.id == stepId }
+        if (index < 0) return false
         return progress.solved || progress.stepIndex > index
     }
 
@@ -136,7 +175,7 @@ object StoryEngine {
     fun returnToCar(state: StoryState): StoryState {
         if (state.phase != StoryPhase.EXPLORING) return state
         if (StoryCatalog.usesPuzzles(state.flowVersion)) {
-            if (state.currentPuzzle == null) return state
+            if (state.steps.isEmpty()) return state
             val id = TourCatalog.checkpoints.getOrNull(state.chapterIndex)?.id ?: return state
             if (state.puzzleProgressForCurrent?.solved == true) return state
             return state.copy(phase = StoryPhase.PUZZLE,
@@ -157,6 +196,15 @@ object StoryEngine {
         if (!StoryCatalog.usesPuzzles(state.flowVersion) || state.phase != StoryPhase.PUZZLE) return state
         val puzzle = state.currentPuzzle ?: return state
         val progress = state.puzzleProgressForCurrent ?: return state
+        if (state.isExplore) {
+            val shown = progress.stepHints[puzzle.id] ?: 0
+            if (progress.solved || shown >= puzzle.hints.size) return state
+            return state.withPuzzleProgress(progress.copy(
+                stepHints = progress.stepHints + (puzzle.id to shown + 1),
+                hintsUsed = progress.hintsUsed + 1,
+                awakening = progress.awakening + StoryPuzzles.hintCost(shown),
+            ))
+        }
         if (progress.solved || progress.hintsShown >= puzzle.hints.size) return state
         val cost = if (StoryCatalog.usesAwakening(state.flowVersion)) StoryPuzzles.hintCost(progress.hintsShown) else 0
         return state.withPuzzleProgress(progress.copy(
@@ -174,6 +222,22 @@ object StoryEngine {
         val progress = state.puzzleProgressForCurrent ?: return StorySubmission(state, StoryPuzzleResult.LOCKED)
         if (progress.solved) return StorySubmission(state, StoryPuzzleResult.LOCKED)
         val result = StoryPuzzles.evaluate(puzzle, input)
+        // 탐색 장면: 맞히면(진상 추리는 틀려도) 그 자물쇠만 풀린 것으로 남긴다.
+        if (state.isExplore && (result == StoryPuzzleResult.CORRECT || (result == StoryPuzzleResult.WRONG && puzzle.verdict))) {
+            val solvedSteps = progress.solvedSteps + puzzle.id
+            val missed = if (result == StoryPuzzleResult.WRONG) progress.verdictMisses + puzzle.id else progress.verdictMisses
+            val done = state.steps.all { it.id in solvedSteps }
+            val advanced = progress.copy(solvedSteps = solvedSteps, solved = done, stepIndex = if (done) state.steps.size else 0,
+                verdictMisses = missed)
+            val next = state.withPuzzleProgress(advanced).let {
+                if (!done) it else it.copy(
+                    phase = if (state.isFinalChapter) StoryPhase.ENDED else StoryPhase.REVEALED,
+                    items = state.items + listOfNotNull(state.chapter.item),
+                    clues = state.clues + listOfNotNull(state.chapter.clue),
+                )
+            }
+            return StorySubmission(next, StoryPuzzleResult.CORRECT, if (result == StoryPuzzleResult.WRONG) null else puzzle.success)
+        }
         return when {
             result == StoryPuzzleResult.CORRECT || (result == StoryPuzzleResult.WRONG && puzzle.verdict) -> {
                 val missed = if (result == StoryPuzzleResult.WRONG) progress.verdictMisses + puzzle.id else progress.verdictMisses
@@ -201,6 +265,26 @@ object StoryEngine {
             }
             else -> StorySubmission(state, result)
         }
+    }
+
+    /**
+     * 탐색 장면에서 조사할 곳을 살펴본다. 기록할 곳이면 '찾음'으로 남겨 소지품·문서·다음 조사할 곳을 연다.
+     * 보이지 않는 곳, 자물쇠, 이미 기록한 곳은 상태를 바꾸지 않는다.
+     */
+    fun examine(state: StoryState, hotspotId: String): StoryState {
+        if (!state.isExplore || state.phase != StoryPhase.PUZZLE) return state
+        val spot = state.chapter.scene!!.hotspots.firstOrNull { it.id == hotspotId } ?: return state
+        val progress = state.puzzleProgressForCurrent ?: return state
+        if (!spot.record || !state.isHotspotVisible(spot) || spot.id in progress.found || progress.solved) return state
+        return state.withPuzzleProgress(progress.copy(found = progress.found + spot.id))
+    }
+
+    /** 장면 힌트: 지금 손댈 곳을 반짝여 준다. 각성도 +1. */
+    fun sceneHint(state: StoryState): StoryState {
+        if (!state.isExplore || state.phase != StoryPhase.PUZZLE) return state
+        val progress = state.puzzleProgressForCurrent ?: return state
+        if (progress.solved || state.actionableHotspots.isEmpty()) return state
+        return state.withPuzzleProgress(progress.copy(hintsUsed = progress.hintsUsed + 1, awakening = progress.awakening + 1))
     }
 
     private fun StoryState.withPuzzleProgress(value: StoryPuzzleProgress): StoryState = copy(

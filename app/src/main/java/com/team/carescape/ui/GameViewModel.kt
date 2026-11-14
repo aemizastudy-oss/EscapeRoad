@@ -51,7 +51,26 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     var storyPuzzleMessage by mutableStateOf<String?>(null)
         private set
     val storyPuzzle: StoryPuzzleDefinition? get() = story?.currentPuzzle
-    val storyPuzzleProgress: StoryPuzzleProgress? get() = story?.puzzleProgressForCurrent
+    /** 탐색 장면에서는 열어 둔 자물쇠 기준으로 힌트 수·풀림을 보여 준다. */
+    val storyPuzzleProgress: StoryPuzzleProgress? get() {
+        val s = story ?: return null
+        val raw = s.puzzleProgressForCurrent ?: return null
+        if (!s.isExplore) return raw
+        val focus = s.exploreFocus ?: return raw
+        return raw.copy(hintsShown = raw.stepHints[focus] ?: 0, solved = raw.solved || focus in raw.solvedSteps)
+    }
+    /** 탐색 장면에서 열어 둔 자물쇠(저장하지 않는 화면 상태). */
+    var exploreFocus by mutableStateOf<String?>(null)
+        private set
+    /** 장면 힌트로 반짝이는 조사할 곳. */
+    var sceneGlow by mutableStateOf<String?>(null)
+        private set
+    /** 장면에서 마지막으로 살펴본 곳. */
+    var exploreSelected by mutableStateOf<String?>(null)
+        private set
+    /** 방금 처음 찾은 곳(첫 살펴보기 글을 보여 준다). */
+    var exploreFresh by mutableStateOf<String?>(null)
+        private set
     /** 사건 기록부(정차 중에만). 주행 상태가 되면 닫는다. */
     var casebookOpen by mutableStateOf(false)
         private set
@@ -140,10 +159,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         story = value?.let {
             StoryState(StoryCatalog.episodeFor(it.flowVersion), it.chapterIndex, it.phase, it.items, it.clues,
                 flowVersion = it.flowVersion, legacyCompletedCount = it.legacyCompletedCount,
-                puzzleProgress = it.puzzleProgress)
+                puzzleProgress = it.puzzleProgress, exploreFocus = exploreFocus)
+        }
+        if (story?.phase != StoryPhase.PUZZLE || story?.isExplore != true) {
+            exploreFocus = null; sceneGlow = null; exploreSelected = null
+            story = story?.copy(exploreFocus = null)
+        } else if (story?.currentPuzzle == null && exploreFocus != null) {
+            // 방금 푼 자물쇠는 닫고 장면으로 돌아간다.
+            exploreFocus = null
+            story = story?.copy(exploreFocus = null)
         }
         val step = story?.takeIf { it.phase == StoryPhase.PUZZLE }?.currentStepIndex
-        val identity = value?.let { "${it.sessionId}:${it.chapterIndex}:${it.phase}:$step" }
+        val identity = value?.let { "${it.sessionId}:${it.chapterIndex}:${it.phase}:$step:$exploreFocus" }
         if (identity != puzzleDraftIdentity) {
             puzzleDraftIdentity = identity
             storyPuzzleDraft = StoryPuzzleDraft.forLock(story?.takeIf { it.phase == StoryPhase.PUZZLE }?.currentPuzzle?.lock)
@@ -461,6 +488,54 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Submits a snapshot only; refresh location/safety again at the serialized mutation boundary. */
+    /** 장면의 조사할 곳을 누른다. 기록할 곳이면 저장하고, 자물쇠면 자물쇠 화면을 연다. */
+    fun touchHotspot(id: String) {
+        val s = story ?: return
+        if (!parked || s.phase != StoryPhase.PUZZLE || !s.isExplore || tourGate != TourGate.READY) return
+        val spot = s.chapter.scene!!.hotspots.firstOrNull { it.id == id } ?: return
+        if (!s.isHotspotVisible(spot)) return
+        exploreSelected = id
+        exploreFresh = if (spot.record && !s.isHotspotDone(spot)) id else null
+        if (sceneGlow == id) sceneGlow = null
+        storyPuzzleMessage = null
+        if (spot.record && !s.isHotspotDone(spot)) {
+            changeTrip { old ->
+                if (old == null || story?.phase != StoryPhase.PUZZLE ||
+                    TourPolicy.unlockGate(record(), mode, currentWaypoint!!, location(), safety(), now()) != TourGate.READY) null
+                else old.copy(puzzleProgress = StoryEngine.examine(story!!, id).puzzleProgress)
+            }
+        }
+    }
+    /** 장면에서 고른 곳의 자물쇠를 연다. */
+    fun openHotspotLock(id: String) {
+        val s = story ?: return
+        val spot = s.chapter.scene?.hotspots?.firstOrNull { it.id == id } ?: return
+        val stepId = s.activeLock(spot) ?: return
+        if (!parked || s.phase != StoryPhase.PUZZLE || !s.isHotspotVisible(spot) || s.isStepDone(stepId)) return
+        exploreFocus = stepId
+        story = s.copy(exploreFocus = stepId)
+        storyPuzzleDraft = StoryPuzzleDraft.forLock(story?.currentPuzzle?.lock)
+        storyPuzzleMessage = null
+        puzzleDraftIdentity = "${trip?.sessionId}:${s.chapterIndex}:${s.phase}:${s.currentStepIndex}:$stepId"
+    }
+    /** 자물쇠를 닫고 장면으로 돌아간다. */
+    fun closeHotspotLock() {
+        exploreFocus = null
+        story = story?.copy(exploreFocus = null)
+        storyPuzzleMessage = null
+    }
+    /** 장면 힌트: 지금 손댈 곳 하나를 반짝인다(각성도 +1). */
+    fun sceneHint() {
+        val s = story ?: return
+        if (!parked || s.phase != StoryPhase.PUZZLE || !s.isExplore || tourGate != TourGate.READY) return
+        val target = s.actionableHotspots.firstOrNull() ?: return
+        changeTrip(afterSave = { sceneGlow = target.id }) { old ->
+            if (old == null || story?.phase != StoryPhase.PUZZLE ||
+                TourPolicy.unlockGate(record(), mode, currentWaypoint!!, location(), safety(), now()) != TourGate.READY) null
+            else old.copy(puzzleProgress = StoryEngine.sceneHint(story!!).puzzleProgress)
+        }
+    }
+
     fun submitStoryPuzzle(input: StoryPuzzleInput) {
         refreshTour()
         if (!canEditStoryPuzzle() || input != draftInput()) return

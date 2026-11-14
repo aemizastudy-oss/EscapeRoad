@@ -141,6 +141,12 @@ data class StoryPuzzleProgress(
     val hintsUsed: Int = 0,
     /** 틀린 채 넘어간 진상 추리 단계 id. */
     val verdictMisses: List<String> = emptyList(),
+    /** flow5 탐색 장면: 순서와 상관없이 푼 자물쇠 단계 id. */
+    val solvedSteps: List<String> = emptyList(),
+    /** flow5 탐색 장면: 살펴보고 기록한 조사할 곳 id. */
+    val found: List<String> = emptyList(),
+    /** flow5 탐색 장면: 자물쇠마다 연 힌트 수. */
+    val stepHints: Map<String, Int> = emptyMap(),
 )
 
 data class StorySubmission(val state: StoryState, val result: StoryPuzzleResult, val note: String? = null)

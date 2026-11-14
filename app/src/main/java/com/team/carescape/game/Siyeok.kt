@@ -59,6 +59,8 @@ data class StoryChapter(
     val arrivalScene: List<Line> = emptyList(),
     /** flow3: 단서 해금 장면 대사. 비어 있으면 [revealText]. */
     val revealScene: List<Line> = emptyList(),
+    /** flow5: 차로 돌아오면 퀴즈 목록 대신 이 장면을 직접 뒤진다. */
+    val scene: ExploreScene? = null,
 ) {
     val puzzleSteps: List<StoryPuzzleDefinition> get() = steps.ifEmpty { listOfNotNull(puzzle) }
 }

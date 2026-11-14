@@ -311,7 +311,7 @@ private fun StoryScreenBody(s: StoryState, vm: GameViewModel, narrator: Narrator
         StoryPhase.EN_ROUTE -> StoryDrivingScreen(s) { EnRouteActions(s, vm, narrator) }
         StoryPhase.ARRIVED -> SceneGate(s, vm, "arrival", s.chapter.arrivalScene, "${s.chapter.place} · 도착", "둘러볼 준비") { ArrivalScreen(s, vm, it) }
         StoryPhase.EXPLORING -> ExploringScreen(s, vm)
-        StoryPhase.PUZZLE -> StoryPuzzleScreen(vm)
+        StoryPhase.PUZZLE -> if (s.isExplore && s.currentPuzzle == null) ExploreScreen(s, vm) else StoryPuzzleScreen(vm)
         StoryPhase.REVEALED -> SceneGate(s, vm, "reveal", s.chapter.revealScene, "${s.chapter.place} · 단서", "단서 확인") { RevealScreen(s, vm, it) }
         StoryPhase.FINAL_REVEAL -> FinalRevealScreen(s, vm)
         StoryPhase.ENDED -> SceneGate(s, vm, "ending", endingScene(s), "Epilogue", "기록 보기", SceneBg.LAKE_NIGHT) { EndingScreen(s, vm, it) }
@@ -578,7 +578,7 @@ private fun ArrivalScreen(s: StoryState, vm: GameViewModel, onReplay: (() -> Uni
                     listOf(0.92f, 0.78f, 0.86f, 0.60f).forEach { Box(Modifier.fillMaxWidth(it).height(10.dp).background(Color(90, 62, 42).copy(alpha = 0.22f))) }
                     Box(Modifier.weight(1f))
                     Text(
-                        if (s.currentPuzzle != null) "관광 후 차로 돌아와 자물쇠를 풀면 단서가 열립니다"
+                        if (s.steps.isNotEmpty()) "관광 후 차로 돌아와 자물쇠를 풀면 단서가 열립니다"
                         else "관광을 마치고 복귀 조건을 확인하면 ${withSubject(l.letter)} 열립니다",
                         style = Esc.noto(13, Esc.inkSoft),
                     )
@@ -619,7 +619,7 @@ private fun ExploringScreen(s: StoryState, vm: GameViewModel) {
             Text("${withObject(s.chapter.place)} 둘러보는 중", style = Esc.nanum(52, lineHeight = 1.2f))
             Text(s.chapter.explore ?: "마지막 장소도 최소 15분 둘러본 뒤 차량으로 돌아와 주세요.", Modifier.widthIn(max = 900.dp), style = Esc.noto(22, Esc.creamMuted, lineHeight = 1.6f), textAlign = TextAlign.Center)
             Text("차 문을 잠그고, 걸을 때는 주변을 살펴 주세요.", style = Esc.noto(16, Esc.creamSoft))
-            if (s.currentPuzzle != null) Text("차로 돌아와 관광 조건을 확인하면 자물쇠를 풉니다. 정답을 제출해야 단서가 열립니다.", style = Esc.noto(16, Esc.gold), textAlign = TextAlign.Center)
+            if (s.steps.isNotEmpty()) Text("차로 돌아와 관광 조건을 확인하면 자물쇠를 풉니다. 정답을 제출해야 단서가 열립니다.", style = Esc.noto(16, Esc.gold), textAlign = TextAlign.Center)
             Text(tourRemainingMessage(vm.tourRemainingMillis), Modifier.testTag("tour-remaining"), style = Esc.noto(20, Esc.gold))
             Text(tourGateMessage(vm.tourGate), Modifier.testTag("tour-unlock-reason"), style = Esc.noto(15, Esc.creamSoft))
             ParchmentButton("차로 돌아왔어요", vm::returnToCar, Modifier.testTag("tour-return"),

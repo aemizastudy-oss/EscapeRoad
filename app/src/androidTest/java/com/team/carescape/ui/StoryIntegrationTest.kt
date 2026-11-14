@@ -90,9 +90,13 @@ class StoryIntegrationTest {
         assertTrue(puzzleStart.items.isEmpty())
         assertTrue(puzzleStart.clues.isEmpty())
 
-        // flow3 첫 단계는 오디오 증언 보기 문제다. 오답 보기를 골라 UI 제출 버튼으로만 평가한다.
-        assertEquals(StoryCatalog.ITEM_FLOW_VERSION, puzzleStart.flowVersion)
-        clickTag("choice-gate")
+        // flow5 화성행궁은 탐색 장면이다. 장면에서 현판을 눌러 자물쇠를 열고, 오답은 UI 제출 버튼으로만 평가한다.
+        assertEquals(StoryCatalog.EXPLORE_FLOW_VERSION, puzzleStart.flowVersion)
+        awaitTag("explore")
+        clickTag("hotspot-x_plaque")
+        clickTag("hotspot-open")
+        awaitTag("story-puzzle")
+        clickTag("choice-feng")
         clickSubmit()
         awaitState { !it.saving && it.storyPuzzleProgress?.wrongAttempts == 1 }
         clickTag("story-puzzle-hint")
@@ -100,7 +104,8 @@ class StoryIntegrationTest {
         rule.onNodeWithTag("story-puzzle-hint-1").assertIsDisplayed()
         val attempted = storedMock()
         assertEquals(1, attempted.puzzleProgress.single().wrongAttempts)
-        assertEquals(1, attempted.puzzleProgress.single().hintsShown)
+        assertEquals(mapOf("c1_plaque" to 1), attempted.puzzleProgress.single().stepHints)
+        assertEquals(0, attempted.puzzleProgress.single().hintsShown)
         assertEquals(0, attempted.puzzleProgress.single().stepIndex)
         assertFalse(attempted.puzzleProgress.single().solved)
         assertTrue(attempted.items.isEmpty())
@@ -130,17 +135,19 @@ class StoryIntegrationTest {
         assertEquals(1, vm.storyPuzzleProgress?.hintsShown)
 
         // 보기를 고르는 것만으로는 평가·지급하지 않는다.
-        clickTag("choice-hall")
-        rule.runOnIdle { assertEquals("hall", vm.storyPuzzleDraft.choice) }
+        clickTag("choice-shou")
+        rule.runOnIdle { assertEquals("shou", vm.storyPuzzleDraft.choice) }
         assertEquals("Selecting must not evaluate or grant anything", attempted, storedMock())
         clickSubmit()
         awaitState { !it.saving && it.story?.currentStepIndex == 1 }
         val stepped = storedMock()
-        assertEquals(1, stepped.puzzleProgress.single().stepIndex)
-        assertEquals(0, stepped.puzzleProgress.single().hintsShown)
+        assertEquals(listOf("c1_plaque"), stepped.puzzleProgress.single().solvedSteps)
+        assertEquals(0, stepped.puzzleProgress.single().stepIndex)
         assertEquals(1, stepped.puzzleProgress.single().hintsUsed)
         assertTrue(stepped.clues.isEmpty())
-        awaitTag("story-step-label")
+        // 푼 자물쇠는 닫히고 장면으로 돌아온다. 현판 뒤 틈이 새로 보인다.
+        awaitTag("explore")
+        awaitTag("hotspot-x_behind")
 
         solveRemainingSteps()
         awaitState { !it.saving && it.story?.phase == StoryPhase.REVEALED }
@@ -165,12 +172,15 @@ class StoryIntegrationTest {
     @Test
     fun puzzleRejectsDrivingBackgroundAndMissingFreshLocationWithoutChangingReceipts() {
         prepareFirstPuzzle()
-        rule.runOnUiThread { vm.changeStoryChoice("hall") }
+        // 화성행궁은 탐색 장면이다. 현판 자물쇠를 연 상태에서 같은 안전 조건을 확인한다.
+        rule.runOnUiThread { vm.openHotspotLock("x_plaque") }
+        awaitTag("story-puzzle")
+        rule.runOnUiThread { vm.changeStoryChoice("shou") }
         val before = storedMock()
 
         rule.runOnUiThread {
             vm.simSetParked(false)
-            vm.changeStoryChoice("gate")
+            vm.changeStoryChoice("feng")
             vm.showStoryPuzzleHint()
             vm.submitStoryPuzzle(StoryPuzzleInput.Choice(vm.storyPuzzleDraft.choice ?: ""))
             vm.storyNext()
@@ -186,7 +196,7 @@ class StoryIntegrationTest {
         rule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             assertFalse(vm.foreground)
-            vm.changeStoryChoice("hall")
+            vm.changeStoryChoice("shou")
             vm.showStoryPuzzleHint()
             vm.submitStoryPuzzle(StoryPuzzleInput.Choice(vm.storyPuzzleDraft.choice ?: ""))
             vm.storyNext()
@@ -199,9 +209,9 @@ class StoryIntegrationTest {
         awaitState { it.parked && it.tourGate == TourGate.LOCATION_MISSING }
         awaitTag("story-puzzle-waiting")
         rule.onNodeWithTag("story-puzzle").assertDoesNotExist()
-        rule.onNodeWithTag("choice-hall").assertDoesNotExist()
+        rule.onNodeWithTag("choice-shou").assertDoesNotExist()
         rule.runOnUiThread {
-            vm.changeStoryChoice("hall")
+            vm.changeStoryChoice("shou")
             vm.showStoryPuzzleHint()
             vm.submitStoryPuzzle(StoryPuzzleInput.Choice(vm.storyPuzzleDraft.choice ?: ""))
         }
@@ -299,7 +309,21 @@ class StoryIntegrationTest {
     }
 
     private fun solveRemainingSteps() {
-        while (vm.story?.phase == StoryPhase.PUZZLE) solveCurrentStep()
+        while (vm.story?.phase == StoryPhase.PUZZLE) {
+            val s = vm.story!!
+            if (s.isExplore && s.currentPuzzle == null) {
+                // 탐색 장면: 지금 손댈 수 있는 곳을 살펴보거나 그 자물쇠를 연다.
+                val spot = s.actionableHotspots.first()
+                if (spot.locks.isEmpty()) {
+                    val before = s.puzzleProgressForCurrent!!.found.size
+                    rule.runOnUiThread { vm.touchHotspot(spot.id) }
+                    awaitState { !it.saving && (it.story?.puzzleProgressForCurrent?.found?.size ?: 0) > before }
+                } else {
+                    rule.runOnUiThread { vm.openHotspotLock(spot.id) }
+                    awaitState { it.story?.currentPuzzle != null }
+                }
+            } else solveCurrentStep()
+        }
     }
 
     private fun prepareFirstPuzzle() {
@@ -340,7 +364,8 @@ class StoryIntegrationTest {
         awaitState { !it.saving && it.tourGate == TourGate.READY }
         clickTag("tour-return")
         awaitState { !it.saving && it.story?.phase == StoryPhase.PUZZLE }
-        awaitTag("story-puzzle")
+        // 탐색 장면 장소는 퀴즈 대신 장면이 먼저 나온다.
+        awaitTag(if (vm.story!!.isExplore) "explore" else "story-puzzle")
         assertEquals(index, vm.story?.chapterIndex)
         assertFalse(vm.storyPuzzleProgress!!.solved)
     }
@@ -376,6 +401,11 @@ class StoryIntegrationTest {
     }
 
     private fun clickTag(tag: String) {
+        // 새 소지품 창이 떠 있으면 아래 화면을 누를 수 없으므로 먼저 닫는다.
+        if (tag != "item-acquired-ok" && exists("item-acquired-ok")) {
+            rule.onNodeWithTag("item-acquired-ok").performClick()
+            rule.waitForIdle()
+        }
         rule.waitUntil(30_000) { runCatching { rule.onNodeWithTag(tag).assertIsEnabled(); true }.getOrDefault(false) }
         val node = rule.onNodeWithTag(tag)
         runCatching { node.performScrollTo() }

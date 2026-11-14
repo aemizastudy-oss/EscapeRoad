@@ -55,6 +55,18 @@ fun ItemArt(id: String, modifier: Modifier = Modifier, used: Boolean = false) {
                 "news" -> news(tm)
                 "licorice" -> licorice()
                 "vaccine" -> vaccine()
+                "bowl" -> bowl()
+                "paper_scrap" -> paperScrap()
+                "dial_box" -> dialBox()
+                "chest" -> chest()
+                "gate_wheel" -> gateWheel()
+                "stele" -> stele(tm)
+                "map_scroll" -> mapScroll()
+                "beacon_box" -> beaconBox()
+                "pot" -> pot()
+                "sign" -> sign(tm)
+                "bottles" -> bottles()
+                "shadow_figure" -> shadowFigure()
                 else -> drawCircle(Esc.gold, 40f, Offset(100f, 100f), style = Stroke(3f))
             }
             if (used) drawRect(Color(0x99140608), size = Size(U, U))
@@ -303,6 +315,186 @@ private fun DrawScope.licorice() {
             val a = k * 30f * (Math.PI / 180).toFloat()
             drawLine(Color(0x888A5A2A), c, Offset(c.x + 12f * kotlin.math.cos(a), c.y + 7f * kotlin.math.sin(a)), strokeWidth = 1f)
         }
+    }
+}
+
+/** 깨진 사발(장면 소품). */
+private fun DrawScope.bowl() {
+    drawOval(shadow, Offset(30f, 132f), Size(150f, 30f))
+    val body = Path().apply { moveTo(34f, 96f); quadraticBezierTo(100f, 190f, 166f, 96f); close() }
+    drawPath(body, Color(0xFFD8CFBE)); drawPath(body, Color(0xFF8A7A60), style = Stroke(2.5f))
+    drawOval(Color(0xFF6A5A48), Offset(34f, 86f), Size(132f, 22f))
+    // 깨진 금과 검은 얼룩
+    drawLine(Color(0xFF3A2A20), Offset(120f, 98f), Offset(106f, 128f), strokeWidth = 2.5f)
+    drawLine(Color(0xFF3A2A20), Offset(106f, 128f), Offset(116f, 146f), strokeWidth = 2f)
+    drawOval(Color(0xCC1A0A0A), Offset(70f, 90f), Size(46f, 12f))
+    val shard = Path().apply { moveTo(150f, 150f); lineTo(176f, 140f); lineTo(170f, 160f); close() }
+    drawPath(shard, Color(0xFFD8CFBE)); drawPath(shard, Color(0xFF8A7A60), style = Stroke(2f))
+    // 기어간 자국
+    listOf(Offset(24f, 170f), Offset(10f, 178f), Offset(-6f, 186f)).forEach { drawOval(Color(0x881A0A0A), Offset(it.x, it.y), Size(14f, 6f)) }
+}
+
+private val wood = Color(0xFF7A5228)
+private val woodDark = Color(0xFF4A3018)
+private val brass = Color(0xFFC9A15A)
+
+/** 시각 바퀴 두 개가 달린 함(화홍문 수문지기). */
+private fun DrawScope.dialBox() {
+    val r = Rect(30f, 70f, 170f, 160f)
+    dropShadow(r, 6f)
+    drawRoundRect(wood, r.topLeft, r.size, CornerRadius(6f))
+    drawRoundRect(woodDark, r.topLeft, r.size, CornerRadius(6f), style = Stroke(3f))
+    drawLine(woodDark, Offset(r.left, 96f), Offset(r.right, 96f), strokeWidth = 3f)
+    listOf(76f, 124f).forEach { x ->
+        drawCircle(brass, 20f, Offset(x, 128f)); drawCircle(woodDark, 20f, Offset(x, 128f), style = Stroke(2f))
+        repeat(12) { k ->
+            val a = k * 30f * (Math.PI / 180).toFloat()
+            drawLine(woodDark, Offset(x + 13f * kotlin.math.cos(a), 128f + 13f * kotlin.math.sin(a)),
+                Offset(x + 18f * kotlin.math.cos(a), 128f + 18f * kotlin.math.sin(a)), strokeWidth = 1.5f)
+        }
+        drawLine(Color(0xFF8A2A24), Offset(x, 128f), Offset(x, 112f), strokeWidth = 3f)
+    }
+}
+
+/** 놋쇠 자물쇠가 달린 나무 궤짝. */
+private fun DrawScope.chest() {
+    val r = Rect(28f, 76f, 172f, 164f)
+    dropShadow(r, 4f)
+    drawRect(wood, r.topLeft, r.size)
+    drawRect(Color(0xFF8A6034), Offset(r.left, r.top), Size(r.width, 26f))
+    listOf(48f, 152f).forEach { x -> drawRect(brass.copy(alpha = 0.8f), Offset(x - 6f, r.top), Size(12f, r.height)) }
+    drawRect(woodDark, r.topLeft, r.size, style = Stroke(3f))
+    // 자물쇠 판과 홈
+    drawRoundRect(brass, Offset(84f, 100f), Size(32f, 40f), CornerRadius(4f))
+    drawRect(woodDark, Offset(96f, 112f), Size(8f, 16f))
+}
+
+/** 수문 물레(만석거 둑 끝). */
+private fun DrawScope.gateWheel() {
+    drawRect(woodDark, Offset(40f, 120f), Size(120f, 50f))
+    drawRect(Color(0xFF3F6F8F), Offset(48f, 150f), Size(104f, 20f))
+    drawCircle(wood, 44f, Offset(100f, 92f), style = Stroke(9f))
+    repeat(6) { k ->
+        val a = k * 60f * (Math.PI / 180).toFloat()
+        drawLine(wood, Offset(100f, 92f), Offset(100f + 44f * kotlin.math.cos(a), 92f + 44f * kotlin.math.sin(a)), strokeWidth = 6f)
+    }
+    drawCircle(woodDark, 10f, Offset(100f, 92f))
+}
+
+/** 깨진 비석(둑머리). */
+private fun DrawScope.stele(tm: TextMeasurer) {
+    drawOval(shadow, Offset(40f, 170f), Size(120f, 20f))
+    val body = Path().apply {
+        moveTo(56f, 180f); lineTo(56f, 54f); quadraticBezierTo(100f, 20f, 144f, 54f); lineTo(144f, 120f); lineTo(126f, 132f)
+        lineTo(144f, 146f); lineTo(144f, 180f); close()
+    }
+    drawPath(body, Color(0xFF8C8A84)); drawPath(body, Color(0xFF55534E), style = Stroke(2.5f))
+    glyph(tm, "萬", Offset(100f, 70f), 22f, Color(0xFF3A3834))
+    glyph(tm, "石", Offset(100f, 100f), 22f, Color(0xFF3A3834))
+    drawLine(Color(0xFF55534E), Offset(126f, 132f), Offset(92f, 150f), strokeWidth = 2f)
+}
+
+/** 말아 둔 고을 지도. */
+private fun DrawScope.mapScroll() {
+    val r = Rect(30f, 56f, 170f, 150f)
+    dropShadow(r, 2f)
+    drawRect(paper, r.topLeft, r.size)
+    drawRect(paperEdge, r.topLeft, r.size, style = Stroke(2f))
+    drawRoundRect(wood, Offset(22f, 48f), Size(12f, 110f), CornerRadius(5f))
+    drawRoundRect(wood, Offset(166f, 48f), Size(12f, 110f), CornerRadius(5f))
+    val river = Path().apply { moveTo(120f, 58f); cubicTo(90f, 90f, 130f, 110f, 80f, 148f) }
+    drawPath(river, Color(0xFF3F6F8F), style = Stroke(4f))
+    drawOval(Color(0xFF3F6F8F), Offset(96f, 112f), Size(26f, 14f))
+    drawOval(Color(0xFF3F6F8F), Offset(70f, 132f), Size(30f, 14f))
+    drawCircle(sealRed, 5f, Offset(60f, 80f))
+}
+
+/** 화구 다섯 개가 뚫린 봉화함. */
+private fun DrawScope.beaconBox() {
+    val r = Rect(24f, 82f, 176f, 160f)
+    dropShadow(r, 4f)
+    drawRect(Color(0xFF6A3A22), r.topLeft, r.size)
+    drawRect(woodDark, r.topLeft, r.size, style = Stroke(3f))
+    repeat(5) { i ->
+        val x = 44f + i * 28f
+        drawOval(Color(0xFF1A0A06), Offset(x - 10f, 96f), Size(20f, 12f))
+        drawLine(Color(0x55F2A03A), Offset(x, 96f), Offset(x, 86f), strokeWidth = 2f)
+    }
+    drawRect(brass, Offset(88f, 128f), Size(24f, 18f))
+}
+
+/** 약탕기. */
+private fun DrawScope.pot() {
+    drawOval(shadow, Offset(40f, 164f), Size(120f, 20f))
+    // 화로
+    drawRect(Color(0xFF3A2A20), Offset(56f, 140f), Size(88f, 32f))
+    drawOval(Color(0xAAF2A03A), Offset(70f, 136f), Size(60f, 12f))
+    val body = Path().apply { moveTo(50f, 80f); quadraticBezierTo(100f, 160f, 150f, 80f); close() }
+    drawPath(body, Color(0xFF8A5A36)); drawPath(body, Color(0xFF4A2A16), style = Stroke(2.5f))
+    drawOval(Color(0xFF4A2A16), Offset(50f, 72f), Size(100f, 18f))
+    drawLine(Color(0xFF4A2A16), Offset(150f, 86f), Offset(176f, 76f), strokeWidth = 6f)
+    // 김
+    repeat(3) { i ->
+        val p = Path().apply { moveTo(80f + i * 20f, 66f); quadraticBezierTo(70f + i * 20f, 48f, 84f + i * 20f, 30f) }
+        drawPath(p, Color(0x88FFFFFF), style = Stroke(2.5f))
+    }
+}
+
+/** 호숫가 안내판. */
+private fun DrawScope.sign(tm: TextMeasurer) {
+    drawRect(woodDark, Offset(94f, 110f), Size(12f, 76f))
+    val r = Rect(30f, 40f, 170f, 118f)
+    dropShadow(r, 4f)
+    drawRoundRect(Color(0xFF2E3A44), r.topLeft, r.size, CornerRadius(4f))
+    drawRoundRect(Color(0xFF8AA0B0), r.topLeft, r.size, CornerRadius(4f), style = Stroke(2f))
+    glyph(tm, "광교호수공원", Offset(100f, 58f), 13f, Color(0xFFE6EEF2))
+    drawOval(Color(0xFF5A8AB0), Offset(50f, 74f), Size(46f, 30f))
+    drawOval(Color(0xFF5A8AB0), Offset(104f, 82f), Size(52f, 26f))
+    glyph(tm, "?", Offset(73f, 89f), 14f, Color.White)
+    glyph(tm, "?", Offset(130f, 95f), 14f, Color.White)
+}
+
+/** 번호 붙은 약병 넷이 놓인 선반. */
+private fun DrawScope.bottles() {
+    drawRect(woodDark, Offset(20f, 150f), Size(160f, 12f))
+    drawRect(woodDark, Offset(26f, 162f), Size(8f, 26f)); drawRect(woodDark, Offset(166f, 162f), Size(8f, 26f))
+    listOf(Color(0xFFF4F1EA), Color(0xFFD8E4DC), Color(0xFFF4F1EA), Color(0xFFE6D8C8)).forEachIndexed { i, c ->
+        val x = 42f + i * 38f
+        val body = Path().apply {
+            moveTo(x - 8f, 96f); lineTo(x + 8f, 96f); lineTo(x + 8f, 106f)
+            cubicTo(x + 22f, 112f, x + 22f, 150f, x, 150f); cubicTo(x - 22f, 150f, x - 22f, 112f, x - 8f, 106f); close()
+        }
+        drawPath(body, c); drawPath(body, Color(0xFF8A8478), style = Stroke(1.5f))
+        drawRoundRect(sealRed, Offset(x - 8f, 86f), Size(16f, 12f), CornerRadius(3f))
+        drawRect(Color(0xFFEADCBE), Offset(x - 9f, 122f), Size(18f, 12f))
+    }
+}
+
+/** 물가에 선 사람 모양의 그림자(호수 장면). 물 쪽으로는 다가오지 않는다. */
+private fun DrawScope.shadowFigure() {
+    drawOval(Color(0x55000000), Offset(50f, 184f), Size(100f, 14f))
+    val body = Path().apply {
+        moveTo(72f, 190f); cubicTo(66f, 140f, 70f, 96f, 84f, 78f); lineTo(116f, 78f)
+        cubicTo(130f, 96f, 134f, 140f, 128f, 190f); close()
+    }
+    drawPath(body, Color(0xF0080608))
+    drawOval(Color(0xF0080608), Offset(80f, 30f), Size(40f, 50f))
+    // 흐트러진 머리카락과 희미한 눈빛
+    drawLine(Color(0xF0080608), Offset(84f, 44f), Offset(70f, 96f), strokeWidth = 4f)
+    drawLine(Color(0xF0080608), Offset(116f, 44f), Offset(128f, 100f), strokeWidth = 4f)
+    drawCircle(Color(0x99C9D8E0), 2.2f, Offset(93f, 54f)); drawCircle(Color(0x99C9D8E0), 2.2f, Offset(107f, 54f))
+}
+
+/** 접힌 종이 쪽지(장면 소품). */
+private fun DrawScope.paperScrap() {
+    rotate(-12f, Offset(100f, 100f)) {
+        val r = Rect(46f, 66f, 154f, 134f)
+        dropShadow(r, 2f)
+        drawRect(paper, r.topLeft, r.size)
+        drawLine(paperEdge, Offset(100f, r.top), Offset(100f, r.bottom), strokeWidth = 2f)
+        drawRect(paperEdge, r.topLeft, r.size, style = Stroke(2f))
+        brushLines(56f, 82f, 36f, 3, 12f)
+        brushLines(110f, 82f, 36f, 3, 12f)
     }
 }
 

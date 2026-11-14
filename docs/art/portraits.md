@@ -62,6 +62,8 @@
 | `scene_museum.jpg` | 2026년 박물관 수장고·진열장, 찢어진 문서 |
 | `scene_lake_night.jpg` | 밤의 광교호수공원 원천호수, 도시 불빛, 물가의 검은 그림자들 |
 
+> 2026-11-14: 인물 초상 7장과 장면 배경 8장을 모두 넣었다(`.webp`). 배경을 다시 그리면 조사할 곳 좌표(`game/SiyeokFlow5.kt`)도 그림에 맞게 고쳐야 한다. `ExploreSceneCaptureTest`로 확인한다.
+
 ## 3. 넣는 방법
 
 1. 파일을 `app/src/main/res/drawable-nodpi/`에 복사합니다(예: `portrait_physician.png`).

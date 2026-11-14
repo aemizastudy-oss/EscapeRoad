@@ -84,7 +84,7 @@ fun StoryPuzzleScreen(vm: GameViewModel) {
             onDeviceChange = vm::changeStoryDevice,
             onSubmit = vm::submitStoryPuzzle,
             onHint = vm::showStoryPuzzleHint,
-            onBack = vm::goLobby,
+            onBack = if (story.isExplore) vm::closeHotspotLock else vm::goLobby,
             modifier = Modifier.fillMaxSize(),
             message = vm.storyPuzzleMessage,
             header = if (caseMode) StoryStepHeader(story.currentStepIndex, story.steps.size, story.awakening) else null,
@@ -98,6 +98,7 @@ fun StoryPuzzleScreen(vm: GameViewModel) {
             onDialChange = vm::changeStoryDial,
             onSequenceChange = vm::changeStorySequence,
             onItemChange = vm::changeStoryItem,
+            backLabel = if (story.isExplore) "장면으로" else "로비",
         )
     }
 }
@@ -134,6 +135,7 @@ fun StoryPuzzleContent(
     onDialChange: (List<Int>) -> Unit = {},
     onSequenceChange: (List<String>) -> Unit = {},
     onItemChange: (String) -> Unit = {},
+    backLabel: String = "로비",
 ) {
     val mayInteract by rememberUpdatedState(enabled && gate == TourGate.READY)
     val latestDraft by rememberUpdatedState(draft)
@@ -168,7 +170,7 @@ fun StoryPuzzleContent(
             if (header == null) Text("정식 관광 문제는 별도 제작 예정입니다", style = Esc.noto(13, Esc.creamSoft))
             else AwakeningGauge(header.awakening.coerceAtMost(10))
             if (onCasebook != null) OutlineButton("사건 기록부", { if (enabled) onCasebook() }, Modifier.testTag("casebook-open"), enabled = enabled, minHeight = 44.dp)
-            OutlineButton("로비", onBack, minHeight = 44.dp, minWidth = 90.dp)
+            OutlineButton(backLabel, onBack, Modifier.testTag("story-puzzle-back"), minHeight = 44.dp, minWidth = 90.dp)
         }
         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(30.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
