@@ -49,7 +49,7 @@
 | `item_stele.png` | 깨진 비석 | 만석거 | small broken stone stele with the hanja 萬石 carved |
 | `item_beacon_box.png` | 봉화함 | 박물관 | dark red wooden box with five small fire holes on top and a brass latch |
 | `item_pot.png` | 약탕기 | 박물관 | clay medicine pot on a small brazier, steam rising |
-| `item_sign.png` | 호숫가 안내판 | 호수공원 | modern park signboard showing two lakes with their names erased (question marks) |
+| `item_sign.png` | 둑머리 그림판 | 아랫방죽(1795) | modern park signboard showing two lakes with their names erased (question marks) |
 | `item_bottles.png` | 약병 선반 | 호수공원 | four small numbered medicine bottles with red stoppers on a short wooden shelf |
 | `item_shadow_figure.png` | 물가의 그림자 | 호수공원 | eerie dark human silhouette with long loose hair, faint pale eyes, standing still, no gore |
 

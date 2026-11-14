@@ -227,17 +227,17 @@ object SiyeokFlow5 {
     private val ch5Steps = listOf(
         step(4, "c5_window"),
         step(4, "c5_lake").copy(
-            prompt = "호숫가 안내판에 호수 이름 자리가 지워져 있습니다. 소식지와 노인의 말을 떠올려, 약을 풀 물을 고르세요.",
+            prompt = "둑머리 그림판에 방죽 이름 자리가 지워져 있습니다. 소식지와 노인의 말을 떠올려, 약을 풀 물을 고르세요.",
             lock = StoryLockDefinition.Choice(
                 SiyeokCase.opts(
-                    "sindae" to "신대호수", "gwanggyo" to "광교저수지", "wonchon" to "원천호수",
-                    "manseok" to "만석거", "seoho" to "서호(축만제)",
+                    "sindae" to "웃방죽 · 훗날 신대호수", "gwanggyo" to "광교산 골짜기 못", "wonchon" to "아랫방죽 · 훗날 원천호수",
+                    "manseok" to "만석거", "seoho" to "축만제(서호)",
                 ),
                 "wonchon",
             ),
             feedback = SiyeokCase.notes(
                 "sindae" to "여긴 웃방죽이다. 물은 아래로 흐른다.", "gwanggyo" to "방죽이 하나뿐인 산 위의 물이다.",
-                "manseok" to "그 물은 이미 지나왔다.", "seoho" to "고을 서쪽의 다른 물이다. 두 방죽이 아니다.",
+                "manseok" to "그 물은 이미 지나왔다.", "seoho" to "축만제는 아직 쌓지도 않았다. 4년 뒤의 물이다.",
             ),
         ),
         step(4, "c5_bottle").copy(
@@ -254,24 +254,24 @@ object SiyeokFlow5 {
 
     val lake = ExploreScene(
         bg = SceneBg.LAKE_NIGHT,
-        intro = "밤의 광교호수공원. 물가에서 무언가 서성입니다. 호숫가를 살펴보세요.",
+        intro = "1795년 윤2월 12일 해 질 녘, 광교산 아래 아랫방죽. 둑길에 등불이 켜지고, 물가에서 무언가 서성입니다. 둑길을 살펴보세요.",
         hotspots = listOf(
-            Hotspot("x5_shadow", "산책로 끝의 그림자", 1188f, 280f, 34f, 60f, speaker = "yeoni", record = true, prop = "shadow_figure", keepProp = true,
+            Hotspot("x5_shadow", "둑길 끝의 그림자", 1075f, 110f, 180f, 230f, speaker = "yeoni", record = true, prop = "shadow_figure", keepProp = true,
                 look = "…오라버니? 물소리가 무서워요.",
                 doneLook = "그림자는 물 쪽으로 한 발도 다가오지 않는다."),
             Hotspot("x5_window", "물소리", 200f, 330f, 400f, 90f, lockStep = "c5_window",
                 look = "물소리 사이로 낮은 신음이 섞여 있다. 창문을 내리면 더 잘 들릴 것 같다.",
                 doneLook = "물소리가 차 안까지 들어온다."),
-            Hotspot("x5_sign", "호숫가 안내판", 1098f, 410f, 62f, 60f, prop = "sign", lockStep = "c5_lake", keepProp = true,
-                look = "호수 두 개가 그려진 안내판. 이름 자리가 지워져 있다.",
-                doneLook = "원천호수 — 아랫방죽."),
+            Hotspot("x5_sign", "둑머리 그림판", 1098f, 410f, 62f, 60f, prop = "sign", lockStep = "c5_lake", keepProp = true,
+                look = "방죽 두 개가 그려진 그림판. 이름 자리가 지워져 있다.",
+                doneLook = "아랫방죽 — 훗날의 원천호수."),
             Hotspot("x5_shelf", "약병 선반", 1000f, 484f, 92f, 56f, requires = "c5_lake", prop = "bottles", lockStep = "c5_bottle", keepProp = true,
-                look = "산책로 가에 번호 붙은 약병 넷이 놓여 있다.",
+                look = "둑길 가에 번호 붙은 약병 넷이 놓여 있다.",
                 doneLook = "4172번 병만 마개가 열려 있다."),
             Hotspot("x5_shore", "아랫방죽 물가", 420f, 462f, 220f, 60f, requires = "c5_bottle", lockStep = "c5_release",
                 look = "물이 모이는 곳. 여기에 약을 풀어야 한다.",
                 doneLook = "약이 물을 타고 퍼져 나간다."),
-            Hotspot("x5_tower", "가로등 아래 · 서도윤", 900f, 360f, 84f, 170f, requires = "c5_release", speaker = "physician",
+            Hotspot("x5_tower", "등불 아래 · 서도윤", 900f, 360f, 84f, 170f, requires = "c5_release", speaker = "physician",
                 lockStep = "c5_truth_who", thenLock = "c5_truth_why",
                 look = "마지막으로 묻겠소. 이 병은 누구에게서 시작되었소?",
                 midLook = "…그렇소. 그렇다면, 내가 왜 비방을 찢어 숨겼는지도 알겠구려.",
