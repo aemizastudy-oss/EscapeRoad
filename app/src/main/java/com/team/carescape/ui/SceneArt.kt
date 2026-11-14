@@ -1,6 +1,15 @@
 package com.team.carescape.ui
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -32,9 +41,32 @@ private val night = Color(0xFF0B0E1E)
 private val ink = Color(0xFF120608)
 private val goldLine = Color(0xFFC9A15A)
 
-/** 장소 배경. 칸을 꽉 채운다(가로세로 비율은 칸에 맞춰 늘어난다). */
+/**
+ * 장소 배경. res/drawable-nodpi/scene_<이름 소문자>.png(또는 .jpg·.webp)가 있으면 그 그림을 칸에 꽉 채워 보여 주고,
+ * 없으면 코드로 그린 실루엣 배경을 쓴다. 예: SceneBg.PALACE_DUSK → scene_palace_dusk
+ */
 @Composable
 fun SceneBackdrop(bg: SceneBg, modifier: Modifier = Modifier) {
+    val res = artResource("scene_" + bg.name.lowercase())
+    if (res != 0) {
+        Box(modifier) {
+            Image(painterResource(res), null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+            // 대사 상자 쪽은 그림이 밝아도 글이 읽히게 어둡게 깐다.
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color(0xCC0A0204))))
+        }
+    } else DrawnBackdrop(bg, modifier)
+}
+
+/** 일러스트 파일 이름으로 drawable id를 찾는다. 없으면 0. */
+@SuppressLint("DiscouragedApi")
+@Composable
+private fun artResource(name: String): Int {
+    val context = LocalContext.current
+    return remember(name) { context.resources.getIdentifier(name, "drawable", context.packageName) }
+}
+
+@Composable
+private fun DrawnBackdrop(bg: SceneBg, modifier: Modifier) {
     Canvas(modifier) {
         scale(size.width / BW, size.height / BH, pivot = Offset.Zero) {
             when (bg) {
@@ -281,9 +313,19 @@ private fun DrawScope.timeRift() {
 
 // ───────────────────────── 초상 ─────────────────────────
 
-/** 인물 초상(가슴 위). 칸 안에 비율을 지켜 맞춘다. */
+/**
+ * 인물 초상(가슴 위). res/drawable-nodpi/portrait_<인물 id>.png(배경 투명)가 있으면 그 일러스트를,
+ * 없으면 코드로 그린 그림을 쓴다. 칸 안에서 비율을 지키고 아래쪽에 붙인다. 사양은 docs/art/portraits.md.
+ */
 @Composable
 fun Portrait(id: String, modifier: Modifier = Modifier) {
+    val res = artResource("portrait_" + id)
+    if (res != 0) Image(painterResource(res), null, modifier, contentScale = ContentScale.Fit, alignment = Alignment.BottomCenter)
+    else DrawnPortrait(id, modifier)
+}
+
+@Composable
+private fun DrawnPortrait(id: String, modifier: Modifier) {
     Canvas(modifier) {
         val s = minOf(size.width / PW, size.height / PH)
         withTransform({
