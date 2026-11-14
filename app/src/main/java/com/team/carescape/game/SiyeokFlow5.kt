@@ -223,7 +223,18 @@ object SiyeokFlow5 {
             ),
         ),
         step(3, "c4_flint"),
-        step(3, "c4_beacon"),
+        step(3, "c4_beacon").copy(
+            kind = StepKind.CAR,
+            prompt = "함의 문구: “그날 고을의 형편을 봉화로 알려야 열린다.”\n봉수 신호: 1 평시 · 2 적이 나타남 · 3 적이 경계에 다가옴 · 4 적이 경계를 넘음 · 5 맞붙어 싸움\n안전한 P 정차 상태에서 앞·뒤 좌우 독서등을 조절하세요. 제출할 때 현재 켜진 독서등의 개수를 봉화로 읽습니다.",
+            hints = listOf("만석거에서 찾은 의원 일지 3장을 다시 보세요.", "‘경계를 넘었다’지만 ‘아직 칼을 뽑지 않았다’. 켠 횟수가 아닌 지금 켜진 등의 수입니다.", "앞·뒤 좌우 독서등 4개를 켠 상태에서 제출하세요."),
+            lock = StoryLockDefinition.InteriorLightCount(4),
+            feedback = { key -> when (key.toIntOrNull()) {
+                0 -> WrongNote("불이 모두 꺼져 있다. 그날의 형편을 알릴 수 없다.")
+                1, 2, 3 -> WrongNote("이미 경계를 넘었다. 봉화가 더 필요하다.")
+                else -> null
+            } },
+            wrongDefault = "지금 켜진 독서등의 수와 기록 속 봉수 신호를 맞춰 보세요.",
+        ),
         step(3, "c4_vaccine"),
         step(3, "c4_place").copy(
             prompt = "벽에 걸린 고을 지도에 물길이 그려져 있습니다. 모은 단서: 水 — 물을 따라가라 / 약은 물이 모이는 곳에 풀어라 / 광교산 아래 두 방죽이 있다 / 아래를 아랫방죽이라 부른다.\n백신을 전달할 곳은?",

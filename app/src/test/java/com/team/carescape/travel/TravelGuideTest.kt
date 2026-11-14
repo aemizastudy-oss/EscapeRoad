@@ -1,7 +1,6 @@
 package com.team.carescape.travel
 
 import java.time.DayOfWeek
-import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -51,58 +50,43 @@ class TravelGuideTest {
         assertEquals(listOf(TravelTab.PARKING, TravelTab.ACTIVITY), activityFirst.take(2))
     }
 
-    @Test fun naverLocalParsingStripsTagsAndScalesCoordinates() {
-        val body = """{"items":[{"title":"<b>행궁</b> 국밥 &amp; 찜","link":"","category":"한식>국밥","telephone":"","address":"경기 수원시","roadAddress":"경기 수원시 팔달구 정조로 1","mapx":"1270132510","mapy":"372817910"}]}"""
-        val p = NaverLocalClient.parse(body).single()
-        assertEquals("행궁 국밥 & 찜", p.name)
-        assertEquals("경기 수원시 팔달구 정조로 1", p.address)
-        assertEquals(127.013251, p.lng!!, 1e-6)
-        assertEquals(37.281791, p.lat!!, 1e-6)
-        assertEquals(null, p.phone)
-        assertTrue(NaverLocalClient.parse("""{"items":[]}""").isEmpty())
-    }
-
-    @Test fun tourApiParsingHandlesArrayObjectEmptyAndErrors() {
-        fun wrap(items: String) = """{"response":{"header":{"resultCode":"0000","resultMsg":"OK"},"body":{"items":$items,"numOfRows":10,"pageNo":1,"totalCount":1}}}"""
-        val one = """{"title":"수원화성박물관","addr1":"경기도 수원시","addr2":"","mapx":"127.0200","mapy":"37.2800","dist":"412.5","tel":"","contenttypeid":"14"}"""
-        assertEquals(1, TourApiClient.parse(wrap("""{"item":$one}""")).size)
-        val two = TourApiClient.parse(wrap("""{"item":[$one,$one]}"""))
-        assertEquals(2, two.size)
-        assertEquals(412, two.first().distanceM)
-        assertEquals("문화시설", two.first().category)
-        assertTrue(TourApiClient.parse(wrap("\"\"")).isEmpty())
-        val error = """{"response":{"header":{"resultCode":"30","resultMsg":"SERVICE_KEY_IS_NOT_REGISTERED_ERROR"}}}"""
-        assertTrue(runCatching { TourApiClient.parse(error) }.isFailure)
-    }
-
-    @Test fun missingKeysReportNotConfiguredAndNeverCallTheNetwork() = runTest {
-        var calls = 0
-        val http = object : HttpGet { override suspend fun get(url: String, headers: Map<String, String>): String { calls++; return "{}" } }
-        val keys = TravelKeys()
-        val repo = TravelRepository(keys, NaverLocalClient(keys, http), TourApiClient(keys, http))
-        val r = repo.load(stops[0], TravelTab.STAY, TripProfile(TripLength.ONE_NIGHT))
-        assertEquals(TravelResult.NotConfigured(listOf("naver.search.clientId", "naver.search.clientSecret", "TOUR_API_KEY")), r)
-        assertEquals(0, calls)
-    }
-
-    @Test fun resultsMergeSourcesSortByDistanceAndReportPartialKeys() = runTest {
-        val keys = TravelKeys(tourApiKey = "k")
-        val near = """{"title":"가까운 곳","addr1":"a","mapx":"127.011","mapy":"37.281","dist":"100","contenttypeid":"12"}"""
-        val far = """{"title":"먼 곳","addr1":"b","mapx":"127.03","mapy":"37.29","dist":"2500","contenttypeid":"12"}"""
-        val http = object : HttpGet {
-            override suspend fun get(url: String, headers: Map<String, String>): String =
-                """{"response":{"header":{"resultCode":"0000"},"body":{"items":{"item":[$far,$near]}}}}"""
+    @Test fun everyCheckpointHasPreparedParkingWithProvenanceAndHonestNavigation() {
+        val repo = TravelRepository()
+        stops.forEach { stop ->
+            val places = repo.load(stop, TravelTab.PARKING).places
+            assertTrue(places.isNotEmpty())
+            places.forEach { p ->
+                assertTrue(p.catalogId!!.startsWith("curated:"))
+                assertTrue(p.address.isNotBlank() && p.source.isNotBlank() && p.link!!.startsWith("https://"))
+                // 입구를 확인하지 않은 좌표를 실제 장소 좌표로 표시하지 않는다.
+                assertEquals(null, p.lat)
+                assertEquals(null, p.lng)
+                assertEquals(stop.lat, p.navigationLat)
+                assertEquals(stop.lng, p.navigationLng)
+                assertEquals(stop.name, p.navigationName)
+                assertEquals("주변 관광지로 안내", p.navigationLabel)
+                assertTrue(p.note.contains("입구 좌표"))
+            }
         }
-        val repo = TravelRepository(keys, NaverLocalClient(keys, http), TourApiClient(keys, http))
-        val r = repo.load(stops[0], TravelTab.ACTIVITY, TripProfile()) as TravelResult.Ok
-        assertEquals(listOf("가까운 곳", "먼 곳"), r.places.map { it.name })
-        assertEquals(listOf("naver.search.clientId", "naver.search.clientSecret"), r.missing)
-        assertTrue(r.places.all { it.source == TourApiClient.SOURCE })
     }
 
-    @Test fun familyTripsUseFamilyQueries() {
-        val repo = TravelRepository(TravelKeys())
-        assertEquals(listOf("수원 장소1 가족 맛집"), repo.planFor(stops[0], TravelTab.FOOD, TripProfile(companion = TravelParty.FAMILY)).naverQueries)
-        assertEquals(listOf("수원 장소1 맛집"), repo.planFor(stops[0], TravelTab.FOOD, TripProfile()).naverQueries)
+    @Test fun unpreparedCategoriesAndUnknownStopsStayEmptyWithoutFictionalResults() {
+        val repo = TravelRepository()
+        assertTrue(repo.load(stops.first(), TravelTab.STAY).places.isEmpty())
+        assertTrue(repo.load(stops.first(), TravelTab.CAFE).places.isEmpty())
+        assertTrue(repo.load(stops.first().copy(checkpointId = "unknown"), TravelTab.PARKING).places.isEmpty())
+        assertTrue(repo.load(stops.first(), TravelTab.SIGHT).places.isEmpty())
+    }
+
+    @Test fun savedCardsPreserveAttributionAndTheDifferentNavigationTarget() {
+        val p = TravelRepository().load(stops.first(), TravelTab.FOOD).places.first()
+        val saved = p.toSaved(0, TravelTab.FOOD)
+        assertEquals(p.catalogId, saved.id)
+        assertEquals(p.link, saved.sourceUrl)
+        assertEquals(p.note, saved.note)
+        assertEquals(p.navigationName, saved.navigationName)
+        assertEquals(p.navigationLat, saved.navigationLat)
+        assertEquals(p.navigationLabel, saved.navigationLabel)
+        assertEquals(null, saved.lat)
     }
 }

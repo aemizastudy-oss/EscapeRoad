@@ -364,3 +364,51 @@ SDK 어댑터는 기존 `main`의 검증된 API 경계를 현재 패키지로 �
 - 에뮬레이터 시연 확인: Pleos Connect v2.1.0/API 34, emulator-5554/사용자 10에서 병합본의 `StoryIntegrationTest` **6개 통과**, 건너뜀 0개. 일반 MOCK의 다섯 장소 진행, 오답·힌트·관광 시작 시각, 출발·백그라운드 제한, 만석거 11방향 실제 스와이프·제출·일기 해금·재실행 보존, MOCK 관광+실제 SDK P/깜빡이 RRRLRRR의 UI 제출·저장을 확인했다.
 - 보존·한계: 테스트 전후 사용자 여행 JSON·여행 설정·콘솔 상태를 대조하고 주행 서비스의 로컬 설정도 초기 상태로 복원했다. 인증값·원시 저장·백업·기기 로그는 커밋하지 않는다. 이번 병합 기기 테스트는 자동 시연 주행 버튼이나 실제 내비 화면 전환·실차 오디오·API 28 기기를 직접 실행한 검증이 아니다. 기존 LIVE 위치 정확도 미확정 상태는 유지한다. 원격 주행 기능의 이전 관측은 [주행 챕터](drive-chapter.md)의 별도 이력이다.
 - 재현: Android Studio에서 car_escape의 app을 Pleos 기기에 Run한다. Ubuntu에서는 `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug`와 테스트 APK 설치 후 `adb -s emulator-5554 shell am instrument --user 10 -w -r -e vehicleConsoleControls true -e class com.team.carescape.ui.StoryIntegrationTest com.team.carescape.test/androidx.test.runner.AndroidJUnitRunner`를 사용한다. 테스트는 MOCK 여행을 격리·복원한다. Ubuntu 자체 실행은 확인하지 않았다.
+
+
+## 2026-11-15 · 사건 선택 카드 효과
+
+- 구현 완료: 플레이 가능한 사건을 누르면 카드와 핀이 함께 최대 2% 확대·4dp 상승했다가 돌아오고, 금색 테두리가 짧게 밝아지며 붉은 ‘선택 완료’ 도장이 찍힌다. 약 220ms의 단발 효과이며 이미 선택된 카드를 다시 눌러도 재생된다. 선택 콜백은 즉시 실행되고 기존 ‘이 사건을 맡겠습니다’의 화면 이동은 유지한다.
+- 상태·안전: 카드의 composition scope가 효과 수명을 소유하고, 재클릭 시 이전 Animatable 작업을 취소·재시작한다. 화면을 떠나거나 안전 제한으로 카드가 제거되면 효과도 취소된다. 기존 P·정지·foreground 조건을 유지하며, 선택 불가 카드는 disabled/선택 상태 semantics를 제공한다. Android 애니메이션 배율 0은 정적인 선택 표시로 끝난다.
+- 빌드 확인: 관리형 `gradle-run` 질문 “사건 선택 효과와 UI 테스트가 빌드되는가?”에 `:app:assembleDebug :app:assembleDebugAndroidTest` exit 0. “모션 끄기 검증을 분리한 UI 테스트가 빌드되는가?”에도 `:app:assembleDebugAndroidTest` exit 0. 검증 종료 후 wrapper 소유 임시 로그만 정리했다.
+- 에뮬레이터 확인: Pleos/API 34, emulator-5554/사용자 10에서 `ThemeCardFeedbackTest` 3개 통과, 건너뜀 0. 실제 터치의 즉시 콜백·진행 중 재클릭·최종 도장 유지와 선택 불가 카드의 무반응을 확인했다. MotionDurationScale=0f 검증은 기본 눌림 ripple과 구분해 선택 의미 동작을 직접 호출하고 종료 상태를 비교한다. 고정 시계로 효과 전/중/재시작/후와 모션0 화면을 PNG 7개로 기록하고 실제 파일을 확인했다. 저장된 골든 이미지와의 비교 테스트는 아니다.
+- 화면·기록: 실제 사건 고르기 화면을 열어 선택 도장과 카드 배치를 확인했고, 앱을 재설치한 뒤에도 기존 여행 JSON은 보존됐다. 로컬 증거는 `C:\my-car-buddy\.gradle\car-escape-case-selection-20261115\selected-before.png`, `selected-during.png`, `selected-restarted.png`, `selected-after.png`, `zero-motion-before.png`, `zero-motion-after.png`, `zero-motion-after-repeat.png`, `case-board.png`에 있다. 원시 기록·백업은 커밋하지 않는다.
+- 재현: Android Studio에서 `ThemeCardFeedbackTest`를 Pleos 기기에 Run한다. Ubuntu는 APK 설치 후 `adb -s emulator-5554 shell am instrument --user 10 -w -r -e class com.team.carescape.ui.ThemeCardFeedbackTest com.team.carescape.test/androidx.test.runner.AndroidJUnitRunner`로 실행한다. Ubuntu 자체 실행과 신규 실차·SDK 검증을 한 것은 아니다.
+
+
+## 2026-11-15 · 로비 자물쇠 체험 버튼 제거
+
+- 로비의 ‘자물쇠 체험’ 버튼을 제거했다. 남은 ‘여행 도우미’는 같은 줄 가운데에 놓인다. 기존 사건 선택 효과를 보존했다.
+- 관리형 `gradle-run` 질문 “로비 버튼 삭제 후 빌드되는가?”에 `:app:assembleDebug :app:assembleDebugAndroidTest` exit 0. 검증 종료 후 wrapper 소유 로그만 정리했다.
+- Pleos/API 34의 기존 `LockWorkshopLifecycleTest` 1개 통과, 건너뜀 0. 로비 버튼의 부재를 확인하고 테스트 내부에서 기존 VM 진입 함수를 사용해 정차·화면 생명주기·명시 제출 제한을 계속 검증한다. 앱 재설치 후 실제 로비에서 버튼 부재와 여행 도우미 배치를 확인했으며 사용자 여행 기록은 보존했다. 화면 증거는 로컬 `C:\my-car-buddy\.gradle\car-escape-remove-workshop-20261115\lobby.png`다.
+
+
+## 2026-11-15 공모전용 장소 카드 전환·전반 점검
+
+- 사용자 승인: 직접 준비한 장소 카드 + Pleos 길 안내로 전환하고 앱 전반의 공모전 규정 관련 구현을 점검. 이미지·시안은 팀 AI 생성 자료라는 사용자 답변을 기록. AI 생성 자체 금지/별도 표시 의무는 공개 공모전 규정에서 확인하지 못했으며 생성 서비스 약관은 미확인.
+- 구현 완료: 네이버 지도 SDK·검색·TourAPI 클라이언트와 외부 인증값 주입 제거. 공식 자료 기반 주차 5·음식 3개를 앱에 포함하고 방문 순서 카드로 전환. 입구 좌표는 null이며 관광지 대표점 안내를 별도 이름/좌표/버튼으로 표시. 기존 검색 plan은 새 curated_plan_v1에 복사하지 않고 기존 프로필·방탈출 기록은 유지.
+- 검토 후 보완: 기존 저장 카드 및 일정 배정에도 최종 장소 공개 조건을 적용하고 원본은 삭제하지 않음. 도착 시 자동 Activity 실행·전체화면 알림 제거, 알림 클릭 복귀 및 런처 복귀로 변경. SDK 상태의 권한 확인 버튼에서 Android 13+ 알림 권한도 요청하며 미허용 자체를 게임 허용 조건으로 쓰지 않음. 서비스 입력 로그는 원시 좌표 대신 입력 타입만 기록. 미사용 문/비공개 경고등 권한 제거, 임시 음성·BGM 파일은 Debug로 제한, 알림에 MOCK 표시.
+- 빌드 확인: gradle-run workflow `1add1111a3ff7b282382760da8c09c51`. 관리형 `run`으로 `:app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest :app:lintDebug` 실행.
+  - 질문 “공모전용 추천 카드와 안전 보완 후 전체 단위 테스트, Debug·Release APK, 기기 테스트 APK 및 Lint가 통과하는가?”: exit 0, 153.739초. 첫 코드 검증 성공 후 독립 리뷰에서 발견한 저장 카드 비공개 처리와 알림 권한을 추가 보완했다.
+  - 질문 “저장 장소 비공개 처리와 알림 권한 보완까지 포함한 최종 코드의 단위 테스트·Debug/Release·기기 테스트 APK·Lint가 통과하는가?”: exit 0, 92.650초. 최종 단위 테스트 **190개 성공, 실패/오류/건너뜀 0**. Lint **오류 0, 경고 66, Hint 3**. 구형 타깃·의존성 버전·SDK native 16KB 정렬·미사용 리소스 등 경고가 남아 있으며 무경고 빌드로 표현하지 않는다.
+- 산출물 확인: Debug/Release의 DEX+Manifest에서 Naver Maps 클래스/검색·TourAPI endpoint/키 필드 표식 없음, 생성 BuildConfig에 해당 필드 없음. Release에 demo_routes.json 없음(Debug만 포함). 폰트 OFL 6종과 Apache 2.0 원문(META-INF/AL2.0)이 APK에 포함됨. SDK AAR가 병합한 INTERNET 권한은 남으며 이것을 앱 자체 외부 검색 호출로 해석하지 않는다. 전체 과거 Git 이력의 비밀값 부재를 검증한 것은 아니다.
+- 에뮬레이터 확인: Windows·Android Studio JBR·Pleos Connect API 34 emulator-5554, user 10, 2560×1440. 최종 Debug/테스트 APK 업데이트 설치 후 `ContestTravelUiTest` **3개 성공(14.56초)**: 공개 장소·비공개 최종 장소 화면, 실제 터치 선택 콜백, UUID 격리 저장소에서 프로필 유지·이전 API 결과 차단·출처/관광지 안내 좌표 저장 복원. 테스트 전후 사용자 trip-progress.json 바이트 동일.
+- 확인 불가/범위 밖: 실제 장소 입구 좌표·영업 상태·주차 빈자리·실제 경로 완료·실차 주행 안전·Ubuntu 실행은 이번에 검증하지 않았다. 앱 재실행 시 현재 에뮬레이터의 주행/내비 화면이 나타났으며 이를 새 추천 장소까지 안내 성공으로 기록하지 않는다. 기본 Release 산출물은 `app-release-unsigned.apk`이고 서명·원격 업로드·최종 제출은 하지 않았다.
+- 근거/남은 항목: [공모전 점검](contest-compliance-review.md), [장소 출처](curated-places.md), [여행 도우미 사용법](travel-guide.md). 로컬 증거·변경 전 백업은 `C:/my-car-buddy/.gradle/car-escape-contest-20261115/`에 있으며 원시 로그·위치·개인 데이터는 업로드하지 않는다.
+
+
+## 2026-11-15 — 4장 봉화: 현재 켜진 독서등 개수
+
+- 요청/구현: current flow5 `c4_beacon`을 기존 FIRE 누적 탭에서 앞·뒤 좌우 독서등 4개의 **현재 ON 개수**로 변경. 정답 4, 단계 ID·완료/단서/재료 기록 유지. flow3·4는 기존 문제 보존. 일반 MOCK은 네 카드 시연 입력, LIVE/hybrid는 실제 SDK read-only 입력이다.
+- 환경: Windows, Android Studio JBR, Gradle 9.1.0, Vehicle SDK 2.3.2, Pleos `emulator-5554` / API 34 / Android user 10. Ubuntu와 실제 하드웨어 실행은 미확인이다.
+- 실제 API: `Light.checkReadingLightStateCapabilities`, `getCurrentReadingLightState`, `registerReadingLightState`; `SeatValue.ROW_1_LEFT/RIGHT`, `ROW_2_LEFT/RIGHT`; `LightState.OFF/ON`; 기존 `pleos.car.permission.CAR_LIGHTS`. 공식 sources JAR/AAR로 서명을 확인했다. Cabin 전역 상태·AUTO switch·조작 횟수를 합산하지 않는다.
+- 입력 보호: 네 좌석 모두 읽기 지원·ON/OFF 상태·9초 최신성 확인, 3초 polling, 요청 timeout·늦은 응답·listener revision 처리. 미확인은 false/0으로 변환하지 않는다. 제출 직전과 저장 큐 실행 때 현재 개수·연결 세대·P/정지/CarUx/foreground/관광 조건을 확인한다. 실제 차량 setter 호출 없음.
+- 관리형 Gradle workflow `7d195f5b2340ce77ea363e3fb2dd1131`: `:app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest :app:lintDebug` 성공. **단위 193개, 실패/오류/skip 0. Lint 오류 0, Warning 66, Hint 3.** Release는 unsigned APK이다.
+- 기기 검증 테스트를 추가한 뒤 `:app:assembleDebugAndroidTest`에서 진단 lambda 문자열 끝의 불필요한 쉼표를 한 번 수정했고, 같은 작업 재실행 성공. 제품 코드 실패로 설명하지 않는다.
+- 기기 실행: app/test APK를 기존 앱 위에 설치. `InteriorLightCountLockTest` 3개 + `InteriorLightSdkTest` 1개 + `StoryIntegrationTest#museumBeaconUsesCurrentMockCountAndPreservesCompletionAfterRecreation` 1개, **5개 전부 성공 (42.171초)**.
+- 실제 SDK 관측: Console `/vehicle/reading-lights?area=...&value=...` 입력 후 **실제 READING_LIGHTS_STATE**에서 0 → 3 → 4 → 3 확인. 마지막 3개는 다른 좌석을 꺼 네 위치를 독립적으로 확인. HTTP switch 응답을 SDK 성공으로 대신 쓰지 않았다. 테스트 시작 P/속도 0 및 SDK P/정지/UX를 확인했다.
+- UI/저장: 일반 MOCK에서 3개 조작만으로 저장되지 않음 → 명시 제출 오답 → 4개로 변경만으로 저장되지 않음 → 명시 제출 정답 → 중복 제출 재지급 없음 → Activity 재생성 후 완료 유지. SDK 표시 카드는 터치로 바뀌지 않으며, 미확인 상태/disabled 이전 콜백 제출 차단 확인.
+- 경계: 실제 SDK 수신 테스트와 MOCK 관광/저장 통합 테스트를 구분한다. 이 실행은 전체 LIVE 관광 인증·실차/모든 차종 지원 성공을 뜻하지 않는다.
+- 정리: 기존 MOCK/LIVE 여행과 archive/schema 동일 확인, 콘솔 네 독서등과 P/속도 원상 복원 확인. 로컬 `.gradle` 아래 원본 백업·기기 테스트 결과는 커밋하지 않는다. Git commit/push는 이번 요청에 포함되지 않아 수행하지 않았다.
+
+재현: Android Studio에서 `C:\car_escape`를 열고 `app` Run → 안전한 P 정차 → 시연 관광+실제 차량 입력 → 4장 봉화함(부싯돌 먼저) → 콘솔 Reading Lights 앞·뒤 좌우 ON → 앱 4개 확인 → 제출. 일반 MOCK에서는 카드 네 개로 동일 흐름을 확인한다. 시연 바로가기는 현재 MOCK 여행을 교체하므로 원래 기록을 보존할 때는 위 격리 테스트를 쓴다.

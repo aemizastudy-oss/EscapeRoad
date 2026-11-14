@@ -228,7 +228,7 @@ internal class DriveAudio(private val context: Context, private val onVoice: (St
 
     /** Drop-in files: app-specific external storage, or the app's internal files dir (filled with `adb run-as`). */
     private fun external(dir: String, base: String): File? =
-        listOfNotNull(context.getExternalFilesDir(dir), File(context.filesDir, dir)).firstNotNullOfOrNull { folder ->
+        if (!com.team.carescape.BuildConfig.DEBUG) null else listOfNotNull(context.getExternalFilesDir(dir), File(context.filesDir, dir)).firstNotNullOfOrNull { folder ->
             listOf("mp3", "ogg", "m4a", "wav").map { File(folder, "$base.$it") }.firstOrNull { it.isFile }
         }
 

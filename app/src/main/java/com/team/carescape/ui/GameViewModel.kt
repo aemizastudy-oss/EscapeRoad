@@ -38,6 +38,25 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private var mockWaypointId: String? = null
     private var mockParked: Boolean? = null
     private var puzzleDraftIdentity: String? = null
+    var interiorLightSnapshot by mutableStateOf(InteriorLightSnapshot())
+        private set
+    val interiorLightSdkInput get() = usesVehiclePuzzleSdk
+    val interiorLightValues: List<Boolean?> get() = if (!usesVehiclePuzzleSdk) storyPuzzleDraft.interiorLights else {
+        val valid = currentInteriorLightCount() != null
+        InteriorLightSnapshot.AREAS.map { interiorLightSnapshot.states[it].takeIf { valid } }
+    }
+    val interiorLightMessage get() = if (usesVehiclePuzzleSdk) {
+        if (currentInteriorLightCount() != null) "실제 차량 독서등 상태 · 현재 켜진 개수를 제출합니다."
+        else interiorLightSnapshot.message.takeIf { !interiorLightSnapshot.ready } ?: "최신 실내등 상태를 기다리고 있습니다."
+    } else "시연용 독서등 · 실제 차량을 제어하지 않습니다."
+
+    private fun currentInteriorLightCount(): Int? {
+        if (!usesVehiclePuzzleSdk) return storyPuzzleDraft.interiorLights.count { it }
+        val snapshot = runtime.interiorLights.value
+        if (snapshot.receivedElapsedMillis < (runtime.lastDepartureElapsedMillis ?: 0L)) return null
+        return snapshot.validCount(SystemClock.elapsedRealtime())
+    }
+
     private val vehiclePuzzleMapper = VehiclePuzzleInputMapper()
     private var vehiclePuzzleContextKey: String? = null
     private var vehiclePuzzleResetRevision = 0L
@@ -172,6 +191,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         commands.trySend { loadCurrentMode() }
+        viewModelScope.launch { runtime.interiorLights.collect { interiorLightSnapshot = it } }
         viewModelScope.launch { runtime.safety.collect { liveSafety = it; updateLiveInputs() } }
         viewModelScope.launch { runtime.locations.collect { refreshTour() } }
         viewModelScope.launch { runtime.status.collect { sdkStatus = it; updateLiveInputs() } }
@@ -620,6 +640,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (!canEditStoryPuzzle() || ids.distinct().size != ids.size || ids.any { id -> lock.items.none { it.id == id } }) return
         storyPuzzleDraft = storyPuzzleDraft.copy(order = ids.toList()); storyPuzzleMessage = null
     }
+    fun changeStoryInteriorLight(index: Int) {
+        if (storyPuzzle?.lock !is StoryLockDefinition.InteriorLightCount || usesVehiclePuzzleSdk ||
+            !canEditStoryPuzzle() || index !in 0..3) return
+        storyPuzzleDraft = storyPuzzleDraft.copy(interiorLights = storyPuzzleDraft.interiorLights.mapIndexed { i, on -> if (i == index) !on else on })
+        storyPuzzleMessage = null
+    }
+
     fun changeStoryCar(value: List<CarControl>) {
         val lock = storyPuzzle?.lock as? StoryLockDefinition.CarSequence ?: return
         if (!canEditStoryPuzzle() || value.size > lock.maxLength || value.any { it !in lock.controls }) return
@@ -648,6 +675,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun speakLine(text: String) { if (parked) pendingNarration = text }
 
     private fun draftInput(): StoryPuzzleInput? = when (storyPuzzle?.lock) {
+        is StoryLockDefinition.InteriorLightCount -> currentInteriorLightCount()?.let { StoryPuzzleInput.InteriorLightCount(it) }
         is StoryLockDefinition.Numeric -> StoryPuzzleInput.Numeric(storyPuzzleDraft.numbers.joinToString(""))
         is StoryLockDefinition.Directions -> StoryPuzzleInput.Directions(storyPuzzleDraft.directions.toList())
         is StoryLockDefinition.Device -> StoryPuzzleInput.Device(storyPuzzleDraft.channel, storyPuzzleDraft.level)
@@ -718,6 +746,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             (carPuzzleInput as? CarPuzzleInput.Vehicle)?.ready != true) return
         val puzzleId = storyPuzzle?.id ?: return
         val submittedVehicleGeneration = runtime.puzzleGeneration
+        val requiresInteriorLights = usesVehiclePuzzleSdk && storyPuzzle?.lock is StoryLockDefinition.InteriorLightCount
+        val submittedLightGeneration = runtime.interiorLightGeneration
         val submittedResetRevision = vehiclePuzzleResetRevision
         val requiresVehicle = usesVehiclePuzzleSdk && storyPuzzle?.lock is StoryLockDefinition.CarSequence
         val verdict = storyPuzzle?.verdict == true
@@ -734,7 +764,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         // 저장 후 applyStored가 초안을 비운 다음에 결과 대사를 보여 준다.
         changeTrip(afterSave = { storyPuzzleMessage = message() }) { old ->
             if (old == null || story?.currentPuzzle?.id != puzzleId || story?.phase != StoryPhase.PUZZLE ||
-                casebookOpen || requiresVehicle && (runtime.puzzleGeneration != submittedVehicleGeneration || vehiclePuzzleResetRevision != submittedResetRevision) ||
+                casebookOpen || requiresInteriorLights && (runtime.interiorLightGeneration != submittedLightGeneration ||
+                    currentInteriorLightCount() != (input as? StoryPuzzleInput.InteriorLightCount)?.count) || requiresVehicle && (runtime.puzzleGeneration != submittedVehicleGeneration || vehiclePuzzleResetRevision != submittedResetRevision) ||
                 unlockTourGate() != TourGate.READY) null
             else {
                 val result = StoryEngine.submitPuzzle(story!!, input)

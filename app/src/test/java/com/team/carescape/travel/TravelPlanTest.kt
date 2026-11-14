@@ -56,11 +56,16 @@ class TravelPlanTest {
         assertTrue(plan.slots.isEmpty())
     }
 
-    @Test fun samplePlacesAreClearlyLabeledAsNotReal() {
-        val r = SamplePlaces.around(stops[0], TravelTab.FOOD)
-        assertEquals(5, r.places.size)
-        assertTrue(r.places.all { it.source == SamplePlaces.SOURCE && it.name.startsWith("예시") })
-        assertTrue(SamplePlaces.SOURCE.contains("실제 장소 아님"))
-        assertFalse(r.places.zipWithNext().any { (x, y) -> x.distanceM!! > y.distanceM!! })
+    @Test fun savedFinalStopAndAssignedSlotsStayHiddenWhenLockedWithoutDeletingOriginal() {
+        val open = Place("공개 장소", "주차", "주소", null, null, source = "공식").toSaved(0, TravelTab.PARKING)
+        val secret = Place("마지막 장소", "주차", "주소", null, null, source = "공식").toSaved(4, TravelTab.PARKING)
+        val original = TripPlan().assign("1:LUNCH", open).assign("1:DINNER", secret)
+        val visible = original.visibleAtStops { it != 4 }
+        assertEquals(listOf(open), visible.saved)
+        assertEquals(open, visible.place("1:LUNCH"))
+        assertNull(visible.place("1:DINNER"))
+        assertEquals(2, original.saved.size)
+        assertEquals(secret, original.place("1:DINNER"))
+        assertEquals(original, original.visibleAtStops { true })
     }
 }

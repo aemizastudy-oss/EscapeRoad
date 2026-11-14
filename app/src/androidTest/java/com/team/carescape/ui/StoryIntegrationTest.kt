@@ -592,6 +592,64 @@ class StoryIntegrationTest {
         awaitTag("ending-title")
     }
 
+    @Test
+    fun museumBeaconUsesCurrentMockCountAndPreservesCompletionAfterRecreation() {
+        prepareMuseumBeacon()
+        val before = storedMock()
+        val chapterId = TourCatalog.checkpoints[3].id
+        val beforeAttempts = before.puzzleProgress.single { it.checkpointId == chapterId }.wrongAttempts
+
+        repeat(3) { clickTag("interior-light-$it") }
+        rule.onNodeWithText("켜진 실내 조명: 3개").assertExists()
+        assertEquals("Changing current lights must not persist an attempt", before, storedMock())
+        clickSubmit()
+        awaitState { !it.saving && it.storyPuzzleProgress?.wrongAttempts == beforeAttempts + 1 }
+        val afterWrong = storedMock()
+        assertFalse(vm.story!!.isStepDone("c4_beacon"))
+        assertEquals(before.items, afterWrong.items)
+        assertEquals(before.clues, afterWrong.clues)
+        assertEquals(before.tourRecords, afterWrong.tourRecords)
+
+        clickTag("interior-light-3")
+        rule.onNodeWithText("켜진 실내 조명: 4개").assertExists()
+        assertEquals("Four lit lights still require explicit submission", afterWrong, storedMock())
+        clickSubmit()
+        awaitState { !it.saving && it.story?.isStepDone("c4_beacon") == true }
+        val completed = storedMock()
+        assertEquals(before.sessionId, completed.sessionId)
+        assertEquals(before.tourRecords, completed.tourRecords)
+        assertEquals(1, completed.puzzleProgress.single { it.checkpointId == chapterId }.solvedSteps.count { it == "c4_beacon" })
+        rule.runOnUiThread { vm.submitStoryPuzzle(StoryPuzzleInput.InteriorLightCount(4)) }
+        rule.waitForIdle()
+        assertEquals("A completed beacon cannot grant twice", completed, storedMock())
+
+        rule.activityRule.scenario.recreate()
+        rule.runOnIdle { vm = ViewModelProvider(rule.activity)[GameViewModel::class.java] }
+        awaitState { !it.loading && it.foreground }
+        assertTrue(vm.story!!.isStepDone("c4_beacon"))
+        assertEquals("Recreation must preserve the beacon completion and receipts", completed, storedMock())
+    }
+
+    private fun prepareMuseumBeacon() {
+        prepareStory()
+        assertFalse(vm.mockVehiclePuzzleSdk)
+        rule.runOnUiThread { vm.demoJump(DemoTarget.Scene(3)) }
+        awaitState { !it.saving && it.story?.chapterIndex == 3 && it.story?.phase == StoryPhase.PUZZLE && it.tourGate == TourGate.READY }
+        rule.runOnUiThread { vm.touchHotspot("x4_diary") }
+        awaitState { !it.saving && it.story?.puzzleProgressForCurrent?.found?.contains("x4_diary") == true }
+        rule.runOnUiThread { vm.openHotspotLock("x4_drawer") }
+        awaitState { !it.saving && it.storyPuzzle?.id == "c4_index" }
+        solveCurrentStep()
+        rule.runOnUiThread { vm.openHotspotLock("x4_beaconbox") }
+        awaitState { !it.saving && it.storyPuzzle?.id == "c4_flint" }
+        solveCurrentStep()
+        rule.runOnUiThread { vm.openHotspotLock("x4_beaconbox") }
+        awaitState { !it.saving && it.storyPuzzle?.id == "c4_beacon" }
+        assertTrue(vm.storyPuzzle!!.lock is StoryLockDefinition.InteriorLightCount)
+        awaitTag("interior-light-lock")
+    }
+
+
     private fun inputFor(lock: StoryLockDefinition): StoryPuzzleInput = when (lock) {
         is StoryLockDefinition.Numeric -> StoryPuzzleInput.Numeric(lock.answer)
         is StoryLockDefinition.Directions -> StoryPuzzleInput.Directions(lock.answer)
@@ -602,6 +660,7 @@ class StoryIntegrationTest {
         is StoryLockDefinition.SymbolDial -> StoryPuzzleInput.Dial(lock.answer)
         is StoryLockDefinition.UseItem -> StoryPuzzleInput.UseItem(lock.answer)
         is StoryLockDefinition.Sequence -> StoryPuzzleInput.Sequence(lock.answer)
+        is StoryLockDefinition.InteriorLightCount -> StoryPuzzleInput.InteriorLightCount(lock.answer)
     }
 
     /** 현재 단계의 정답을 화면 초안에 넣고 제출한다(평가는 ViewModel·엔진이 한다). */
@@ -619,6 +678,7 @@ class StoryIntegrationTest {
                 is StoryPuzzleInput.Dial -> vm.changeStoryDial(input.value)
                 is StoryPuzzleInput.UseItem -> vm.changeStoryItem(input.id)
                 is StoryPuzzleInput.Sequence -> vm.changeStorySequence(input.ids)
+                is StoryPuzzleInput.InteriorLightCount -> repeat(input.count) { vm.changeStoryInteriorLight(it) }
             }
             vm.submitStoryPuzzle(input)
         }

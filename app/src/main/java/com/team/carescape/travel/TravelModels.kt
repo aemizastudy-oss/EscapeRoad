@@ -164,11 +164,24 @@ data class SavedPlace(
     val source: String,
     val stopIndex: Int,
     val tab: String,
+    val sourceUrl: String? = null,
+    val note: String = "",
+    val navigationName: String = name,
+    val navigationLat: Double? = lat,
+    val navigationLng: Double? = lng,
+    val navigationLabel: String = "길 안내",
 )
 
 @Serializable
 data class TripPlan(val saved: List<SavedPlace> = emptyList(), val slots: Map<String, String> = emptyMap()) {
     fun place(slot: String): SavedPlace? = slots[slot]?.let { id -> saved.firstOrNull { it.id == id } }
+    /** 비공개 경유지는 표시용 복사본에서 제외하고 저장 원본은 유지한다. */
+    fun visibleAtStops(isVisible: (Int) -> Boolean): TripPlan {
+        val visible = saved.filter { isVisible(it.stopIndex) }
+        val ids = visible.map { it.id }.toSet()
+        return copy(saved = visible, slots = slots.filterValues { it in ids })
+    }
+
     fun isSaved(id: String) = saved.any { it.id == id }
 
     fun save(p: SavedPlace): TripPlan = if (isSaved(p.id)) this else copy(saved = saved + p)
@@ -180,7 +193,9 @@ data class TripPlan(val saved: List<SavedPlace> = emptyList(), val slots: Map<St
 }
 
 fun Place.toSaved(stopIndex: Int, tab: TravelTab): SavedPlace = SavedPlace(
-    id = "${name.replace(" ", "")}@${lat?.let { "%.4f".format(java.util.Locale.ROOT, it) }}:${lng?.let { "%.4f".format(java.util.Locale.ROOT, it) }}",
+    id = catalogId ?: "${name.replace(" ", "")}@${lat?.let { "%.4f".format(java.util.Locale.ROOT, it) }}:${lng?.let { "%.4f".format(java.util.Locale.ROOT, it) }}",
     name = name, category = category, address = address, lat = lat, lng = lng, phone = phone, source = source,
     stopIndex = stopIndex, tab = tab.name,
+    sourceUrl = link, note = note, navigationName = navigationName,
+    navigationLat = navigationLat, navigationLng = navigationLng, navigationLabel = navigationLabel,
 )

@@ -24,7 +24,7 @@ class LockWorkshopLifecycleTest {
     @get:Rule val rule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun lobbyWorkshopSubmitsOnlyExplicitAnswersAndRejectsUnsafeCallbacks() {
+    fun workshopSubmitsOnlyExplicitAnswersAndRejectsUnsafeCallbacks() {
         lateinit var vm: GameViewModel
         rule.runOnUiThread { vm = ViewModelProvider(rule.activity)[GameViewModel::class.java] }
         rule.waitUntil(10_000) { !vm.loading }
@@ -36,7 +36,8 @@ class LockWorkshopLifecycleTest {
         rule.runOnUiThread { vm.simSetParked(true) }
         rule.waitUntil(5_000) { vm.parked }
         val storyBefore = rule.runOnIdle { vm.story }
-        rule.onNodeWithText("자물쇠 체험").performClick()
+        rule.onNodeWithText("자물쇠 체험").assertDoesNotExist()
+        rule.runOnUiThread { vm.openLockWorkshop() }
         rule.onNodeWithTag("lock-workshop").assertIsDisplayed()
         rule.onNodeWithContentDescription("색상 다이얼 1").performClick()
         rule.runOnIdle {

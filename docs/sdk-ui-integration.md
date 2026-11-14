@@ -39,9 +39,9 @@
 | `ai.pleos.playground:TextToSpeech` | `3.3.1` | Pleos `ON_DEVICE` 한국어 초기화·발화·중지·리스너 정리. 실제 발화는 이번 기기 검증 대기다. |
 | `ai.pleos.playground:SpeechToText` | `3.3.1` | `ON_DEVICE` 초기화·요청·최종 결과·중지 어댑터. **현재 스토리에는 음성 정답 UI나 녹음 시작 버튼이 없다.** |
 
-`Vehicle`의 방향지시등·전조등·와이퍼·문·경고등 입력이나 차량 제어 쓰기를 이번 LIVE 연결 기능으로 주장하지 않는다. DEBUG의 해당 SIM 조작은 모의 데이터다.
+위 기본 연결 설명 이후 방향지시등·와이퍼·운전석 창문 읽기를 실제 SDK 퍼즐 입력에 연결했다. 구체적인 콘솔 관측은 vehicle-puzzle-sdk.md와 verification-log.md를 따른다. 임의의 차량 제어 쓰기나 미지원 문·경고등 입력을 구현했다고 주장하지 않는다.
 
-현재 `Narrator`는 Pleos runtime에 위임한다. Android 기본 TTS로 자동 전환하지 않는다. 이동 드라마도 현재는 안전한 정차에서만 요청한다. **주행 중 스토리 음성은 공식 지원·정책 확인 전 보류**이며, 이동 중 자동 발화가 검증됐다고 표시하지 않는다.
+현재 `Narrator`는 Pleos runtime에 위임한다. Android 기본 TTS로 자동 전환하지 않는다. 정차용 스토리 내레이션은 안전한 정차에서만 요청한다. 이후 추가된 별도 DriveService는 주행 중 짧은 목적지 안내·BGM을 담당한다. 그 동작과 검증 한계는 drive-chapter.md를 따른다. 실차 안전이나 시장 입점 승인을 받은 것으로 설명하지 않는다.
 
 ## 안전·수명주기·권한
 

@@ -74,7 +74,7 @@ sealed interface DriveAction {
     data object StopVoice : DriveAction
     data class LegArrived(val chapterIndex: Int) : DriveAction
     /** Arrived and stopped (P): bring the app back to the front. */
-    data object OpenApp : DriveAction
+    data object NotifyArrival : DriveAction
 }
 
 data class DriveStep(val state: DriveState, val actions: List<DriveAction>)
@@ -136,7 +136,7 @@ object DriveLegEngine {
 
     private fun onGear(state: DriveState, plans: (Int) -> LegPlan?, now: Long): DriveStep {
         if (state.awaitingStop && state.gear == DriveGear.PARK) {
-            return DriveStep(state.copy(awaitingStop = false), listOf(DriveAction.OpenApp))
+            return DriveStep(state.copy(awaitingStop = false), listOf(DriveAction.NotifyArrival))
         }
         val leg = state.leg ?: return maybeStart(state, plans, now)
         return when {
@@ -214,7 +214,7 @@ object DriveLegEngine {
                 leg = null, awaitingStop = !stopped,
                 arrivedLegs = state.arrivedLegs + legKey(leg.sessionId, leg.chapterIndex),
             ),
-            if (stopped) actions + DriveAction.OpenApp else actions,
+            if (stopped) actions + DriveAction.NotifyArrival else actions,
         )
     }
 

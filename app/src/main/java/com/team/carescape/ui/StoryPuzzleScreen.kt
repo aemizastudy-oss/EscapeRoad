@@ -50,6 +50,7 @@ data class StoryPuzzleDraft(
     val dial: List<Int> = emptyList(),
     val seq: List<String> = emptyList(),
     val item: String? = null,
+    val interiorLights: List<Boolean> = List(4) { false },
 ) {
     companion object {
         /** 숫자 자물쇠는 정답 자릿수만큼 0으로 채운다(정답 값은 담지 않는다). */
@@ -100,6 +101,10 @@ fun StoryPuzzleScreen(vm: GameViewModel) {
             onItemChange = vm::changeStoryItem,
             backLabel = if (story.isExplore) "장면으로" else "로비",
             carInput = vm.carPuzzleInput,
+            interiorLights = vm.interiorLightValues,
+            interiorLightSdkInput = vm.interiorLightSdkInput,
+            interiorLightMessage = vm.interiorLightMessage,
+            onInteriorLightToggle = vm::changeStoryInteriorLight,
         )
     }
 }
@@ -138,9 +143,14 @@ fun StoryPuzzleContent(
     onItemChange: (String) -> Unit = {},
     backLabel: String = "로비",
     carInput: CarPuzzleInput = CarPuzzleInput.Manual,
+    interiorLights: List<Boolean?> = List(4) { false },
+    interiorLightSdkInput: Boolean = false,
+    interiorLightMessage: String = "시연용 독서등",
+    onInteriorLightToggle: (Int) -> Unit = {},
 ) {
     val mayInteract by rememberUpdatedState(enabled && gate == TourGate.READY)
     val latestDraft by rememberUpdatedState(draft)
+    val latestInteriorLights by rememberUpdatedState(interiorLights)
     if (gate != TourGate.READY) {
         Column(
             modifier.testTag("story-puzzle-waiting").fillMaxSize(),
@@ -236,6 +246,16 @@ fun StoryPuzzleContent(
                     )
                 }
                 when (val lock = definition.lock) {
+                    is StoryLockDefinition.InteriorLightCount -> InteriorLightCountLock(
+                        lights = interiorLights, enabled = enabled, sdkInput = interiorLightSdkInput,
+                        message = interiorLightMessage,
+                        onToggle = { if (mayInteract) onInteriorLightToggle(it) },
+                        onSubmit = {
+                            val lights = latestInteriorLights
+                            if (mayInteract && lights.size == 4 && lights.all { it != null })
+                                onSubmit(StoryPuzzleInput.InteriorLightCount(lights.count { it == true }))
+                        }, feedbackContent = feedback,
+                    )
                     is StoryLockDefinition.Numeric -> if (lock.answer.length == 4) NumberDialLock(
                         draft.numbers,
                         { if (mayInteract) onNumbersChange(it) },

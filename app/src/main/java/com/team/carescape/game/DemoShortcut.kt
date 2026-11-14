@@ -28,6 +28,7 @@ object DemoShortcut {
         is StoryLockDefinition.SymbolDial -> StoryPuzzleInput.Dial(lock.answer)
         is StoryLockDefinition.UseItem -> StoryPuzzleInput.UseItem(lock.answer)
         is StoryLockDefinition.Sequence -> StoryPuzzleInput.Sequence(lock.answer)
+        is StoryLockDefinition.InteriorLightCount -> StoryPuzzleInput.InteriorLightCount(lock.answer)
     }
 
     private fun input(step: StoryPuzzleDefinition, missVerdict: Boolean): StoryPuzzleInput {

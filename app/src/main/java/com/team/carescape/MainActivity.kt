@@ -41,7 +41,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestSdkPermissions() {
-        val missing = PleosSdkRuntime.missingRuntimePermissions(this)
+        val missing = PleosSdkRuntime.missingRuntimePermissions(this).toMutableList()
+        // 도착 시 자동 화면 전환 대신 사용자가 선택한 알림으로 복귀한다.
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            missing += android.Manifest.permission.POST_NOTIFICATIONS
+        }
         if (missing.isNotEmpty()) sdkPermissions.launch(missing.toTypedArray())
         else vm.onPermissionsChanged()
     }

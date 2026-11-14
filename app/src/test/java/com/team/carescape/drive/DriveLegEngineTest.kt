@@ -51,7 +51,7 @@ class DriveLegEngineTest {
         assertEquals(listOf(DriveAction.StartBgm), run(pause.state, DriveInput.Gear(DriveGear.DRIVE)).actions)
     }
 
-    @Test fun arrivalNeedsTwoFixesStopsAudioAndReopensAppWhenStopped() {
+    @Test fun arrivalNeedsTwoFixesStopsAudioAndNotifiesAfterPark() {
         val s = run(DriveState(), DriveInput.Trip(enRoute), DriveInput.Gear(DriveGear.DRIVE), south(800.0)).state
         val jump = run(s, south(50.0), south(900.0), south(40.0))
         assertTrue(jump.state.leg != null)
@@ -60,9 +60,9 @@ class DriveLegEngineTest {
         assertTrue("BGM and voice stop at the place", DriveAction.StopVoice in arrived.actions)
         assertTrue(spoken(arrived).isEmpty())
         assertTrue(arrived.state.leg == null && arrived.state.awaitingStop)
-        assertFalse(DriveAction.OpenApp in arrived.actions)
+        assertFalse(DriveAction.NotifyArrival in arrived.actions)
         val parked = run(arrived.state, DriveInput.Gear(DriveGear.PARK))
-        assertEquals(listOf(DriveAction.OpenApp), parked.actions)
+        assertEquals(listOf(DriveAction.NotifyArrival), parked.actions)
         // Driving around the place before the game confirms arrival does not restart the leg.
         val again = run(parked.state, DriveInput.Gear(DriveGear.DRIVE))
         assertTrue(again.actions.isEmpty())

@@ -1,7 +1,6 @@
 package com.team.carescape.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.ui.draw.clipToBounds
 import com.team.carescape.travel.toSaved
 import com.team.carescape.travel.slotKey
 import com.team.carescape.travel.Timeline
@@ -37,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -48,6 +46,7 @@ import com.team.carescape.game.StoryPhase
 import com.team.carescape.travel.TravelParty
 import com.team.carescape.travel.DayPlan
 import com.team.carescape.travel.GuideStops
+import com.team.carescape.travel.GuideStop
 import com.team.carescape.travel.Interest
 import com.team.carescape.travel.Itinerary
 import com.team.carescape.travel.Meal
@@ -79,7 +78,7 @@ fun TravelGuideScreen(game: GameViewModel) {
             Row(Modifier.fillMaxWidth().padding(end = 150.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column {
                     Text("Travel Guide", style = Esc.pinyon(30))
-                    Text(vm.apiStatus, Modifier.testTag("travel-api-status"), style = Esc.noto(12, Esc.label))
+                    Text(vm.catalogStatus, Modifier.testTag("travel-catalog-status"), style = Esc.noto(12, Esc.label))
                 }
                 if (profile != null && !vm.editing) {
                     Row(
@@ -93,7 +92,7 @@ fun TravelGuideScreen(game: GameViewModel) {
                     }
                     Box(Modifier.weight(1f))
                     GuideMode.entries.forEach { m ->
-                        ModeChip(if (m == GuideMode.SAVED) "${m.label} ${vm.plan.saved.size}" else m.label, vm.mode == m, "travel-mode-${m.name}") { vm.switchMode(m) }
+                        ModeChip(if (m == GuideMode.SAVED) "${m.label} ${vm.visiblePlan.saved.size}" else m.label, vm.mode == m, "travel-mode-${m.name}") { vm.switchMode(m) }
                     }
                 } else Box(Modifier.weight(1f))
                 OutlineButton("로비", game::goLobby, Modifier.testTag("travel-lobby"), minHeight = 44.dp, fontSize = 15)
@@ -161,7 +160,7 @@ private fun Chip(label: String, on: Boolean, tag: String, onClick: () -> Unit) {
     ) { Text(label, style = Esc.noto(16, if (on) Esc.seal else Esc.inkBody)) }
 }
 
-// ───────── 본문: 왼쪽 코스 지도 + 오른쪽 일정/둘러보기/저장 ─────────
+// ───────── 본문: 왼쪽 방문 순서 + 오른쪽 일정/둘러보기/저장 ─────────
 
 /** 탭(카테고리)마다 지도 핀·칩 색. */
 private fun tabColor(t: TravelTab): Color = when (t) {
@@ -182,7 +181,7 @@ private fun tabMark(t: TravelTab): String = when (t) {
 private fun GuideBody(vm: TravelViewModel, game: GameViewModel, profile: TripProfile) {
     val days = vm.days()
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        RouteMap(vm, days, Modifier.weight(1.1f).fillMaxHeight())
+        RouteOverview(vm, days, Modifier.weight(1.1f).fillMaxHeight())
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             when (vm.mode) {
                 GuideMode.SCHEDULE -> SchedulePanel(vm, game, profile, days)
@@ -193,33 +192,44 @@ private fun GuideBody(vm: TravelViewModel, game: GameViewModel, profile: TripPro
     }
 }
 
-// ───────── 실제 네이버 지도 ─────────
+// ───────── 앱에서 준비한 코스 목록 ─────────
 
 @Composable
-private fun RouteMap(vm: TravelViewModel, days: List<DayPlan>, modifier: Modifier) {
+private fun RouteOverview(vm: TravelViewModel, days: List<DayPlan>, modifier: Modifier) {
     val stops = GuideStops.all.filterNot { vm.isLocked(it.index) }
     val dayStops = days.getOrNull(vm.day - 1)?.items?.filterIsInstance<PlanItem.Stop>()?.map { it.stop.index }.orEmpty()
-    val pins = if (vm.loading || vm.isLocked(vm.selectedStop)) emptyList() else
-        (vm.result as? TravelResult.Ok)?.places.orEmpty().filter { it.lat != null && it.lng != null }
-            .filter { (it.distanceM ?: 0) < 4_000 }
-    var zoom by remember { mutableStateOf(true) }
-    Column(modifier.parchment().border(1.dp, Esc.goldDim).padding(14.dp).testTag("travel-map"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Route Map", style = Esc.pinyon(24, Esc.wine))
-            Box(Modifier.weight(1f))
-            Text(if (vm.mode == GuideMode.SCHEDULE) "${vm.day}일차 경로 · " else "", style = Esc.noto(13, Esc.inkSoft))
-            Text(if (zoom) "경로 전체 보기" else "주변 확대", Modifier.border(1.dp, Esc.parchEdge).clickable(role = Role.Button) { zoom = !zoom }
-                .testTag("travel-map-zoom").padding(horizontal = 10.dp, vertical = 6.dp), style = Esc.noto(13, Esc.wine))
+    CourseStopCards(stops, vm.selectedStop, dayStops, vm.isLocked(GuideStops.all.lastIndex), vm::select, modifier)
+}
+
+/** 화면 상태와 선택 콜백만 받으며 지도 SDK나 ViewModel을 소유하지 않는다. */
+@Composable
+internal fun CourseStopCards(
+    stops: List<GuideStop>, selectedStop: Int, dayStops: List<Int>, finalLocked: Boolean,
+    onSelectStop: (Int) -> Unit, modifier: Modifier = Modifier,
+) {
+    Column(modifier.parchment().border(1.dp, Esc.goldDim).padding(18.dp).testTag("travel-course"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Course Guide", style = Esc.pinyon(28, Esc.wine))
+        Text("방문할 곳을 골라 주변 장소를 확인하세요.", style = Esc.noto(14, Esc.inkSoft))
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            stops.forEach { stop ->
+                val selected = stop.index == selectedStop
+                Row(Modifier.fillMaxWidth().border(if (selected) 2.dp else 1.dp, if (selected) Esc.seal else Esc.parchEdge)
+                    .background(if (selected) Esc.seal.copy(alpha = 0.10f) else Color.Transparent)
+                    .clickable(role = Role.Button) { onSelectStop(stop.index) }.testTag("travel-course-stop-${stop.index}")
+                    .padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(32.dp).background(Esc.seal, CircleShape), contentAlignment = Alignment.Center) {
+                        Text("${stop.index + 1}", style = Esc.noto(16, Esc.parchment, FontWeight.Bold))
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(stop.name, style = Esc.nanum(21, Esc.ink))
+                        Text(if (stop.index in dayStops) "선택한 날짜의 방문 장소" else "코스에 포함된 장소", style = Esc.noto(12, Esc.inkSoft))
+                    }
+                    if (selected) Text("선택", style = Esc.noto(13, Esc.seal))
+                }
+            }
+            if (finalLocked) Text("마지막 장소는 공개 후 표시됩니다.", Modifier.testTag("travel-course-final-locked"), style = Esc.noto(14, Esc.inkSoft))
         }
-        TravelNaverMap(
-            state = TravelMapState(stops, dayStops, pins, vm.selectedStop, vm.selectedPlace, zoom,
-                vm.mode == GuideMode.SCHEDULE, tabColor(vm.tab).toArgb()),
-            onSelectStop = vm::select,
-            onSelectPlace = { vm.selectedPlace = it },
-            modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds(),
-        )
-        Text("경유지 연결선 · 실제 도로 경로 아님" + if (vm.isLocked(GuideStops.all.lastIndex)) " · 마지막 장소는 공개 후 표시" else "",
-            style = Esc.noto(12, Esc.inkSoft))
+        Text("장소 정보는 미리 준비한 목록입니다.\n영업·요금·주차 가능 여부는 방문 전 확인하세요.", style = Esc.noto(12, Esc.inkSoft))
     }
 }
 
@@ -268,7 +278,7 @@ private fun TimelineRow(t: TimedItem, day: Int, vm: TravelViewModel) {
         }
         is PlanItem.Eat, is PlanItem.Sleep -> {
             val key = slotKey(day, item)!!
-            val filled = vm.plan.place(key)
+            val filled = vm.visiblePlan.place(key)
             val label = if (item is PlanItem.Eat) item.meal.label else "숙소"
             val near = GuideStops.all[(item as? PlanItem.Eat)?.nearIndex ?: (item as PlanItem.Sleep).nearIndex].name
             val active = vm.activeSlot == key
@@ -319,32 +329,22 @@ private fun ResultCards(vm: TravelViewModel, game: GameViewModel, modifier: Modi
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (vm.isLocked(stop.index)) { LockedStop(vm); return@Box }
             when (val r = vm.result) {
-                null -> Center(if (vm.loading) "불러오는 중…" else "카테고리를 고르세요.")
-                is TravelResult.NotConfigured -> Column(Modifier.fillMaxSize().background(Esc.panel).border(1.dp, Esc.goldDim).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)) {
-                    Text("아직 API 키가 연결되지 않았어요.\nnearby.properies.env에 ${r.missing.joinToString(", ")}을(를) 저장하고 Debug로 다시 실행하면 채워져요.",
-                        Modifier.testTag("travel-not-configured"), style = Esc.noto(14, Esc.creamMuted, lineHeight = 1.6f), textAlign = TextAlign.Center)
-                    if (vm.sampleAvailable) OutlineButton("예시 데이터로 보기 (개발용)", vm::showSample, Modifier.testTag("travel-sample"), minHeight = 40.dp, fontSize = 14)
-                }
-                is TravelResult.Failed -> Column(Modifier.fillMaxSize().background(Esc.panel).border(1.dp, Esc.goldDim), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)) {
-                    Text("정보를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.", Modifier.testTag("travel-failed"), style = Esc.noto(15, Esc.creamMuted))
-                    OutlineButton("다시 시도", { vm.refresh(force = true) }, minHeight = 44.dp)
-                }
-                is TravelResult.Ok -> if (r.places.isEmpty()) Center("근처에서 찾은 곳이 없어요.") else Column(
+                null -> Center("카테고리를 고르세요.")
+                is TravelResult.Ok -> if (r.places.isEmpty()) Center("이 분류에 준비된 장소가 아직 없어요.\n주차장이나 다른 분류를 확인해 주세요.") else Column(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     r.places.forEachIndexed { i, p -> PlaceCard(p, i, vm, game) }
-                    if (r.missing.isNotEmpty()) Text("일부 출처는 키가 없어 빠졌어요: ${r.missing.joinToString(", ")}", style = Esc.noto(12, Esc.label))
                 }
             }
         }
-        Text("출처: 네이버 지역 검색 · ⓒ한국관광공사(TourAPI) · 영업시간·요금은 방문 전 확인하세요 · 별점·리뷰 없음", style = Esc.noto(11, Esc.label))
+        Text("수동 선정 목록 · 2026-11-15 확인 · 실시간 영업·주차 정보 없음", style = Esc.noto(11, Esc.label))
     }
 }
 
 @Composable
 private fun PlaceCard(p: Place, i: Int, vm: TravelViewModel, game: GameViewModel) {
     val open = p == vm.selectedPlace
-    val saved = vm.plan.isSaved(p.toSaved(vm.selectedStop, vm.tab).id)
+    val saved = vm.visiblePlan.isSaved(p.toSaved(vm.selectedStop, vm.tab).id)
     Column(
         Modifier.fillMaxWidth().border(if (open) 2.dp else 1.dp, if (open) Esc.gold else Esc.goldDim).background(if (open) Esc.gold.copy(alpha = 0.10f) else Esc.panel)
             .clickable(role = Role.Button) { vm.selectedPlace = if (open) null else p }.testTag("travel-place-$i").padding(horizontal = 12.dp, vertical = 8.dp),
@@ -361,10 +361,12 @@ private fun PlaceCard(p: Place, i: Int, vm: TravelViewModel, game: GameViewModel
         }
         if (open) {
             if (p.address.isNotBlank()) Text(p.address, style = Esc.noto(13, Esc.creamMuted))
+            if (p.note.isNotBlank()) Text(p.note, style = Esc.noto(12, Esc.creamSoft))
+            p.link?.let { Text("공식 안내: ${java.net.URI(it).host}", style = Esc.noto(11, Esc.label)) }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 p.phone?.let { Text("☎ $it", style = Esc.noto(13, Esc.creamMuted)) }
                 Text("출처: ${p.source}", Modifier.weight(1f), style = Esc.noto(11, Esc.label))
-                if (p.lat != null && p.lng != null) OutlineButton("길 안내", { game.guideToPlace(p.name, p.lat, p.lng) }, Modifier.testTag("travel-navigate"), minHeight = 40.dp, fontSize = 14)
+                if (p.navigationLat != null && p.navigationLng != null) OutlineButton(p.navigationLabel, { if (!vm.isLocked(vm.selectedStop)) game.guideToPlace(p.navigationName, p.navigationLat, p.navigationLng) }, Modifier.testTag("travel-navigate"), minHeight = 40.dp, fontSize = 14)
             }
             game.sdkMessage?.let { Text(it, style = Esc.noto(12, Esc.creamSoft)) }
         }
@@ -400,11 +402,11 @@ private fun androidx.compose.foundation.layout.ColumnScope.ExplorePanel(vm: Trav
 
 @Composable
 private fun SavedPanel(vm: TravelViewModel, game: GameViewModel, days: List<DayPlan>) {
-    val slotOf = vm.plan.slots.entries.groupBy({ it.value }, { it.key })
-    Text("담은 곳 ${vm.plan.saved.size}", style = Esc.nanum(20))
-    if (vm.plan.saved.isEmpty()) { Center("아직 담은 곳이 없어요.\n일정이나 둘러보기에서 「+ 담기」를 눌러 모아 보세요.", "travel-saved-empty"); return }
+    val slotOf = vm.visiblePlan.slots.entries.groupBy({ it.value }, { it.key })
+    Text("담은 곳 ${vm.visiblePlan.saved.size}", style = Esc.nanum(20))
+    if (vm.visiblePlan.saved.isEmpty()) { Center("아직 담은 곳이 없어요.\n일정이나 둘러보기에서 「+ 담기」를 눌러 모아 보세요.", "travel-saved-empty"); return }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).testTag("travel-saved"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        vm.plan.saved.forEach { s ->
+        vm.visiblePlan.saved.forEach { s ->
             val tab = runCatching { TravelTab.valueOf(s.tab) }.getOrDefault(TravelTab.FOOD)
             val usedIn = slotOf[s.id].orEmpty().mapNotNull { key ->
                 val (d, kind) = key.split(":").let { it[0].toInt() to it[1] }
@@ -417,10 +419,13 @@ private fun SavedPanel(vm: TravelViewModel, game: GameViewModel, days: List<DayP
                 Box(Modifier.size(26.dp).background(tabColor(tab), CircleShape), contentAlignment = Alignment.Center) { Text(tabMark(tab), style = Esc.noto(11, Color.White, FontWeight.Bold)) }
                 Column(Modifier.weight(1f)) {
                     Text(s.name, style = Esc.nanum(16))
+                    Text(s.address, style = Esc.noto(12, Esc.creamSoft))
+                    Text("출처: ${s.source}", style = Esc.noto(11, Esc.label))
+                    if (s.note.isNotBlank()) Text(s.note, style = Esc.noto(12, Esc.creamSoft))
                     Text(listOf(GuideStops.all.getOrNull(s.stopIndex)?.let { if (vm.isLocked(it.index)) "???" else it.name } ?: "", s.category, usedIn.joinToString(", ")).filter { it.isNotBlank() }.joinToString(" · "),
                         style = Esc.noto(12, Esc.creamSoft))
                 }
-                if (s.lat != null && s.lng != null) OutlineButton("길 안내", { game.guideToPlace(s.name, s.lat, s.lng) }, minHeight = 40.dp, fontSize = 14)
+                if (s.navigationLat != null && s.navigationLng != null) OutlineButton(s.navigationLabel, { if (!vm.isLocked(s.stopIndex)) game.guideToPlace(s.navigationName, s.navigationLat, s.navigationLng) }, minHeight = 40.dp, fontSize = 14)
                 OutlineButton("빼기", { vm.unsave(s.id) }, Modifier.testTag("travel-unsave"), minHeight = 40.dp, fontSize = 14)
             }
         }
@@ -444,4 +449,4 @@ private fun Center(text: String, tag: String = "travel-message") {
     }
 }
 
-private fun distanceLabel(m: Int) = if (m < 1000) "${m}m · 걸어서 약 ${maxOf(1, m / 70)}분" else "%.1fkm".format(m / 1000.0)
+private fun distanceLabel(m: Int) = if (m < 1000) "직선 ${m}m" else "직선 %.1fkm".format(m / 1000.0)

@@ -1,5 +1,8 @@
 package com.team.carescape.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,13 +19,18 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
@@ -30,6 +38,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -46,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.team.carescape.game.ThemeCatalog
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /** SVG 경로 문자열 → Compose Path. */
 fun svgPath(d: String): Path = PathParser().parsePathString(d).toPath()
@@ -112,7 +124,6 @@ fun LobbyScreen(vm: GameViewModel) {
             }
             VSpace(12.dp)
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                OutlineButton("자물쇠 체험", vm::openLockWorkshop, minWidth = 190.dp, minHeight = 48.dp, fontSize = 17, transparent = true)
                 OutlineButton("여행 도우미", vm::openTravelGuide, Modifier.testTag("lobby-travel"), minWidth = 190.dp, minHeight = 48.dp, fontSize = 17, transparent = true)
             }
         }
@@ -178,7 +189,7 @@ fun ThemeSelectScreen(vm: GameViewModel) {
 }
 
 @Composable
-private fun ThemeCard(
+internal fun ThemeCard(
     modifier: Modifier,
     selected: Boolean,
     tilt: Float,
@@ -191,23 +202,67 @@ private fun ThemeCard(
     onClick: (() -> Unit)?,
     edge: Float = 0.32f,
 ) {
-    Box(modifier.fillMaxHeight()) {
+    val feedback = remember { Animatable(1f) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(selected, onClick != null) {
+        if (!selected || onClick == null) feedback.snapTo(1f)
+    }
+    Box(
+        modifier.fillMaxHeight().graphicsLayer {
+            val pulse = if (selected) 1f - abs(2f * feedback.value - 1f) else 0f
+            scaleX = 1f + 0.02f * pulse
+            scaleY = scaleX
+            translationY = -4.dp.toPx() * pulse
+        },
+    ) {
         Column(
             Modifier
                 .fillMaxSize()
                 .rotate(tilt)
-                .then(if (selected) Modifier.padding(0.dp).border(3.dp, Esc.gold) else Modifier)
                 .shadow(16.dp)
                 .parchment(edge = edge, start = if (edge > 0.35f) 0.5f else 0.55f)
-                .then(if (onClick != null) Modifier.clickable(role = Role.RadioButton, onClick = onClick) else Modifier),
+                .drawWithContent {
+                    drawContent()
+                    if (selected) {
+                        val pulse = 1f - abs(2f * feedback.value - 1f)
+                        val stroke = 3.dp.toPx()
+                        drawRect(
+                            color = lerp(Esc.gold, Color(0xFFFFE4AA), pulse),
+                            topLeft = Offset(stroke / 2f, stroke / 2f),
+                            size = Size(size.width - stroke, size.height - stroke),
+                            style = Stroke(stroke),
+                        )
+                    }
+                }
+                .selectable(selected = selected, enabled = onClick != null, role = Role.RadioButton) {
+                    onClick?.invoke()
+                    // Selection is immediate. A new tap restarts this short, composition-owned effect.
+                    scope.launch {
+                        feedback.snapTo(0f)
+                        feedback.animateTo(1f, tween(220, easing = FastOutSlowInEasing))
+                    }
+                },
         ) {
             Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp).fillMaxWidth().height(196.dp).background(artBg), contentAlignment = Alignment.BottomStart) {
                 Canvas(Modifier.fillMaxSize()) { inDesignUnits { art() } }
                 if (selected) {
                     Text(
-                        "Selected",
-                        Modifier.padding(12.dp).background(Esc.oxblood).padding(horizontal = 10.dp, vertical = 4.dp),
-                        style = androidx.compose.ui.text.TextStyle(fontFamily = Esc.playfairSC, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 0.12.em, color = Color(0xFFF3E9D2)),
+                        "선택 완료",
+                        Modifier.padding(12.dp)
+                            .graphicsLayer {
+                                val progress = feedback.value
+                                alpha = progress
+                                scaleX = 1f + 0.22f * (1f - progress)
+                                scaleY = scaleX
+                                translationY = -6.dp.toPx() * (1f - progress)
+                                rotationZ = -6f
+                            }
+                            .background(Esc.oxblood)
+                            .border(2.dp, Esc.creamSoft)
+                            .padding(3.dp)
+                            .border(1.dp, Esc.creamSoft.copy(alpha = 0.7f))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = Esc.nanum(16, Esc.cream).copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
                     )
                 }
             }

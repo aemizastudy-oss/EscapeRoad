@@ -10,6 +10,7 @@ import com.team.carescape.model.TourLocation
 import com.team.carescape.model.TourMode
 import com.team.carescape.model.TourSafety
 import com.team.carescape.model.WaypointConfig
+import com.team.carescape.game.InteriorLightSnapshot
 import com.team.carescape.game.CarControl
 import com.team.carescape.game.VehiclePuzzleSample
 import kotlinx.coroutines.channels.Channel
@@ -38,8 +39,15 @@ class PleosSdkRuntime(context: Context) : AutoCloseable {
     var puzzleLatest: Map<CarControl, VehiclePuzzleSample> = emptyMap()
         private set
     private var puzzleReader: PleosVehiclePuzzleReader? = null
+    private var interiorLightReader: PleosInteriorLightReader? = null
+    private val mutableInteriorLights = MutableStateFlow(InteriorLightSnapshot())
+    val interiorLights = mutableInteriorLights.asStateFlow()
+    var interiorLightGeneration = 0L
+        private set
 
     private fun clearPuzzleInput() {
+        interiorLightGeneration++
+        mutableInteriorLights.value = InteriorLightSnapshot()
         puzzleGeneration++
         puzzleLatest = emptyMap()
         while (puzzleChannel.tryReceive().isSuccess) { /* discard previous connection */ }
@@ -133,6 +141,13 @@ class PleosSdkRuntime(context: Context) : AutoCloseable {
         puzzleReader = PleosVehiclePuzzleReader(context) { control, value, state, receivedAt ->
             if (active && token == generation) acceptPuzzleInput(control, value, state, receivedAt)
         }.also { it.start() }
+        interiorLightReader = PleosInteriorLightReader(context) { reading ->
+            if (active && token == generation) {
+                // Invalidate queued submissions even if a collector skips an intermediate failure.
+                if (mutableInteriorLights.value.ready && !reading.ready) interiorLightGeneration++
+                mutableInteriorLights.value = reading
+            }
+        }.also { it.start() }
         locationNavigation = PleosLocationNavigation(context, onLocation = { location ->
             if (active && token == generation) {
                 if (location != mutableLocations.value) revision++
@@ -187,6 +202,7 @@ class PleosSdkRuntime(context: Context) : AutoCloseable {
         speech?.close(); speech = null
         locationNavigation?.close(); locationNavigation = null
         puzzleReader?.close(); puzzleReader = null
+        interiorLightReader?.close(); interiorLightReader = null
         clearPuzzleInput()
         vehicle?.close(); vehicle = null
         car?.close(); car = null

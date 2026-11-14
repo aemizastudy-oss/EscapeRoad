@@ -64,6 +64,10 @@ sealed interface CarVisual {
 data class Fork(val left: Int, val leftNote: String, val right: Int, val rightNote: String)
 
 sealed interface StoryLockDefinition {
+    /** 앞·뒤 좌우 독서등의 현재 켜진 개수를 제출한다. 누적 조작 횟수가 아니다. */
+    data class InteriorLightCount(val answer: Int = 4) : StoryLockDefinition {
+        init { require(answer in 0..4) }
+    }
     data class Numeric(val answer: String) : StoryLockDefinition {
         init { require(answer.isNotEmpty() && answer.all { it in '0'..'9' }) }
     }
@@ -117,6 +121,7 @@ sealed interface StoryLockDefinition {
 }
 
 sealed interface StoryPuzzleInput {
+    data class InteriorLightCount(val count: Int) : StoryPuzzleInput
     data class Numeric(val value: String) : StoryPuzzleInput
     data class Directions(val value: List<LockDirection>) : StoryPuzzleInput
     data class Device(val channel: Int, val level: Int) : StoryPuzzleInput
@@ -165,6 +170,11 @@ data class StorySubmission(val state: StoryState, val result: StoryPuzzleResult,
 object StoryPuzzles {
     fun evaluate(puzzle: StoryPuzzleDefinition, input: StoryPuzzleInput): StoryPuzzleResult {
         val matches = when (val lock = puzzle.lock) {
+            is StoryLockDefinition.InteriorLightCount -> {
+                val count = (input as? StoryPuzzleInput.InteriorLightCount)?.count ?: return StoryPuzzleResult.INVALID_INPUT
+                if (count !in 0..4) return StoryPuzzleResult.INVALID_INPUT
+                count == lock.answer
+            }
             is StoryLockDefinition.Numeric -> {
                 val value = (input as? StoryPuzzleInput.Numeric)?.value
                     ?: return StoryPuzzleResult.INVALID_INPUT
@@ -230,6 +240,7 @@ object StoryPuzzles {
 
     /** 오답 대사를 고르는 안정된 문자열 키. */
     fun answerKey(input: StoryPuzzleInput): String = when (input) {
+        is StoryPuzzleInput.InteriorLightCount -> input.count.toString()
         is StoryPuzzleInput.Numeric -> input.value
         is StoryPuzzleInput.Directions -> input.value.joinToString(",") { it.name }
         is StoryPuzzleInput.Device -> "${input.channel},${input.level}"

@@ -28,6 +28,7 @@ class SiyeokFlow5Test {
         is StoryLockDefinition.SymbolDial -> StoryPuzzleInput.Dial(lock.answer)
         is StoryLockDefinition.UseItem -> StoryPuzzleInput.UseItem(lock.answer)
         is StoryLockDefinition.Sequence -> StoryPuzzleInput.Sequence(lock.answer)
+        is StoryLockDefinition.InteriorLightCount -> StoryPuzzleInput.InteriorLightCount(lock.answer)
     }
     private fun atPuzzle(state: StoryState) = StoryEngine.returnToCar(StoryEngine.leaveCar(StoryEngine.verifiedArrival(state)))
     private fun start() = atPuzzle(StoryEngine.start(episode, StoryCatalog.EXPLORE_FLOW_VERSION))

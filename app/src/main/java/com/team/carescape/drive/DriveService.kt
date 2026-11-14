@@ -131,7 +131,7 @@ class DriveService : Service() {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putStringSet(KEY_FIRED, state.firedLines).putStringSet(KEY_ARRIVED, state.arrivedLegs).apply()
         }
-        if (step.actions.isNotEmpty()) Log.i(TAG, "$input -> ${step.actions.joinToString { it.javaClass.simpleName }}")
+        if (step.actions.isNotEmpty()) Log.i(TAG, "${input.javaClass.simpleName} -> ${step.actions.joinToString { it.javaClass.simpleName }}")
         step.actions.forEach { action ->
             when (action) {
                 DriveAction.StartBgm -> audio?.startBgm()
@@ -143,32 +143,27 @@ class DriveService : Service() {
                 DriveAction.StopVoice -> audio?.stopVoice()
                 // Demo drive: park as soon as the place is reached, like a driver pulling over near it.
                 is DriveAction.LegArrived -> { demo?.close(); demo = null; if (status == "시연 주행 중") status = null }
-                DriveAction.OpenApp -> openApp()
+                DriveAction.NotifyArrival -> notifyArrival()
             }
         }
         if (step.actions.isNotEmpty() || state.leg?.chapterIndex != before.leg?.chapterIndex) notifyStatus()
     }
 
-    /**
-     * Arrived and stopped: bring the app back. A service can't always start an activity from the background
-     * (Android limits this), so a high-priority notification that opens the app is posted as well.
-     */
-    private fun openApp() {
+    /** 도착 후 자동으로 화면을 덮지 않는다. 알림을 눌러 돌아오면 앱의 P·정지·CarUx 조건을 다시 확인한다. */
+    private fun notifyArrival() {
         val intent = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
         // Demo trip: the place was reached by the demo drive, so the app confirms the demo arrival itself.
         state.trip?.takeIf { tripMode == TourMode.MOCK }?.let { DemoArrival.pending.value = it.chapterIndex }
-        runCatching { startActivity(intent) }.onFailure { Log.w(TAG, "open app: ${it.message}") }
         val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(ARRIVAL_CHANNEL, "도착 알림", NotificationManager.IMPORTANCE_HIGH))
+        manager.createNotificationChannel(NotificationChannel(ARRIVAL_CHANNEL, "도착 알림", NotificationManager.IMPORTANCE_LOW))
         val open = PendingIntent.getActivity(this, 1, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val place = state.trip?.let { DriveCourse.plan(it.chapterIndex, script)?.place } ?: "목적지"
         runCatching {
             manager.notify(ARRIVAL_ID, Notification.Builder(this, ARRIVAL_CHANNEL)
                 .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle("$place 도착")
-                .setContentText("눌러서 이스케이프 로드를 엽니다")
+                .setContentTitle("${modeLabel()} · $place 도착")
+                .setContentText("안전하게 정차한 뒤 눌러서 앱을 여세요")
                 .setContentIntent(open)
-                .setFullScreenIntent(open, true)
                 .setAutoCancel(true)
                 .build())
         }
@@ -178,7 +173,7 @@ class DriveService : Service() {
         val leg = state.leg
         val place = leg?.let { DriveCourse.plan(it.chapterIndex, script)?.place }
         return when {
-            state.awaitingStop -> "도착 · 정차하면 앱을 엽니다"
+            state.awaitingStop -> "도착 · 안전 정차 후 앱에서 확인하세요"
             leg != null -> "${place ?: "다음 장소"}(으)로 이동 중" + (state.remainingM?.let { " · ${"%.1f".format(it / 1000)}km" } ?: "")
             state.trip?.enRoute == true && state.armed -> "출발 준비 완료 · 기어 D로 출발하세요"
             state.trip?.enRoute == true -> "출발 대기 · 앱에서 출발하기를 누르거나 기어 D로 출발하세요"
@@ -199,11 +194,13 @@ class DriveService : Service() {
         }.onFailure { Log.w(TAG, "foreground: ${it.message}") }
     }
 
+    private fun modeLabel() = if (tripMode == TourMode.MOCK) "시연 MOCK" else "실제 SDK"
+
     private fun notification(): Notification {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("ESCAPE ROAD · ${if (started) statusText() else "주행 중 안내"}")
+            .setContentTitle("ESCAPE ROAD · ${modeLabel()} · ${if (started) statusText() else "주행 중 안내"}")
             .setContentText(lastLine ?: status ?: "주행 중 BGM과 이동 장면 음성을 재생합니다.")
             .setOngoing(true)
             .setContentIntent(open)
@@ -240,7 +237,7 @@ class DriveService : Service() {
         private const val ACTION_STOP = "com.team.carescape.drive.STOP"
         private const val ACTION_DEPART = "com.team.carescape.drive.DEPART"
         private const val EXTRA_ALLOW_DEMO_DRIVE = "allow_demo_drive"
-        private const val ARRIVAL_CHANNEL = "drive_arrival"
+        private const val ARRIVAL_CHANNEL = "drive_arrival_manual_v2"
         private const val ARRIVAL_ID = 1796
 
         /** 출발하기 button: sets the navigation destination and arms the leg (starts the service if needed). */
