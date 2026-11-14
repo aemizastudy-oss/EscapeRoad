@@ -61,6 +61,8 @@ private fun Screens(vm: GameViewModel, narrator: Narrator, onRequestPermissions:
             }
         }
     }
+    // 배경음악은 주행 중에도 이어서 튼다(화면은 가려도 소리만 나간다).
+    BgmHost(bgmFor(vm), ducked = vm.sdkStatus.speaking, active = vm.foreground && !vm.loading)
     Box(Modifier.fillMaxSize()) {
         if (!vm.foreground || !vm.parked || vm.loading || vm.storageError != null) {
             // Unknown vehicle/UX/storage state does not expose story or puzzle details.
