@@ -28,6 +28,8 @@ enum class Screen { LOBBY, THEME_SELECT, BRIEFING, PLAY, SOLVED, SUCCESS, STORY_
 /** Existing screens use one live runtime and one serialized, durable story state. */
 class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val runtime = PleosSdkRuntime(application)
+    /** 녹음한 대사 재생기. 소리를 멈추는 모든 경로([stopAudio])가 함께 멈춘다. */
+    val voice = VoicePlayer(application)
     private val store = TripProgressStore(application)
     private val commands = Channel<suspend () -> Unit>(Channel.UNLIMITED)
     private var trip: StoredTrip? = null
@@ -404,7 +406,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun onPermissionsChanged() = reconnectSdk()
     fun speakNarration(text: String): Boolean = parked && runtime.speak(text)
-    fun stopAudio() { runtime.stopAudio() }
+    fun stopAudio() { runtime.stopAudio(); voice.stop() }
 
     /** Serialize a click against its original mode, session, phase and safety generation. */
     private fun changeTrip(
@@ -848,7 +850,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val after = step(before); game = after
         if (after.feedback == Feedback.CORRECT && after.puzzleIndex > before.puzzleIndex) screen = Screen.SOLVED
     }
-    override fun onCleared() { runtime.close(); commands.close(); super.onCleared() }
+    override fun onCleared() { voice.stop(); runtime.close(); commands.close(); super.onCleared() }
 }
 
 /** 프롤로그를 시안처럼 세 쪽으로 나눈다. */
