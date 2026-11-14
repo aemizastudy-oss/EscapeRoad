@@ -21,12 +21,14 @@ class TourPolicyTest {
         TourPolicy.unlockGate(record, TourMode.LIVE, target, location, safety, now)
 
     @Test
-    fun fifteenMinuteBoundaryIsExactAndRequiresANewReturnLocation() {
+    fun fifteenMinuteBoundaryIsExactAndPuzzlesDoNotNeedThePlacePosition() {
         assertEquals(TourGate.TOUR_TIME_REMAINING, unlock(later(899_999)))
         assertEquals(TourGate.READY, unlock(later(900_000)))
         assertEquals(TourGate.READY, unlock(later(900_001)))
-        assertEquals(TourGate.LOCATION_STALE, unlock(later(900_000), fresh(start)))
-        assertEquals(TourGate.OUTSIDE_RADIUS, unlock(later(900_000), fresh(later(900_000)).copy(longitude = 0.01)))
+        // Position only triggers arrival; after the tour starts the puzzles work anywhere.
+        assertEquals(TourGate.READY, unlock(later(900_000), fresh(start)))
+        assertEquals(TourGate.READY, unlock(later(900_000), fresh(later(900_000)).copy(longitude = 0.01)))
+        assertEquals(TourGate.READY, unlock(later(900_000), null))
     }
 
     @Test
@@ -93,11 +95,11 @@ class TourPolicyTest {
     }
 
     @Test
-    fun bypassIsOnlyForMockAndDoesNotOverrideLocationOrSafety() {
+    fun bypassIsOnlyForMockAndDoesNotOverrideSafety() {
         val mock = record.copy(mode = TourMode.MOCK, debugTimeBypass = true)
         assertEquals(TourGate.READY, TourPolicy.unlockGate(mock, TourMode.MOCK, target, fresh(start, TourMode.MOCK), safe, start))
         assertEquals(TourGate.CAR_UX_RESTRICTED, TourPolicy.unlockGate(mock, TourMode.MOCK, target, fresh(start, TourMode.MOCK), safe.copy(carUxAllowed = false), start))
-        assertEquals(TourGate.OUTSIDE_RADIUS, TourPolicy.unlockGate(mock, TourMode.MOCK, target, fresh(start, TourMode.MOCK).copy(longitude = 0.01), safe, start))
+        assertEquals(TourGate.READY, TourPolicy.unlockGate(mock, TourMode.MOCK, target, fresh(start, TourMode.MOCK).copy(longitude = 0.01), safe, start))
         assertEquals(TourGate.MODE_MISMATCH, TourPolicy.unlockGate(record.copy(debugTimeBypass = true), TourMode.LIVE, target, fresh(start), safe, start))
     }
 

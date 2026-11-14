@@ -1,5 +1,12 @@
 package com.team.carescape.ui
 
+import com.team.carescape.drive.NarrationSwitch
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -38,9 +45,14 @@ fun EscapeApp(vm: GameViewModel, onRequestPermissions: () -> Unit = {}) {
 
 @Composable
 private fun Screens(vm: GameViewModel, narrator: Narrator, onRequestPermissions: () -> Unit) {
+    val context = LocalContext.current
+    val narrationOn by NarrationSwitch.state(context).collectAsState()
     // Keep a pending line until the SDK accepts it. Moving/background narration is not verified.
-    LaunchedEffect(vm.pendingNarration, narrator.ready, vm.parked, vm.foreground, vm.loading, vm.storageError, vm.mode) {
-        if (!vm.foreground || !vm.parked || vm.loading || vm.storageError != null) {
+    LaunchedEffect(vm.pendingNarration, narrator.ready, vm.parked, vm.foreground, vm.loading, vm.storageError, vm.mode, narrationOn) {
+        if (!narrationOn) {
+            // Narration off: stop now and drop the line instead of keeping it for later.
+            narrator.stop(); vm.pendingNarration = null
+        } else if (!vm.foreground || !vm.parked || vm.loading || vm.storageError != null) {
             narrator.stop()
         } else {
             val pending = vm.pendingNarration
@@ -75,6 +87,15 @@ private fun Screens(vm: GameViewModel, narrator: Narrator, onRequestPermissions:
         ) {
             SdkControls(vm, onRequestPermissions)
             SdkDevPanel(vm)
+            NarrationToggle(narrationOn, Modifier) { NarrationSwitch.set(context, it) }
         }
     }
+}
+
+/** Voice narration on/off for the whole app (story narration and driving lines), top-right corner. BGM keeps playing. */
+@Composable
+private fun NarrationToggle(on: Boolean, modifier: Modifier, onChange: (Boolean) -> Unit) {
+    OutlineButton(if (on) "음성 켜짐" else "음성 꺼짐", { onChange(!on) },
+        modifier.testTag("narration-toggle").semantics { stateDescription = if (on) "음성 안내 켜짐" else "음성 안내 꺼짐" },
+        minHeight = 44.dp, fontSize = 13)
 }

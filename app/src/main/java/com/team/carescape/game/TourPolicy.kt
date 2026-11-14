@@ -50,6 +50,12 @@ object TourPolicy {
         return locationGate(mode, target, location, now)
     }
 
+    /**
+     * Puzzles after the tour. The position is only the arrival trigger ([startGate], which opens the
+     * "둘러보는 중" page); once the tour has started the player may solve the puzzles anywhere, so
+     * [location] is not checked here. Safety (foreground, P, stopped, CarUx) and the 15-minute tour still apply.
+     */
+    @Suppress("UNUSED_PARAMETER")
     fun unlockGate(
         record: TourStartRecord?,
         mode: TourMode,
@@ -58,8 +64,8 @@ object TourPolicy {
         safety: TourSafety,
         now: TourClock,
     ): TourGate {
-        val gate = startGate(mode, target, location, safety, now)
-        if (gate != TourGate.READY) return gate
+        safetyGate(safety)?.let { return it }
+        if (!validClock(now)) return TourGate.CLOCK_INVALID
         if (record == null) return TourGate.TOUR_NOT_STARTED
         if (record.mode != mode) return TourGate.MODE_MISMATCH
         if (record.checkpointId != target.id || record.sessionId.isBlank()) return TourGate.RECORD_MISMATCH
