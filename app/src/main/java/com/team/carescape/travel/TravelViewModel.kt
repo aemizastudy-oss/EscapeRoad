@@ -43,7 +43,13 @@ enum class GuideMode(val label: String) { SCHEDULE("일정"), EXPLORE("둘러보
 
 class TravelViewModel(application: Application) : AndroidViewModel(application) {
     private val store = TripProfileStore(application)
-    private val keys = TravelKeys(BuildConfig.NAVER_CLIENT_ID, BuildConfig.NAVER_CLIENT_SECRET, BuildConfig.TOUR_API_KEY)
+    private val keys = TravelKeys(
+        naverClientId = BuildConfig.NAVER_CLIENT_ID,
+        naverClientSecret = BuildConfig.NAVER_CLIENT_SECRET,
+        tourApiKey = BuildConfig.TOUR_API_KEY,
+        naverHubClientId = BuildConfig.NAVER_SEARCH_CLIENT_ID,
+        naverHubClientSecret = BuildConfig.NAVER_SEARCH_CLIENT_SECRET,
+    )
     private val repo = TravelRepository(keys)
     private var job: Job? = null
 
@@ -82,8 +88,9 @@ class TravelViewModel(application: Application) : AndroidViewModel(application) 
     fun showSample() { if (BuildConfig.DEBUG) { sample = true; refresh() } }
 
     val apiStatus: String get() = buildList {
-        add(if (keys.naverReady) "네이버 연결됨" else "네이버 키 없음")
-        add(if (keys.tourReady) "TourAPI 연결됨" else "TourAPI 키 없음")
+        add(if (BuildConfig.NAVER_MAP_KEY_ID.isNotBlank()) "지도 키 설정됨" else "지도 키 없음")
+        add(if (keys.hubReady) "API HUB 키 설정됨" else if (keys.naverReady) "지역 검색 키 설정됨" else "지역 검색 키 없음")
+        add(if (keys.tourReady) "TourAPI 키 설정됨" else "TourAPI 키 없음")
     }.joinToString(" · ")
 
     fun updateFinalRevealed(value: Boolean) { finalRevealed = value }

@@ -36,7 +36,7 @@ data class TripProfile(
     val start: LocalDate? get() = startDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
 }
 
-/** 경유지 카드의 탭. */
+/** 경유지 카드의 탭. SIGHT는 이전 저장 장소 표시용으로만 보존한다. */
 enum class TravelTab(val label: String) {
     PARKING("주차"), FOOD("맛집"), CAFE("카페"), SIGHT("함께 보기"), ACTIVITY("체험"), STAY("숙소"), NIGHT("야경·저녁");
 }
@@ -102,14 +102,12 @@ object Itinerary {
         add(TravelTab.PARKING)
         add(TravelTab.FOOD)
         if (Interest.CAFE in profile.interests) add(TravelTab.CAFE)
-        add(TravelTab.SIGHT)
         add(TravelTab.ACTIVITY)
         add(if (profile.length == TripLength.DAY) TravelTab.NIGHT else TravelTab.STAY)
     }.let { base ->
         // 관심사에 맞는 탭을 주차 바로 뒤로 당긴다.
         val front = base.filter { t ->
             (t == TravelTab.ACTIVITY && Interest.ACTIVITY in profile.interests) ||
-                (t == TravelTab.SIGHT && Interest.HISTORY in profile.interests) ||
                 (t == TravelTab.NIGHT && Interest.NIGHT in profile.interests)
         }
         listOf(TravelTab.PARKING) + (base - TravelTab.PARKING).sortedBy { if (it in front) 0 else 1 }

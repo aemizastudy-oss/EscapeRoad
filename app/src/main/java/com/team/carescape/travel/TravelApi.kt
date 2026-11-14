@@ -31,15 +31,27 @@ data class Place(
 
 sealed interface TravelResult {
     data class Ok(val places: List<Place>, val sources: Set<String>, val missing: List<String> = emptyList()) : TravelResult
-    /** API 키가 아직 없다. [missing]은 local.properties에 넣을 이름. */
+    /** API keys are missing. [missing] lists names accepted by the ignored local configuration files. */
     data class NotConfigured(val missing: List<String>) : TravelResult
     data class Failed(val message: String) : TravelResult
 }
 
-/** 키 이름은 local.properties와 BuildConfig에 같은 이름으로 쓴다(저장소에는 올리지 않는다). */
-data class TravelKeys(val naverClientId: String = "", val naverClientSecret: String = "", val tourApiKey: String = "") {
-    val naverReady get() = naverClientId.isNotBlank() && naverClientSecret.isNotBlank()
+/** Maps authentication is separate. HUB keys are loaded only into local Debug builds. */
+data class TravelKeys(
+    val naverClientId: String = "",
+    val naverClientSecret: String = "",
+    val tourApiKey: String = "",
+    val naverHubClientId: String = "",
+    val naverHubClientSecret: String = "",
+) {
+    val hubSelected get() = naverHubClientId.isNotBlank() || naverHubClientSecret.isNotBlank()
+    val hubReady get() = naverHubClientId.isNotBlank() && naverHubClientSecret.isNotBlank()
+    val naverReady get() = if (hubSelected) hubReady else naverClientId.isNotBlank() && naverClientSecret.isNotBlank()
     val tourReady get() = tourApiKey.isNotBlank()
+    val missingNaverKeys: List<String> get() = if (naverReady) emptyList() else buildList {
+        if (naverHubClientId.isBlank()) add("naver.search.clientId")
+        if (naverHubClientSecret.isBlank()) add("naver.search.clientSecret")
+    }
 }
 
 interface HttpGet { suspend fun get(url: String, headers: Map<String, String> = emptyMap()): String }
@@ -73,13 +85,26 @@ fun distanceMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Int 
 }
 
 /**
- * 네이버 검색 API · 지역 검색(openapi.naver.com/v1/search/local.json). 검색어 기반, 한 번에 최대 5개.
- * 상업적 이용·출처 표시 조건은 네이버 개발자센터 약관으로 확인해야 한다.
+ * NAVER API HUB regional search. Existing Developers credentials remain supported.
+ * Supplying either HUB field selects HUB; an incomplete pair never falls back to another account.
+ * Query based, at most five places per request.
  */
 class NaverLocalClient(private val keys: TravelKeys, private val http: HttpGet = UrlHttpGet) {
     suspend fun search(query: String): List<Place> {
-        val url = "https://openapi.naver.com/v1/search/local.json?query=${enc(query)}&display=5&start=1&sort=random"
-        return parse(http.get(url, mapOf("X-Naver-Client-Id" to keys.naverClientId, "X-Naver-Client-Secret" to keys.naverClientSecret)))
+        check(keys.naverReady) { "지역 검색 인증 설정이 필요합니다." }
+        val (base, headers) = if (keys.hubSelected) {
+            "https://naverapihub.apigw.ntruss.com/search/v1/local" to mapOf(
+                "X-NCP-APIGW-API-KEY-ID" to keys.naverHubClientId,
+                "X-NCP-APIGW-API-KEY" to keys.naverHubClientSecret,
+            )
+        } else {
+            "https://openapi.naver.com/v1/search/local.json" to mapOf(
+                "X-Naver-Client-Id" to keys.naverClientId,
+                "X-Naver-Client-Secret" to keys.naverClientSecret,
+            )
+        }
+        val url = "$base?query=${enc(query)}&display=5&start=1&sort=random" + if (keys.hubSelected) "&format=json" else ""
+        return parse(http.get(url, headers))
     }
 
     companion object {
@@ -176,7 +201,7 @@ class TravelRepository(
             TravelTab.PARKING -> Plan(listOf("$n 주차장"), emptyList())
             TravelTab.FOOD -> Plan(listOf(if (family) "$n 가족 맛집" else "$n 맛집"), emptyList())
             TravelTab.CAFE -> Plan(listOf("$n 카페"), emptyList())
-            TravelTab.SIGHT -> Plan(emptyList(), listOf(TourApiClient.SIGHT, TourApiClient.CULTURE))
+            TravelTab.SIGHT -> Plan(emptyList(), emptyList()) // 이전 저장 항목 분류만 유지하며 새 추천은 요청하지 않는다.
             TravelTab.ACTIVITY -> Plan(listOf(if (family) "$n 아이와 체험" else "$n 체험"), listOf(TourApiClient.LEISURE))
             TravelTab.STAY -> Plan(listOf("$n 숙소"), listOf(TourApiClient.STAY))
             TravelTab.NIGHT -> Plan(listOf("$n 야경", "$n 저녁"), emptyList())
@@ -186,7 +211,7 @@ class TravelRepository(
     suspend fun load(stop: GuideStop, tab: TravelTab, profile: TripProfile, refresh: Boolean = false): TravelResult {
         val plan = planFor(stop, tab, profile)
         val missing = buildList {
-            if (plan.naverQueries.isNotEmpty() && !keys.naverReady) addAll(listOf("NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET"))
+            if (plan.naverQueries.isNotEmpty() && !keys.naverReady) addAll(keys.missingNaverKeys)
             if (plan.tourTypes.isNotEmpty() && !keys.tourReady) add("TOUR_API_KEY")
         }
         val usable = Plan(if (keys.naverReady) plan.naverQueries else emptyList(), if (keys.tourReady) plan.tourTypes else emptyList())

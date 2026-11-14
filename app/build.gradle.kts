@@ -19,14 +19,34 @@ android {
         versionCode = 4
         versionName = "0.4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // 여행 도우미 API 키. local.properties에만 적고 저장소에는 올리지 않는다(없으면 빈 값 → 화면에 '키 없음').
+        // Maps 인증은 지역 검색의 Client ID/Secret과 별도로 읽는다.
+        // 이미 사용 중인 로컬 파일 이름도 지원하며, 인증 값은 저장소에 올리지 않는다.
         val local = Properties().apply {
-            rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+            listOf("local.properties", "nearby.properies.env", "nearby.properties.env", "nearby.properties")
+                .forEach { name ->
+                    rootProject.file(name).takeIf { it.isFile }?.reader(Charsets.UTF_8)?.use { load(it) }
+                }
         }
-        fun key(name: String) = "\"" + (local.getProperty(name) ?: "").replace("\"", "") + "\""
-        buildConfigField("String", "NAVER_CLIENT_ID", key("NAVER_CLIENT_ID"))
-        buildConfigField("String", "NAVER_CLIENT_SECRET", key("NAVER_CLIENT_SECRET"))
-        buildConfigField("String", "TOUR_API_KEY", key("TOUR_API_KEY"))
+        fun configured(vararg names: String): String = names.firstNotNullOfOrNull { name ->
+            local.getProperty(name)?.trim()?.removeSurrounding("\"")?.removeSurrounding("'")?.takeIf { it.isNotBlank() }
+        }.orEmpty()
+        fun quoted(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r") + "\""
+        val mapsKeyId = configured("naver.map.keyId", "naver.maps.client.id", "NAVER_MAP_KEY_ID", "NAVER_MAPS_KEY_ID", "NCP_KEY_ID")
+        manifestPlaceholders["naverMapsKeyId"] = mapsKeyId
+        buildConfigField("String", "NAVER_MAP_KEY_ID", quoted(mapsKeyId))
+        buildConfigField("String", "NAVER_CLIENT_ID", quoted(configured("NAVER_CLIENT_ID")))
+        buildConfigField("String", "NAVER_CLIENT_SECRET", quoted(configured("NAVER_CLIENT_SECRET")))
+        buildConfigField("String", "TOUR_API_KEY", quoted(configured("TOUR_API_KEY")))
+        // API HUB secrets are only included in local Debug demonstrations.
+        buildConfigField("String", "NAVER_SEARCH_CLIENT_ID", quoted(configured("naver.search.clientId")))
+        buildConfigField("String", "NAVER_SEARCH_CLIENT_SECRET", quoted(configured("naver.search.clientSecret")))
+    }
+
+    buildTypes {
+        getByName("release") {
+            buildConfigField("String", "NAVER_SEARCH_CLIENT_ID", "\"\"")
+            buildConfigField("String", "NAVER_SEARCH_CLIENT_SECRET", "\"\"")
+        }
     }
 
     buildFeatures {
@@ -54,6 +74,8 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.3")
+    implementation("com.naver.maps:map-sdk:3.24.1")
     implementation("androidx.datastore:datastore:1.1.7")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")

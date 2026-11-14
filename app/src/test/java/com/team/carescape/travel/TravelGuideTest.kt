@@ -81,7 +81,7 @@ class TravelGuideTest {
         val keys = TravelKeys()
         val repo = TravelRepository(keys, NaverLocalClient(keys, http), TourApiClient(keys, http))
         val r = repo.load(stops[0], TravelTab.STAY, TripProfile(TripLength.ONE_NIGHT))
-        assertEquals(TravelResult.NotConfigured(listOf("NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET", "TOUR_API_KEY")), r)
+        assertEquals(TravelResult.NotConfigured(listOf("naver.search.clientId", "naver.search.clientSecret", "TOUR_API_KEY")), r)
         assertEquals(0, calls)
     }
 
@@ -96,7 +96,7 @@ class TravelGuideTest {
         val repo = TravelRepository(keys, NaverLocalClient(keys, http), TourApiClient(keys, http))
         val r = repo.load(stops[0], TravelTab.ACTIVITY, TripProfile()) as TravelResult.Ok
         assertEquals(listOf("가까운 곳", "먼 곳"), r.places.map { it.name })
-        assertEquals(listOf("NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET"), r.missing)
+        assertEquals(listOf("naver.search.clientId", "naver.search.clientSecret"), r.missing)
         assertTrue(r.places.all { it.source == TourApiClient.SOURCE })
     }
 

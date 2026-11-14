@@ -244,3 +244,40 @@ SDK 어댑터는 기존 `main`의 검증된 API 경계를 현재 패키지로 �
 
 - 내용: SIM 패널에 「시연 바로가기」 — 도착 1~5, 장면 1~5, 공개(마지막 장소), 엔딩 진·일반·배드. 실제 엔진으로 앞부분을 정답으로 자동 진행한 **새 시연 여행**으로 바꾼다(기존 시연 기록은 대체, LIVE 기록은 건드리지 않음). 관광 15분은 시연 우회로 표시하고, 지난 장소 관광 시각은 75분 간격으로 앞당겨 적는다. 일반 엔딩은 진상 추리 하나를 틀리고, 배드 엔딩은 주변 살피기를 많이 써서 각성도 8 이상으로 만든다. release 빌드에는 없다(`src/debug`).
 - 확인: 단위 테스트(새 `DemoShortcutTest` 2개: 모든 바로가기가 말한 곳에 닿고 저장 검증 통과, 일반 엔딩은 다시 추리 가능·배드는 각성도 8 이상). 에뮬레이터에서 일반·진 엔딩 바로가기 사용.
+
+
+## 2026-11-14 · 현재 release/v0.4.0에 네이버 Maps ID 연결
+
+- 구현 완료: 사용자가 저장한 `nearby.properies.env`의 `naver.map.keyId`를 빌드 설정에서 읽고, 네이버 Maps Android SDK 3.24.1의 `NCP_KEY_ID`에 연결했다. 로컬 파일은 Git에서 제외하며 인증 값은 기록하지 않는다. 기존 Canvas 코스 지도를 실제 MapView로 교체하고 경유지/추천 장소 핀·방문 순서 연결선·주변 확대/전체 보기·카드 선택을 연결했다. 비공개 마지막 장소는 지도 입력에서 제외한다. 연결선은 실제 도로 경로가 아니다.
+- 빌드 확인: 관리형 `gradle-run`의 질문 “네이버 Maps ID 연결 후 Debug 빌드·여행 단위 테스트·Lint가 통과하는가?”에 `:app:assembleDebug :app:testDebugUnitTest --tests com.team.carescape.travel.* :app:lintDebug` exit 0. 여행 단위 테스트 14개 통과. 기기에서 발견한 SDK 위젯의 AppCompat 테마 오류는 MapView에만 테마 Context를 적용해 수정했다. 후속 질문 “지도 SDK 위젯의 AppCompat 테마 보완 후 Debug 빌드와 Lint가 통과하는가?”의 `:app:assembleDebug :app:lintDebug`도 exit 0. Lint 오류 0개, 경고 61개와 Hint 4개는 남아 있으며 전체 경고 해결을 주장하지 않는다. MapView 메모리 콜백의 deprecated 경고도 남는다.
+- 에뮬레이터 시연 확인: Windows / Android Studio JBR / Pleos Connect v2.1.0(API 34), emulator-5554, Android 사용자 10. 현재 앱은 MOCK의 명시적 P 정차 상태에서 확인했다. 실제 네이버 지도 타일·화성행궁 핀을 확인했고, 전체 보기·화홍문 선택·D 주행 시 지도 숨김·P 복귀 및 백그라운드 복귀 후 지도 재생성을 확인했다. 설치와 화면 검증 전후 방탈출 저장 JSON이 같았다. 기기 테스트 실행이라고 표기하지 않으며 ADB를 통한 수동 UI 시연이다.
+- 네트워크 복구: 초기에는 `Active default network: none`, Wi-Fi 꺼짐으로 네이버 지도 인증이 DNS 대기 상태였다. `adb -s emulator-5554 shell cmd wifi set-wifi-enabled enabled`로 저장된 AndroidWifi 연결을 복구했고 네이버 서버 DNS와 지도 표시가 정상화됐다. 에뮬레이터 초기화·데이터 삭제는 하지 않았다. 수정 APK 프로세스에서 ThemeUtils 테마 오류·FATAL EXCEPTION·Authorization pending은 0건이었다.
+- 미연결/확인 불가: 지역 검색용 인증과 TourAPI 키는 없고 `nearby.proxy.url`도 비어 있다. 따라서 실제 주차장·식당 검색 응답이나 내비게이션 경로 성공을 확인한 것은 아니다. Maps ID만으로 지역 검색 인증이 완료됐다고 표시하지 않는다. LIVE 차량 안전 조건과 위치 정확도 검증은 이 작업에 포함하지 않았다.
+- 재현: Android Studio에서 `C:/car_escape` 열기 → Gradle Sync → app Run → 시연 MOCK / P 정차 → 로비의 여행 도우미. 지도 ID 변경 후에는 다시 빌드·Run한다. 사용법은 [여행 도우미](travel-guide.md)를 따른다.
+- 로컬 증거: `C:/my-car-buddy/.gradle/car-escape-maps-20261114/validation-summary.json`, `device-result.json`, `map-final-loaded.png`, `map-final-route.png`, `map-final-selected.png`, `map-final-resumed.png`. 원시 앱 저장 백업은 로컬에만 보관한다.
+
+
+## 2026-11-14 · NAVER API HUB 검색 설정 지원
+
+- 구현 완료: 사용자가 발급받은 새 지역 검색 인증을 `nearby.properies.env`의 `naver.search.clientId`, `naver.search.clientSecret`에서 읽는다. 기존 Maps ID는 별도로 유지한다. API HUB 요청 URL과 X-NCP 인증 헤더를 적용하고 기존 장소 카드·지도 핀 파싱을 재사용한다. HUB 값이 하나라도 있으면 HUB를 선택하며 한 항목이 비어 있으면 네트워크를 호출하지 않고 누락 항목을 안내한다. HUB 설정이 없을 때 기존 Developers 인증은 유지한다. 예시 파일과 화면/사용법의 항목 이름을 맞췄다.
+- 빌드 확인: 관리형 gradle-run의 질문 “API HUB 연결 코드의 Debug 빌드·여행 테스트·Lint가 통과하는가?”에 `:app:assembleDebug :app:testDebugUnitTest --tests com.team.carescape.travel.* :app:lintDebug :app:generateReleaseBuildConfig` exit 0. 여행 테스트 18개(신규 4개 포함) 통과, Lint 오류 0개. 신규 테스트는 HUB 우선 URL·헤더/검색어, Developers 호환, 불완전한 HUB 인증의 양쪽 API 호출 차단, 실제 카드 형태로의 예시 응답 파싱을 검증한다.
+- 배포 경계: 이번 신규 HUB 필드는 로컬 Debug 시연에서만 사용한다. 생성된 Release BuildConfig의 신규 두 필드가 빈 값임을 확인했다. 기존 Developers/TourAPI 키 처리 전체를 변경한 것은 아니다. 배포용 중계 서버 연결은 후속 작업이며 현재 직접 호출은 `nearby.proxy.url`을 사용하지 않는다. 인증 값은 소스·문서·검증 요약에 기록하지 않았다.
+- 확인 불가: 실제 API HUB 응답 성공은 미검증이다. 테스트 응답은 fixture이며 네이버 실시간 검색 성공으로 설명하지 않는다. 이 변경의 APK는 빌드만 했으며 에뮬레이터에 재설치하지 않았다. 실제 인증 저장 후 Android Studio에서 app의 debug 빌드로 Run하고 여행 도우미의 주차/맛집을 확인한다. 기존 지도 표시와 안전 제한의 기기 시연은 위 Maps 연결 기록을 따르며 이번 검색 변경의 기기 검증으로 대체하지 않는다.
+- 사용법: [여행 도우미](travel-guide.md). 로컬 증거: `C:/my-car-buddy/.gradle/car-escape-hub-20261114/validation-summary.json`.
+
+
+## 2026-11-14 · 실제 NAVER API HUB 검색 에뮬레이터 테스트
+
+- 설정·빌드 확인: 사용자가 `nearby.properies.env`에 검색 인증 두 항목을 저장한 것을 값 출력 없이 확인했다. 관리형 gradle-run의 질문 “저장한 API HUB 인증으로 테스트용 Debug APK를 빌드할 수 있는가?”에 `:app:assembleDebug` exit 0(13.288초). 생성된 Debug 인증 항목이 채워졌음을 확인하고 APK를 업데이트 설치했다. 소스가 이전 성공 결과와 같아 여행 단위 테스트 18개·Lint 오류 0개 결과는 재사용했으며 이번에 다시 실행했다고 표시하지 않는다.
+- 에뮬레이터 시연 확인: Windows / Pleos Connect v2.1.0(API 34), emulator-5554 / Android 사용자 10. 차량 입력은 MOCK의 명시적 P 정차, 검색은 실제 NAVER API HUB 응답을 사용했다. 예시 데이터 버튼은 누르지 않았다. 화성행궁에서 둘러보기 → 주차·맛집 각각 결과 5건, 첫 카드의 주소·출처·좌표/길 안내 버튼과 네이버 지도 핀을 확인했다. 길 안내 버튼은 실행하지 않았다.
+- 검색 결과 예: 주차 탭의 화성행궁노상공영주차장·화성행궁 주차장·행리단주차장, 맛집 탭의 행궁동 블레스브런치바·계미굴 행궁점·얌얌차. 이 이름은 당시 API 검색 결과이며 영업 여부나 주차 가능 대수를 확인한 것은 아니다. 주차 탭에는 전기차 충전소와 주차장 입구도 포함돼 실제 주차장 시설만 남기는 분류 필터가 후속 개선 사항이다.
+- 안전·데이터 확인: 시연 D 주행 전환 시 지도/검색을 안전 화면으로 가리고 P로 돌아오면 다시 표시한다. 테스트 전후 방탈출 저장 JSON이 같았다. 앱 프로세스의 FATAL EXCEPTION과 SDK 위젯 테마 오류는 0건이었다. 인증 파일은 Git 제외 상태를 유지한다.
+- 로컬 증거: `C:/my-car-buddy/.gradle/car-escape-hub-test-20261114/search-result.json`, `parking-selected.png`, `food-selected.png`, `search-final.png`, `managed-result.json`. 실제 인증 값과 원시 여행 저장 백업은 저장소에 올리지 않는다.
+
+
+## 2026-11-14 · 여행 도우미 함께 보기 삭제
+
+- 구현 완료: 일정·둘러보기 공통 카테고리 목록에서 함께 보기를 제거하고 역사 관심사의 해당 탭 우선 배치도 제거했다. 해당 분류의 신규 추천 요청은 빈 계획으로 중단했다. 기존 저장 장소의 아이콘/분류를 복원하는 SIGHT enum과 저장된 프로필의 HISTORY 관심사 값은 보존했다. 체험·숙소의 기존 TourAPI 연결은 이번 삭제 범위에 포함하지 않았다.
+- 빌드 확인: 관리형 gradle-run의 질문 “함께 보기 삭제 후 Debug 빌드와 여행 테스트가 통과하는가?”에 `:app:assembleDebug :app:testDebugUnitTest --tests com.team.carescape.travel.*` exit 0, 여행 테스트 18개 통과. 새 단위 테스트는 추가하지 않았다.
+- 에뮬레이터 시연 확인: Pleos Connect v2.1.0(API 34), emulator-5554 / 사용자 10. 업데이트 APK를 설치하고 MOCK/P 정차 상태에서 일정·둘러보기 양쪽의 함께 보기 탭 제거 및 나머지 주차·맛집·체험 탭 표시를 확인했다. 테스트 전후 방탈출 저장 JSON과 여행 프로필/저장 장소 SharedPreferences 원문이 같았다. 인증 값은 출력하거나 커밋하지 않았다.
+- 로컬 증거: `C:/my-car-buddy/.gradle/car-escape-remove-sight-20261114/device-result.json`, `without-sight-schedule.png`, `without-sight-explore.png`, `managed-result.json`.

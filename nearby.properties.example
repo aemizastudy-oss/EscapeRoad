@@ -1,0 +1,8 @@
+# Copy this file to nearby.properties, enter your Maps key ID, then rebuild.
+# Maps Console: Dynamic Map + Android package com.team.carescape
+naver.map.keyId=
+# Maps does not use NAVER_CLIENT_ID / NAVER_CLIENT_SECRET (local search keys).
+
+# NAVER API HUB > regional search (only loaded in local Debug builds).
+naver.search.clientId=
+naver.search.clientSecret=

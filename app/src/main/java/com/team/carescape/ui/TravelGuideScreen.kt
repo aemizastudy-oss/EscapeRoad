@@ -8,17 +8,11 @@ import com.team.carescape.travel.Timeline
 import com.team.carescape.travel.TimedItem
 import com.team.carescape.travel.GuideMode
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -198,25 +193,16 @@ private fun GuideBody(vm: TravelViewModel, game: GameViewModel, profile: TripPro
     }
 }
 
-// ───────── 코스 지도(그림 지도. 실제 지도 아님) ─────────
+// ───────── 실제 네이버 지도 ─────────
 
 @Composable
 private fun RouteMap(vm: TravelViewModel, days: List<DayPlan>, modifier: Modifier) {
     val stops = GuideStops.all.filterNot { vm.isLocked(it.index) }
     val dayStops = days.getOrNull(vm.day - 1)?.items?.filterIsInstance<PlanItem.Stop>()?.map { it.stop.index }.orEmpty()
-    val pins = (vm.result as? TravelResult.Ok)?.places.orEmpty().filter { it.lat != null && it.lng != null }
-        .filter { (it.distanceM ?: 0) < 4_000 }
-    // 「주변 확대」면 고른 경유지와 핀만, 아니면 경로 전체가 들어오게 범위를 잡는다.
-    // 마지막 장소는 공개 전에는 빼서 위치를 드러내지 않는다.
+    val pins = if (vm.loading || vm.isLocked(vm.selectedStop)) emptyList() else
+        (vm.result as? TravelResult.Ok)?.places.orEmpty().filter { it.lat != null && it.lng != null }
+            .filter { (it.distanceM ?: 0) < 4_000 }
     var zoom by remember { mutableStateOf(true) }
-    val focus = stops.firstOrNull { it.index == vm.selectedStop }
-    val area = if (zoom && pins.isNotEmpty() && focus != null) listOf(focus.lat to focus.lng) + pins.map { it.lat!! to it.lng!! }
-        else stops.map { it.lat to it.lng } + pins.map { it.lat!! to it.lng!! }
-    val lats = area.map { it.first }
-    val lngs = area.map { it.second }
-    val minLat = lats.min(); val maxLat = lats.max(); val minLng = lngs.min(); val maxLng = lngs.max()
-    val spanLat = (maxLat - minLat).coerceAtLeast(0.004) * 1.25; val spanLng = (maxLng - minLng).coerceAtLeast(0.004) * 1.25
-    val cLat = (minLat + maxLat) / 2; val cLng = (minLng + maxLng) / 2
     Column(modifier.parchment().border(1.dp, Esc.goldDim).padding(14.dp).testTag("travel-map"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Route Map", style = Esc.pinyon(24, Esc.wine))
@@ -225,54 +211,14 @@ private fun RouteMap(vm: TravelViewModel, days: List<DayPlan>, modifier: Modifie
             Text(if (zoom) "경로 전체 보기" else "주변 확대", Modifier.border(1.dp, Esc.parchEdge).clickable(role = Role.Button) { zoom = !zoom }
                 .testTag("travel-map-zoom").padding(horizontal = 10.dp, vertical = 6.dp), style = Esc.noto(13, Esc.wine))
         }
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
-            val w = maxWidth; val h = maxHeight
-            fun pos(lat: Double, lng: Double): Pair<androidx.compose.ui.unit.Dp, androidx.compose.ui.unit.Dp> {
-                // 위도 1도와 경도 1도의 길이 차이를 맞춰 화면 비율을 지킨다.
-                val sx = w.value / (spanLng * Math.cos(Math.toRadians(cLat))); val sy = h.value / spanLat
-                val s = minOf(sx, sy)
-                val x = w.value / 2 + ((lng - cLng) * Math.cos(Math.toRadians(cLat)) * s).toFloat()
-                val y = h.value / 2 - ((lat - cLat) * s).toFloat()
-                return x.dp to y.dp
-            }
-            Canvas(Modifier.fillMaxSize()) {
-                val pts = stops.map { pos(it.lat, it.lng).let { (x, y) -> Offset(x.toPx(), y.toPx()) } }
-                for (i in 1 until pts.size) drawLine(Color(0xFFB9A882), pts[i - 1], pts[i], 6.dp.toPx(), StrokeCap.Round)
-                if (vm.mode == GuideMode.SCHEDULE) {
-                    val idx = stops.mapIndexedNotNull { i, s -> if (s.index in dayStops) i else null }
-                    for (k in 1 until idx.size) drawLine(Esc.seal, pts[idx[k - 1]], pts[idx[k]], 4.dp.toPx(), StrokeCap.Round,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
-                }
-            }
-            pins.forEach { p ->
-                val (x, y) = pos(p.lat!!, p.lng!!)
-                val on = p == vm.selectedPlace
-                Box(
-                    Modifier.offset(x - 11.dp, y - 11.dp).size(22.dp).background(tabColor(vm.tab), CircleShape)
-                        .border(if (on) 3.dp else 1.dp, if (on) Esc.ink else Color.White, CircleShape)
-                        .clickable(role = Role.Button) { vm.selectedPlace = p }.testTag("travel-pin"),
-                    contentAlignment = Alignment.Center,
-                ) { Text(tabMark(vm.tab), style = Esc.noto(11, Color.White, FontWeight.Bold)) }
-            }
-            stops.forEach { s ->
-                val (x, y) = pos(s.lat, s.lng)
-                if (x.value < -10 || y.value < -10 || x.value > w.value + 10 || y.value > h.value + 10) return@forEach
-                val on = s.index == vm.selectedStop
-                val today = vm.mode != GuideMode.SCHEDULE || s.index in dayStops
-                Box(
-                    Modifier.offset(x - 17.dp, y - 17.dp).size(34.dp)
-                        .background(if (today) Esc.seal else Esc.locked, CircleShape)
-                        .border(if (on) 3.dp else 1.dp, if (on) Esc.gold else Esc.parchment, CircleShape)
-                        .clickable(role = Role.Button) { vm.select(s.index) }.testTag("travel-map-stop-${s.index}"),
-                    contentAlignment = Alignment.Center,
-                ) { Text("${s.index + 1}", style = Esc.cormorant(18, Esc.parchment, 0f, FontWeight.Bold)) }
-                // 오른쪽 끝에 가까우면 이름을 원 왼쪽에 둔다.
-                val right = x.value < w.value * 0.68f
-                Text(s.name, Modifier.offset(if (right) x + 20.dp else x - 20.dp - (s.name.length * 14).dp, y - 10.dp)
-                    .background(Esc.parchment.copy(alpha = 0.75f)).padding(horizontal = 3.dp), style = Esc.nanum(14, if (today) Esc.ink else Esc.inkSoft))
-            }
-        }
-        Text(if (vm.isLocked(GuideStops.all.lastIndex)) "그림 지도 · 실제 축척과 다를 수 있어요 · 마지막 장소는 공개 전이라 표시하지 않아요" else "그림 지도 · 실제 축척과 다를 수 있어요",
+        TravelNaverMap(
+            state = TravelMapState(stops, dayStops, pins, vm.selectedStop, vm.selectedPlace, zoom,
+                vm.mode == GuideMode.SCHEDULE, tabColor(vm.tab).toArgb()),
+            onSelectStop = vm::select,
+            onSelectPlace = { vm.selectedPlace = it },
+            modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds(),
+        )
+        Text("경유지 연결선 · 실제 도로 경로 아님" + if (vm.isLocked(GuideStops.all.lastIndex)) " · 마지막 장소는 공개 후 표시" else "",
             style = Esc.noto(12, Esc.inkSoft))
     }
 }
@@ -375,7 +321,7 @@ private fun ResultCards(vm: TravelViewModel, game: GameViewModel, modifier: Modi
             when (val r = vm.result) {
                 null -> Center(if (vm.loading) "불러오는 중…" else "카테고리를 고르세요.")
                 is TravelResult.NotConfigured -> Column(Modifier.fillMaxSize().background(Esc.panel).border(1.dp, Esc.goldDim).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)) {
-                    Text("아직 API 키가 연결되지 않았어요.\nlocal.properties에 ${r.missing.joinToString(", ")}을(를) 넣고 다시 빌드하면 채워져요.",
+                    Text("아직 API 키가 연결되지 않았어요.\nnearby.properies.env에 ${r.missing.joinToString(", ")}을(를) 저장하고 Debug로 다시 실행하면 채워져요.",
                         Modifier.testTag("travel-not-configured"), style = Esc.noto(14, Esc.creamMuted, lineHeight = 1.6f), textAlign = TextAlign.Center)
                     if (vm.sampleAvailable) OutlineButton("예시 데이터로 보기 (개발용)", vm::showSample, Modifier.testTag("travel-sample"), minHeight = 40.dp, fontSize = 14)
                 }

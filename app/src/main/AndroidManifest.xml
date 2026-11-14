@@ -29,6 +29,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.CarEscape">
         <uses-library android:name="android.car" android:required="false" />
+        <meta-data
+            android:name="com.naver.maps.map.NCP_KEY_ID"
+            android:value="${naverMapsKeyId}" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
