@@ -35,7 +35,15 @@ private val sealRed = Color(0xFF9A2A26)
 private val shadow = Color(0x55000000)
 
 @Composable
-fun ItemArt(id: String, modifier: Modifier = Modifier, used: Boolean = false) {
+fun ItemArt(
+    id: String,
+    modifier: Modifier = Modifier,
+    used: Boolean = false,
+    /** 장면 조명에 맞춘 색 보정(장면 소품용). */
+    tint: androidx.compose.ui.graphics.ColorFilter? = null,
+    /** 상자 바닥에 붙여 그린다(바닥에 놓인 물건). */
+    grounded: Boolean = false,
+) {
     // res/drawable-nodpi/item_<id>.png(배경 투명)가 있으면 그 일러스트를 쓴다. 사양은 docs/art/props.md.
     val res = artResource("item_" + id)
     if (res != 0) {
@@ -43,8 +51,10 @@ fun ItemArt(id: String, modifier: Modifier = Modifier, used: Boolean = false) {
             androidx.compose.foundation.Image(
                 androidx.compose.ui.res.painterResource(res), null,
                 androidx.compose.ui.Modifier.matchParentSize(),
+                alignment = if (grounded) androidx.compose.ui.Alignment.BottomCenter else androidx.compose.ui.Alignment.Center,
                 contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 alpha = if (used) 0.4f else 1f,
+                colorFilter = tint,
             )
         }
         return

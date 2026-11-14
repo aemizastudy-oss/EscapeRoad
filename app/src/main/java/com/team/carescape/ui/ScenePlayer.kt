@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -67,6 +68,21 @@ fun ScenePlayer(
                 Text("${i + 1} / ${lines.size}", Modifier.testTag("scene-progress"), style = Esc.noto(13, Esc.creamSoft))
             }
             OutlineButton("건너뛰기", onSkip, Modifier.testTag("scene-skip"), minHeight = 44.dp, fontSize = 15)
+        }
+
+        // "— … —" 줄은 화면 가운데 큰 제목 카드로 보여 준다(엔딩 제목).
+        if (who == null && line.text.startsWith("— ") && line.text.endsWith(" —")) {
+            Column(
+                Modifier.fillMaxSize().background(Color(0xB3100205)).padding(bottom = 140.dp).testTag("scene-title-card"),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically),
+            ) {
+                val parts = line.text.removePrefix("— ").removeSuffix(" —").split(" · ")
+                Text("The End", style = Esc.pinyon(46))
+                Box(Modifier.width(260.dp).height(1.dp).background(Esc.gold))
+                Text(parts.first(), style = Esc.noto(22, Esc.gold), textAlign = TextAlign.Center)
+                if (parts.size > 1) Text(parts.drop(1).joinToString(" · "), style = Esc.nanum(52), textAlign = TextAlign.Center)
+            }
         }
 
         Crossfade(who?.id, label = "scene-portrait", modifier = Modifier.align(Alignment.BottomStart).padding(start = 70.dp, bottom = 150.dp)) { id ->

@@ -37,6 +37,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.team.carescape.game.Hotspot
+import com.team.carescape.game.SceneBg
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import com.team.carescape.game.StoryState
 import com.team.carescape.game.TourGate
 
@@ -74,9 +81,47 @@ fun ExploreSceneLayer(
                     .testTag("hotspot-${spot.id}"),
                 contentAlignment = Alignment.Center,
             ) {
-                if (spot.prop != null && (!done || spot.keepProp)) ItemArt(spot.prop, Modifier.fillMaxSize())
+                if (spot.prop != null && (!done || spot.keepProp)) SceneProp(spot.prop, scene.bg)
             }
         }
+    }
+}
+
+/** 장면마다 빛의 색(곱하기)과 채도. 일러스트 소품이 배경 조명에 묻히게 한다. */
+private fun sceneLight(bg: SceneBg): FloatArray = when (bg) {
+    SceneBg.PALACE_DUSK -> floatArrayOf(0.95f, 0.74f, 0.64f, 0.80f)
+    SceneBg.PALACE_NIGHT -> floatArrayOf(0.70f, 0.60f, 0.70f, 0.70f)
+    SceneBg.SLUICE_NIGHT -> floatArrayOf(0.80f, 0.64f, 0.70f, 0.75f)
+    SceneBg.RESERVOIR_DAWN -> floatArrayOf(0.90f, 0.70f, 0.68f, 0.75f)
+    SceneBg.MUSEUM -> floatArrayOf(0.88f, 0.68f, 0.64f, 0.80f)
+    SceneBg.LAKE_NIGHT -> floatArrayOf(0.66f, 0.58f, 0.74f, 0.70f)
+    else -> floatArrayOf(1f, 1f, 1f, 1f)
+}
+
+private fun lightFilter(bg: SceneBg): ColorFilter {
+    val (r, g, b, sat) = sceneLight(bg).let { listOf(it[0], it[1], it[2], it[3]) }
+    // 채도를 줄인 뒤(sat) 빛의 색을 곱한다.
+    val lr = 0.299f * (1 - sat); val lg = 0.587f * (1 - sat); val lb = 0.114f * (1 - sat)
+    return ColorFilter.colorMatrix(ColorMatrix(floatArrayOf(
+        (lr + sat) * r, lg * r, lb * r, 0f, 0f,
+        lr * g, (lg + sat) * g, lb * g, 0f, 0f,
+        lr * b, lg * b, (lb + sat) * b, 0f, 0f,
+        0f, 0f, 0f, 1f, 0f,
+    )))
+}
+
+/** 장면 소품: 바닥 그림자 위에 장면 조명으로 색을 맞춘 그림을 상자 바닥에 붙여 그린다. */
+@Composable
+private fun SceneProp(prop: String, bg: SceneBg) {
+    val filter = remember(bg) { lightFilter(bg) }
+    Box(Modifier.fillMaxSize().drawBehind {
+        val w = size.width * 0.86f; val h = size.height * 0.16f
+        drawOval(
+            Brush.radialGradient(listOf(Color(0x99000000), Color.Transparent), center = Offset(size.width / 2, size.height - h / 2), radius = w / 2),
+            topLeft = Offset((size.width - w) / 2, size.height - h), size = Size(w, h),
+        )
+    }) {
+        ItemArt(prop, Modifier.fillMaxSize().padding(bottom = 2.dp), tint = filter, grounded = true)
     }
 }
 

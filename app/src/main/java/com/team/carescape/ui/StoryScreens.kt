@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.team.carescape.game.EndingKind
 import com.team.carescape.game.StoryCatalog
+import com.team.carescape.game.SiyeokScenes
 import com.team.carescape.game.StoryState
 import com.team.carescape.game.TourGate
 import kotlinx.coroutines.delay
@@ -341,6 +342,8 @@ private fun SceneGate(
 /** 엔딩을 장면으로: 도입 → 1795년 본문 → 2026년 마무리. */
 private fun endingScene(s: StoryState): List<Line> {
     val kind = s.endingKind ?: return emptyList()
+    // flow4부터는 인물·장소가 바뀌는 엔딩 드라마를 쓴다.
+    if (s.flowVersion >= StoryCatalog.ITEM_FLOW_VERSION) SiyeokScenes.endingDrama[kind]?.let { return it }
     val ending = s.episode.endings[kind] ?: return emptyList()
     val intro = listOfNotNull(s.episode.endingIntro?.let { Line(null, it, SceneBg.LAKE_NIGHT) })
     val body = ending.body.split("\n\n").map { Line(null, it.trim()) }
