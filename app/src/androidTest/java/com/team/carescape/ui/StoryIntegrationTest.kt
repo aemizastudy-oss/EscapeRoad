@@ -406,6 +406,11 @@ class StoryIntegrationTest {
             rule.onNodeWithTag("item-acquired-ok").performClick()
             rule.waitForIdle()
         }
+        // 첫 장면 도움말도 아래 화면을 가리므로 먼저 닫는다.
+        if (tag != "explore-guide-close" && exists("explore-guide-close")) {
+            rule.onNodeWithTag("explore-guide-close").performClick()
+            rule.waitForIdle()
+        }
         rule.waitUntil(30_000) { runCatching { rule.onNodeWithTag(tag).assertIsEnabled(); true }.getOrDefault(false) }
         val node = rule.onNodeWithTag(tag)
         runCatching { node.performScrollTo() }

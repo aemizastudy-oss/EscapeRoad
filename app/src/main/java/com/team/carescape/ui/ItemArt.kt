@@ -36,6 +36,19 @@ private val shadow = Color(0x55000000)
 
 @Composable
 fun ItemArt(id: String, modifier: Modifier = Modifier, used: Boolean = false) {
+    // res/drawable-nodpi/item_<id>.png(배경 투명)가 있으면 그 일러스트를 쓴다. 사양은 docs/art/props.md.
+    val res = artResource("item_" + id)
+    if (res != 0) {
+        androidx.compose.foundation.layout.Box(modifier) {
+            androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(res), null,
+                androidx.compose.ui.Modifier.matchParentSize(),
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                alpha = if (used) 0.4f else 1f,
+            )
+        }
+        return
+    }
     val tm = rememberTextMeasurer()
     Canvas(modifier) {
         val s = minOf(size.width, size.height) / U

@@ -60,7 +60,7 @@ fun SceneBackdrop(bg: SceneBg, modifier: Modifier = Modifier) {
 /** 일러스트 파일 이름으로 drawable id를 찾는다. 없으면 0. */
 @SuppressLint("DiscouragedApi")
 @Composable
-private fun artResource(name: String): Int {
+internal fun artResource(name: String): Int {
     val context = LocalContext.current
     return remember(name) { context.resources.getIdentifier(name, "drawable", context.packageName) }
 }

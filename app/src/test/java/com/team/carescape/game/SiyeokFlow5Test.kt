@@ -198,4 +198,22 @@ class SiyeokFlow5Test {
         val fake = mid.copy(puzzleProgress = mid.puzzleProgress.map { it.copy(found = it.found + "x_door") })
         assertTrue(runCatching { validateStoredTrip(fake) }.isFailure)
     }
+
+    @Test fun locksCannotBeGuessedCheaply() {
+        val steps = episode.chapters.flatMap { it.puzzleSteps }
+        steps.forEach { step ->
+            when (val lock = step.lock) {
+                is StoryLockDefinition.Choice -> assertTrue("${step.id}: 보기 4개 이상", lock.options.size >= 4)
+                is StoryLockDefinition.SymbolDial -> assertTrue("${step.id}: 처음 위치가 정답이면 안 됨", lock.answer.any { it != 0 })
+                else -> Unit
+            }
+        }
+        // 장소마다 첫 오답은 무료, 그다음부터 오답마다 각성도 +1.
+        val start = start().copy(exploreFocus = "c1_plaque")
+        val first = StoryEngine.submitPuzzle(start, StoryPuzzleInput.Choice("feng"))
+        assertEquals(0, first.state.awakening)
+        val second = StoryEngine.submitPuzzle(first.state, StoryPuzzleInput.Choice("tang"))
+        assertEquals(1, second.state.awakening)
+        assertTrue(second.note!!.contains("각성도 +1"))
+    }
 }

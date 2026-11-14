@@ -258,10 +258,14 @@ object StoryEngine {
             result == StoryPuzzleResult.WRONG -> {
                 val note = if (StoryCatalog.usesAwakening(state.flowVersion))
                     puzzle.feedback(StoryPuzzles.answerKey(input)) ?: puzzle.wrongDefault?.let { WrongNote(it) } else null
+                // flow5부터: 장소마다 첫 오답은 무료, 그다음 오답마다 각성도 +1(찍어서 푸는 것을 막는다).
+                val guessCost = if (state.flowVersion >= StoryCatalog.EXPLORE_FLOW_VERSION && progress.wrongAttempts >= 1) 1 else 0
+                val message = if (guessCost == 0) note?.message
+                    else "${note?.message ?: "아직 열리지 않았습니다."} (오답 · 시귀 각성도 +$guessCost)"
                 StorySubmission(state.withPuzzleProgress(progress.copy(
                     wrongAttempts = if (progress.wrongAttempts < Int.MAX_VALUE) progress.wrongAttempts + 1 else Int.MAX_VALUE,
-                    awakening = progress.awakening + (note?.penalty ?: 0),
-                )), StoryPuzzleResult.WRONG, note?.message)
+                    awakening = progress.awakening + (note?.penalty ?: 0) + guessCost,
+                )), StoryPuzzleResult.WRONG, message)
             }
             else -> StorySubmission(state, result)
         }

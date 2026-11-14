@@ -52,18 +52,20 @@ fun SymbolDialLock(
     feedback: @Composable () -> Unit,
 ) {
     Panel("Turn the Dials", "바퀴를 돌려 글자를 맞춘 뒤 제출하세요.") {
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        // 바퀴가 셋이면 칸을 좁혀 오른쪽 입력 칸 안에 들어가게 한다.
+        val wheelW = if (lock.wheels.size > 2) 88.dp else 110.dp
+        Row(horizontalArrangement = Arrangement.spacedBy(if (lock.wheels.size > 2) 8.dp else 16.dp)) {
             lock.wheels.forEachIndexed { w, wheel ->
                 val i = value.getOrElse(w) { 0 }
                 fun turn(d: Int) = onChange(lock.wheels.indices.map { j -> if (j == w) (i + d + wheel.size) % wheel.size else value.getOrElse(j) { 0 } })
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlineButton("▲", { turn(-1) }, Modifier.testTag("dial-$w-up"), enabled = enabled, minWidth = 110.dp, minHeight = 44.dp)
+                    OutlineButton("▲", { turn(-1) }, Modifier.testTag("dial-$w-up"), enabled = enabled, minWidth = wheelW, minHeight = 44.dp)
                     Text(wheel[(i - 1 + wheel.size) % wheel.size], style = Esc.noto(13, Esc.creamSoft.copy(alpha = 0.5f)))
-                    Box(Modifier.width(110.dp).border(2.dp, Esc.gold).background(Esc.gold.copy(alpha = 0.14f)).padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.width(wheelW).border(2.dp, Esc.gold).background(Esc.gold.copy(alpha = 0.14f)).padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
                         Text(wheel[i], Modifier.testTag("dial-$w"), style = Esc.nanum(22))
                     }
                     Text(wheel[(i + 1) % wheel.size], style = Esc.noto(13, Esc.creamSoft.copy(alpha = 0.5f)))
-                    OutlineButton("▼", { turn(1) }, Modifier.testTag("dial-$w-down"), enabled = enabled, minWidth = 110.dp, minHeight = 44.dp)
+                    OutlineButton("▼", { turn(1) }, Modifier.testTag("dial-$w-down"), enabled = enabled, minWidth = wheelW, minHeight = 44.dp)
                 }
             }
         }

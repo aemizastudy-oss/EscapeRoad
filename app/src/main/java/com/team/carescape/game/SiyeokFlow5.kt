@@ -107,7 +107,20 @@ object SiyeokFlow5 {
     // ───────── 3. 만석거 ─────────
     private val ch3Steps = listOf(
         step(2, "c3_pavilion").copy(
-            prompt = "둑 위 정자의 현판이 이끼에 덮여 있습니다. 둘러보며 직접 본 정자 이름은?",
+            title = "이끼 낀 현판",
+            prompt = "둑 위 정자의 현판이 이끼에 덮여 있습니다. 둘러보며 직접 본 현판의 한자 세 글자를 바퀴로 맞추세요.\n소리가 같은 글자가 섞여 있으니 모양을 보고 고르세요.",
+            hints = listOf("둑 위 정자 앞 현판이나 안내판의 한자를 그대로 맞춰요.", "정자 이름은 영화정이에요. 첫 글자는 ‘맞을 영(迎)’.", "迎 · 華 · 亭"),
+            solution = "만석거 둑 위의 정자는 영화정(迎華亭)입니다. (현장 현판 표기 확인 필요)",
+            lock = StoryLockDefinition.SymbolDial(
+                listOf(
+                    listOf("映 영", "永 영", "迎 영", "英 영"),
+                    listOf("和 화", "華 화", "花 화", "火 화"),
+                    listOf("井 정", "庭 정", "停 정", "亭 정"),
+                ),
+                listOf(2, 1, 3),
+            ),
+            feedback = { null },
+            wrongDefault = "현판의 글자와 모양이 다르다. 소리만 같은 글자가 섞여 있다.",
         ),
         step(2, "c3_channel").copy(
             title = "둑 끝 수문",
@@ -156,7 +169,18 @@ object SiyeokFlow5 {
         step(3, "c4_index").copy(
             title = "수장고 서랍장",
             prompt = "의원 일지 4장에 비방 마지막 장을 넣어 둔 상자가 나옵니다. 수장고 서랍장의 색인표에서 고르세요.",
-            hints = listOf("진열장 속 의원 일지 4장을 먼저 읽어 보세요.", "약재 이름과 그릇 이름이 둘 다 같아야 해요.", "감초 상자 → 丙-17"),
+            hints = listOf("선반 위 상자에서 찾은 의원 일지 4장을 먼저 읽어 보세요.", "약재 이름, 그릇 이름, 칸 번호가 모두 같아야 해요.", "감초 상자 → 丙-17"),
+            lock = StoryLockDefinition.Choice(
+                SiyeokCase.opts(
+                    "e17" to "감초 상자 · 乙-17", "p71" to "감찰 상자 · 丙-71", "p17" to "감초 상자 · 丙-17",
+                    "g17" to "갈초 상자 · 丙-17", "p07" to "감초 주머니 · 丙-07",
+                ),
+                "p17",
+            ),
+            feedback = SiyeokCase.notes(
+                "e17" to "乙 칸은 화홍문 창고였다. 이곳은 丙 칸이다.", "p71" to "관리를 감찰한 문서다. 이름이 비슷할 뿐이다.",
+                "g17" to "갈초가 아니라 감초다.", "p07" to "약재 한 줌뿐이다. 상자가 아니다.",
+            ),
         ),
         step(3, "c4_flint"),
         step(3, "c4_beacon"),
@@ -202,8 +226,27 @@ object SiyeokFlow5 {
     // ───────── 5. 광교호수공원 ─────────
     private val ch5Steps = listOf(
         step(4, "c5_window"),
-        step(4, "c5_lake").copy(prompt = "호숫가 안내판에 호수가 두 개 그려져 있습니다. 약을 풀 곳은?"),
-        step(4, "c5_bottle"),
+        step(4, "c5_lake").copy(
+            prompt = "호숫가 안내판에 호수 이름 자리가 지워져 있습니다. 소식지와 노인의 말을 떠올려, 약을 풀 물을 고르세요.",
+            lock = StoryLockDefinition.Choice(
+                SiyeokCase.opts(
+                    "sindae" to "신대호수", "gwanggyo" to "광교저수지", "wonchon" to "원천호수",
+                    "manseok" to "만석거", "seoho" to "서호(축만제)",
+                ),
+                "wonchon",
+            ),
+            feedback = SiyeokCase.notes(
+                "sindae" to "여긴 웃방죽이다. 물은 아래로 흐른다.", "gwanggyo" to "방죽이 하나뿐인 산 위의 물이다.",
+                "manseok" to "그 물은 이미 지나왔다.", "seoho" to "고을 서쪽의 다른 물이다. 두 방죽이 아니다.",
+            ),
+        ),
+        step(4, "c5_bottle").copy(
+            prompt = "약병 선반의 병마다 네 자리 번호 자물쇠가 달려 있습니다. 박물관에서 맞춘 소식지 뒷면의 번호로 여세요.",
+            hints = listOf("소지품의 「고을 소식」을 펼쳐 보세요.", "조각을 바른 순서로 맞췄을 때 뒷면에 이어진 숫자예요.", "4172"),
+            lock = StoryLockDefinition.Numeric("4172"),
+            feedback = SiyeokCase.notes("2714" to "숫자가 뒤집혔다. 조각의 순서대로 다시 읽어라.", "1724" to "숫자가 뒤집혔다. 조각의 순서대로 다시 읽어라.", "4127" to "끝 두 자리가 바뀌었다."),
+            wrongDefault = "자물쇠가 꿈쩍도 하지 않는다.",
+        ),
         step(4, "c5_release"),
         step(4, "c5_truth_who"),
         step(4, "c5_truth_why"),
