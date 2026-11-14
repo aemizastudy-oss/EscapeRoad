@@ -2,7 +2,7 @@ package com.team.carescape.game
 
 /**
  * flow5 「시역」: 다섯 장소를 모두 퀴즈 목록 대신 직접 뒤지는 탐색 장면으로 푸는 판.
- * 자물쇠 정답은 flow4와 같고, 확인용 퀴즈(오디오 증언·두 기록 대조·붉은 먹점·물길 그림)는 장면과 문서로 옮겼다.
+ * 확인용 퀴즈는 장면과 문서로 옮겼다. 판문은 실제 SDK의 오른쪽(닫기)·왼쪽(열기) 깜빡이로 입력한다.
  * 좌표는 각 장면 배경(1280×720)에 맞췄다. 아래 약 150px는 살펴보기 상자가 덮으므로 비워 둔다.
  */
 object SiyeokFlow5 {
@@ -71,7 +71,22 @@ object SiyeokFlow5 {
             success = "딸깍 — 궤짝이 열립니다. 청포 보자기 안에 연이의 진료 기록과 빈 약첩이 있습니다. 소지품에 ‘청포 보자기’가 들어왔습니다.",
         ),
         step(1, "c2_gates").copy(
-            prompt = "병사: “판문을 내려 물을 한 칸으로 모아야 약에 쓸 센 물을 뜰 수 있소. 하지만 일곱을 다 막으면 물이 멎고, 놈들이 건너오오.”\n수문 일지를 참고해 1번 칸부터 차례로 정하세요. 와이퍼 = 판문 내리기, 비상등 = 열어 두기.",
+            prompt = "병사: “판문을 내려 물을 한 칸으로 모아야 약에 쓸 센 물을 뜰 수 있소. 하지만 일곱을 다 막으면 물이 멎고, 놈들이 건너오오.”\n수문 일지를 참고해 1번 칸부터 차례로 정하세요. 오른쪽 깜빡이 = 수문 닫기, 왼쪽 깜빡이 = 수문 열기. 같은 방향을 다시 입력하려면 껐다 켜세요. 켜 둔 동안의 점멸은 추가 입력이 아닙니다.",
+            hints = listOf("열어 둘 칸은 딱 하나예요.", "수문 일지: 가장 깊은 곳은 일곱 칸의 한가운데예요.", "오른쪽 깜빡이 3번 → 왼쪽 깜빡이 1번 → 오른쪽 깜빡이 3번"),
+            solution = "가운데 4번 칸만 열어 둡니다. 오른쪽 깜빡이 3번, 왼쪽 깜빡이 1번, 오른쪽 깜빡이 3번 후 제출하세요. 각 입력 사이에는 깜빡이를 꺼 주세요.",
+            lock = StoryLockDefinition.CarSequence(
+                listOf(CarControl.TURN_RIGHT, CarControl.TURN_RIGHT, CarControl.TURN_RIGHT, CarControl.TURN_LEFT, CarControl.TURN_RIGHT, CarControl.TURN_RIGHT, CarControl.TURN_RIGHT),
+                listOf(CarControl.TURN_RIGHT, CarControl.TURN_LEFT), CarVisual.Sluice(7), maxLength = 7,
+            ),
+            feedback = { key ->
+                val parts = key.split(",")
+                when {
+                    parts.size == 7 && parts.all { it == "TURN_RIGHT" } -> WrongNote("물이 멎었다… 판문 너머로 그림자가 넘어온다. (시귀 각성도 +2)", 2)
+                    parts.size < 7 -> WrongNote("일곱 칸을 모두 정해야 합니다.")
+                    parts.count { it == "TURN_LEFT" } > 1 -> WrongNote("물이 흩어진다. 한 칸으로 모아라.")
+                    else -> WrongNote("물이 얕아 길어 올릴 수 없다. 가장 깊은 곳은 어디였나?")
+                }
+            },
         ),
     )
 
@@ -105,6 +120,16 @@ object SiyeokFlow5 {
     )
 
     // ───────── 3. 만석거 ─────────
+    private val waterHeightGrid = WaterHeightGrid(
+        rows = listOf(
+            listOf(1, 16, 17, 15, 13),
+            listOf(2, 18, 20, 19, 11),
+            listOf(12, 24, 25, 21, 9),
+            listOf(14, 23, 22, 6, 7),
+            listOf(10, 3, 4, 5, 8),
+        ),
+        start = 25,
+    )
     private val ch3Steps = listOf(
         step(2, "c3_pavilion").copy(
             title = "이끼 낀 현판",
@@ -124,8 +149,23 @@ object SiyeokFlow5 {
         ),
         step(2, "c3_channel").copy(
             title = "둑 끝 수문",
-            hints = listOf("둑 위에서 주운 농서 조각을 먼저 읽어 보세요. 갈래의 숫자가 지금 높이보다 작아야 물이 갑니다.",
-                "마지막 갈림길은 두 쪽 다 내리막이에요. 농서의 두 번째 문장을 보세요.", "왼 → 오른 → 오른"),
+            prompt = "물은 높은 곳에서 낮은 곳으로 흐릅니다. 이동 방향을 차례로 입력하세요.\n1. 중앙 25에서 출발합니다.\n2. 상하좌우의 더 작은 칸으로만 갑니다. 대각선은 금지입니다.\n3. 갈 수 있는 칸 중 가장 작은 수를 고릅니다.\n4. 더 작은 이웃이 없으면 끝납니다.",
+            hints = listOf(
+                "전체 표의 최솟값으로 바로 가지 않아요. 현재 칸의 상하좌우 네 이웃만 비교하세요.",
+                "25의 이웃은 20·24·21·22예요. 가장 작은 20으로 간 뒤, 20에서는 17로 갑니다.",
+                "위 → 위 → 오른쪽 → 오른쪽 → 아래 → 아래 → 아래 → 왼쪽 → 아래 → 왼쪽 → 왼쪽",
+            ),
+            solution = "25 → 20 → 17 → 15 → 13 → 11 → 9 → 7 → 6 → 5 → 4 → 3. 이동 방향은 ↑ ↑ → → ↓ ↓ ↓ ← ↓ ← ←입니다. 마지막 3의 이웃 10·23·4는 모두 더 크므로 멈춥니다.",
+            lock = StoryLockDefinition.Directions(waterHeightGrid.directions, heightGrid = waterHeightGrid),
+            feedback = { key ->
+                if (key.split(",").size != waterHeightGrid.directions.size) {
+                    WrongNote("더 작은 이웃 칸이 없어질 때까지 물길을 따라가며, 이동 한 번마다 방향 하나를 기록하세요.")
+                } else {
+                    WrongNote("각 칸에서 상하좌우의 더 작은 숫자 중 가장 작은 것을 고르세요. 대각선과 표 밖으로는 갈 수 없습니다.")
+                }
+            },
+            wrongDefault = "중앙 25에서 시작해, 상하좌우의 더 작은 이웃 중 가장 낮은 칸을 다시 찾아보세요.",
+            success = "물길이 높이 3에 닿자 수문의 잠금이 풀립니다. 논으로 이어지는 물길이 열렸습니다.",
         ),
         step(2, "c3_year").copy(
             title = "둑머리 비석",
@@ -147,8 +187,8 @@ object SiyeokFlow5 {
                 look = "둑 위 정자의 현판이 이끼에 덮여 읽히지 않는다.",
                 doneLook = "영화정(迎華亭). 이끼를 걷어 냈다."),
             Hotspot("x3_sluice", "둑 끝 수문", 878f, 344f, 70f, 54f, requires = "x3_farmbook", prop = "gate_wheel", lockStep = "c3_channel", keepProp = true,
-                look = "둑 끝에 물길을 가르는 수문이 있다. 갈림길이 셋, 갈래마다 높이가 적혀 있다.",
-                doneLook = "물길이 마을을 감싸고 곡식 논에 닿았다."),
+                look = "수문 옆에 5×5 높이표와 방향 자물쇠가 있다. 가운데 숫자는 25다. 농서 조각의 네 규칙으로 물길을 찾아야 한다.",
+                doneLook = "높이 3까지 이어진 물길. 방향 자물쇠가 풀리고 논으로 물이 흐른다."),
             Hotspot("x3_stele", "둑머리 비석", 150f, 236f, 40f, 52f, prop = "stele", lockStep = "c3_year", keepProp = true,
                 look = "둑머리에 깨진 비석이 서 있다. 저수지를 쌓은 해가 새겨져 있다.",
                 doneLook = "萬石渠 — 1795. 그리고 축만제 1799."),
@@ -296,6 +336,7 @@ object SiyeokFlow5 {
     private val documents = SiyeokFlow4.episode.documents.map { d ->
         val moved = docSources[d.id]?.let { d.copy(afterStep = it) } ?: d
         when (d.id) {
+            "doc_farm" -> moved.copy(body = "수문 높이표를 읽는 네 규칙\n\n1. 가운데 25에서 시작한다.\n2. 상하좌우로 맞닿은 한 칸으로만 간다. 대각선은 건너지 못한다.\n3. 현재 숫자보다 작은 이웃 칸 중 가장 작은 숫자로 간다.\n4. 더 작은 이웃 칸이 없으면 멈춘다.\n\n지나간 방향을 차례로 자물쇠에 기록하라.\n\n곡식은 고인 물이 닿지 않은 것이어야 한다.\n\n(뒷면) 약에 곡식을 쓸 때, 곡식은 마지막이 아니다.")
             "doc_physician_2" -> moved.copy(body = "연이를 찾지 못했다. 그 아이에게 처음 쓴 약은 청포 보자기에 싸서 수문지기 창고의 乙 궤짝에 두었다. 다시 보면 무엇이 잘못됐는지 알 수 있을지 모른다. 놈들은 흐르는 물을 두려워한다. 약은 물에 실어야 한다.")
             "doc_e04" -> moved.copy(owner = "수문지기 창고 乙 궤짝")
             else -> moved

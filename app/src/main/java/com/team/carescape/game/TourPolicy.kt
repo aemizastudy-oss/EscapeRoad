@@ -1,6 +1,7 @@
 package com.team.carescape.game
 
 import com.team.carescape.model.TourClock
+import com.team.carescape.model.TourKey
 import com.team.carescape.model.TourLocation
 import com.team.carescape.model.TourMode
 import com.team.carescape.model.TourSafety
@@ -26,6 +27,17 @@ sealed interface TourTimeResult {
     data class Pending(val reason: TourGate) : TourTimeResult
 }
 
+/**
+ * In-memory evidence of a valid arrival fix for one exact tour start and target.
+ * This is not continuous dwell proof and must be discarded on lifecycle/movement invalidation.
+ */
+data class TourLocationConfirmation(
+    val recordKey: TourKey,
+    val startedAt: TourClock,
+    val target: WaypointConfig,
+    val confirmedAt: TourClock,
+)
+
 /** Pure policy. SDK capability, prior-chapter completion and persistence remain caller responsibilities. */
 object TourPolicy {
     const val MIN_TOUR_MILLIS = 15L * 60L * 1000L
@@ -33,6 +45,7 @@ object TourPolicy {
 
     // App validation defaults, not documented Pleos sampling guarantees or official requirements.
     const val MAX_LOCATION_AGE_MILLIS = 30_000L
+    const val SDK_LOCATION_EXPIRY_MILLIS = 15_000L
     const val MAX_LOCATION_ACCURACY_METERS = 100.0
     const val MAX_FUTURE_LOCATION_SKEW_MILLIS = 5_000L
     const val CLOCK_DIFFERENCE_TOLERANCE_MILLIS = 120_000L
@@ -57,8 +70,15 @@ object TourPolicy {
         location: TourLocation?,
         safety: TourSafety,
         now: TourClock,
+        confirmation: TourLocationConfirmation? = null,
     ): TourGate {
-        val gate = startGate(mode, target, location, safety, now)
+        val initialGate = startGate(mode, target, location, safety, now)
+        val staleOnly = initialGate == TourGate.LOCATION_STALE ||
+            initialGate == TourGate.LOCATION_ERROR && location?.error == "LOCATION_STALE"
+        val gate = if (staleOnly && mayReuseConfirmedLocation(record, mode, target, now, confirmation)) {
+            // Recheck every property except age; a stale label is not proof of valid coordinates.
+            locationGate(mode, target, location, now, allowStale = true)
+        } else initialGate
         if (gate != TourGate.READY) return gate
         if (record == null) return TourGate.TOUR_NOT_STARTED
         if (record.mode != mode) return TourGate.MODE_MISMATCH
@@ -70,6 +90,42 @@ object TourPolicy {
                 elapsed.elapsedMillis >= MIN_TOUR_MILLIS || record.debugTimeBypass && mode == TourMode.MOCK
             ) TourGate.READY else TourGate.TOUR_TIME_REMAINING
         }
+    }
+
+    /** Only a full fresh arrival check can create evidence; a stored clock alone cannot. */
+    fun confirmLocation(
+        record: TourStartRecord?,
+        mode: TourMode,
+        target: WaypointConfig,
+        location: TourLocation?,
+        safety: TourSafety,
+        now: TourClock,
+    ): TourLocationConfirmation? {
+        if (startGate(mode, target, location, safety, now) != TourGate.READY || record == null) return null
+        if (record.mode != mode || record.checkpointId != target.id || record.sessionId.isBlank()) return null
+        if (record.debugTimeBypass && mode != TourMode.MOCK) return null
+        if (elapsed(record, now) !is TourTimeResult.Valid) return null
+        return TourLocationConfirmation(record.key, record.startedAt, target, now)
+    }
+
+    private fun mayReuseConfirmedLocation(
+        record: TourStartRecord?,
+        mode: TourMode,
+        target: WaypointConfig,
+        now: TourClock,
+        confirmation: TourLocationConfirmation?,
+    ): Boolean {
+        if (record == null || confirmation == null) return false
+        if (record.mode != mode || record.checkpointId != target.id || record.sessionId.isBlank()) return false
+        if (record.debugTimeBypass && mode != TourMode.MOCK) return false
+        if (confirmation.recordKey != record.key || confirmation.startedAt != record.startedAt ||
+            confirmation.target != target || confirmation.confirmedAt.bootId != now.bootId
+        ) return false
+        if (elapsed(record, confirmation.confirmedAt) !is TourTimeResult.Valid) return false
+        // The confirmation itself must not be future-dated or survive a suspicious clock change.
+        if (elapsed(record.copy(startedAt = confirmation.confirmedAt, debugTimeBypass = false), now) !is TourTimeResult.Valid) return false
+        val time = elapsed(record, now) as? TourTimeResult.Valid ?: return false
+        return time.elapsedMillis >= MIN_TOUR_MILLIS || record.debugTimeBypass && mode == TourMode.MOCK
     }
 
     fun elapsed(record: TourStartRecord, now: TourClock): TourTimeResult {
@@ -110,20 +166,31 @@ object TourPolicy {
     private fun validClock(clock: TourClock) = clock.wallTimeMillis > 0 &&
         clock.elapsedRealtimeMillis >= 0 && clock.bootId.isNotBlank()
 
-    private fun locationGate(mode: TourMode, target: WaypointConfig, location: TourLocation?, now: TourClock): TourGate {
+    /** Spatial/source validation; only a previously confirmed tour may opt out of age checks. */
+    fun locationGate(
+        mode: TourMode,
+        target: WaypointConfig,
+        location: TourLocation?,
+        now: TourClock,
+        allowStale: Boolean = false,
+    ): TourGate {
         if (location != null && location.mode != mode) return TourGate.MODE_MISMATCH
         val simulated = mode == TourMode.MOCK && location?.simulatedInsideRadius != null
         if (!simulated && (target.latitude == null || target.longitude == null)) return TourGate.COORDINATES_NOT_CONFIGURED
         if (location == null) return TourGate.LOCATION_MISSING
-        if (location.error != null) return TourGate.LOCATION_ERROR
+        if (location.error != null && !(allowStale && location.error == "LOCATION_STALE")) return TourGate.LOCATION_ERROR
         if (!location.fromLiveUpdate) return TourGate.LOCATION_NOT_UPDATED
         val timestamp = location.timestampEpochMillis ?: return TourGate.LOCATION_TIMESTAMP_INVALID
         val receivedAt = location.receivedElapsedRealtimeMillis ?: return TourGate.LOCATION_TIMESTAMP_INVALID
         if (timestamp <= 0 || receivedAt < 0 || receivedAt > now.elapsedRealtimeMillis) return TourGate.LOCATION_TIMESTAMP_INVALID
         if (timestamp > now.wallTimeMillis && timestamp - now.wallTimeMillis > MAX_FUTURE_LOCATION_SKEW_MILLIS) return TourGate.LOCATION_TIMESTAMP_INVALID
-        if (now.wallTimeMillis >= timestamp && now.wallTimeMillis - timestamp > MAX_LOCATION_AGE_MILLIS ||
+        val stale = now.wallTimeMillis >= timestamp && now.wallTimeMillis - timestamp > MAX_LOCATION_AGE_MILLIS ||
             now.elapsedRealtimeMillis - receivedAt > MAX_LOCATION_AGE_MILLIS
-        ) return TourGate.LOCATION_STALE
+        val sdkExpired = now.wallTimeMillis >= timestamp && now.wallTimeMillis - timestamp > SDK_LOCATION_EXPIRY_MILLIS ||
+            now.elapsedRealtimeMillis - receivedAt > SDK_LOCATION_EXPIRY_MILLIS
+        // The adapter expires sooner than the general policy. Its precise error must match that age.
+        if (location.error != null && !sdkExpired) return TourGate.LOCATION_ERROR
+        if (stale && !allowStale) return TourGate.LOCATION_STALE
         val accuracy = location.accuracyMeters
         if (accuracy == null || !accuracy.isFinite() || accuracy <= 0) return TourGate.LOCATION_ACCURACY_UNKNOWN
         if (accuracy > MAX_LOCATION_ACCURACY_METERS) return TourGate.LOCATION_INACCURATE

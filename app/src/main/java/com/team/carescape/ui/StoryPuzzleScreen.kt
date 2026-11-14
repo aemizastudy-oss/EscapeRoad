@@ -99,6 +99,7 @@ fun StoryPuzzleScreen(vm: GameViewModel) {
             onSequenceChange = vm::changeStorySequence,
             onItemChange = vm::changeStoryItem,
             backLabel = if (story.isExplore) "장면으로" else "로비",
+            carInput = vm.carPuzzleInput,
         )
     }
 }
@@ -136,6 +137,7 @@ fun StoryPuzzleContent(
     onSequenceChange: (List<String>) -> Unit = {},
     onItemChange: (String) -> Unit = {},
     backLabel: String = "로비",
+    carInput: CarPuzzleInput = CarPuzzleInput.Manual,
 ) {
     val mayInteract by rememberUpdatedState(enabled && gate == TourGate.READY)
     val latestDraft by rememberUpdatedState(draft)
@@ -181,7 +183,15 @@ fun StoryPuzzleContent(
                 ) {
                     if (speaker != null) SpeakerTag(speaker)
                     Text(definition.title, style = Esc.nanum(27, Esc.ink))
-                    Text(definition.prompt, Modifier.testTag("story-puzzle-prompt"), style = Esc.noto(19, Esc.inkBody, lineHeight = 1.75f))
+                    val heightGrid = (definition.lock as? StoryLockDefinition.Directions)?.heightGrid
+                    if (heightGrid == null) {
+                        Text(definition.prompt, Modifier.testTag("story-puzzle-prompt"), style = Esc.noto(19, Esc.inkBody, lineHeight = 1.75f))
+                    } else {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                            WaterHeightGridBoard(heightGrid, Modifier.weight(1f))
+                            Text(definition.prompt, Modifier.weight(1f).testTag("story-puzzle-prompt"), style = Esc.noto(17, Esc.inkBody, lineHeight = 1.6f))
+                        }
+                    }
                     Text(
                         when (definition.kind) {
                             StepKind.CAR, StepKind.SCENE -> "차량 신호 연동 전에는 오른쪽 화면 버튼으로 같은 조작을 입력합니다. 정차(P) 중에만 조작하세요."
@@ -265,7 +275,7 @@ fun StoryPuzzleContent(
                         lock, draft.car, enabled, definition.kind == StepKind.SCENE,
                         { if (mayInteract) onCarChange(it) },
                         { if (mayInteract) onSubmit(StoryPuzzleInput.CarSequence(latestDraft.car)) },
-                        feedback,
+                        feedback, input = carInput,
                     )
                     is StoryLockDefinition.SymbolDial -> SymbolDialLock(
                         lock, draft.dial.ifEmpty { List(lock.wheels.size) { 0 } }, enabled,

@@ -14,6 +14,7 @@ import ai.pleos.playground.navi.data.RouteInfo
 import ai.pleos.playground.navi.data.RouteStartInfo
 import ai.pleos.playground.navi.helper.NaviHelper
 import ai.pleos.playground.navi.helper.listener.NaviHelperEventListener
+import com.team.carescape.game.TourPolicy
 import com.team.carescape.model.TourLocation
 import com.team.carescape.model.TourMode
 import com.team.carescape.model.WaypointConfig
@@ -194,5 +195,5 @@ internal class PleosLocationNavigation(
         fused = null; navigation = null; fusedListener = null; naviListener = null
         navigationReady = false; lastLocation = null
     }
-    private companion object { const val FRESHNESS_MS = 15_000L }
+    private companion object { const val FRESHNESS_MS = TourPolicy.SDK_LOCATION_EXPIRY_MILLIS }
 }

@@ -1,5 +1,26 @@
 package com.team.carescape.ui
 
+import java.io.File
+import com.team.carescape.game.LockDirection
+import androidx.compose.ui.test.swipe
+import androidx.compose.ui.geometry.Offset
+import android.graphics.Bitmap
+import android.os.SystemClock
+import android.util.Log
+import com.team.carescape.game.CarControl
+import com.team.carescape.game.DemoTarget
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.UUID
+import org.json.JSONObject
+import org.junit.Assume.assumeTrue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -24,7 +45,9 @@ import com.team.carescape.game.StoryLockDefinition
 import com.team.carescape.game.StoryCatalog
 import com.team.carescape.game.StoryPhase
 import com.team.carescape.game.StoryPuzzleInput
+import com.team.carescape.game.TourCatalog
 import com.team.carescape.game.TourGate
+import com.team.carescape.game.TourPolicy
 import com.team.carescape.model.TourMode
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -79,6 +102,271 @@ class StoryIntegrationTest {
 
     @get:Rule
     val rules: TestRule = RuleChain.outerRule(isolateMockTrip).around(rule)
+
+
+
+    /** MOCK tourism only: real central swipes, explicit submit and durable chapter progress. */
+    @Test
+    fun reservoirHeightGridCentralSwipesSubmitSaveAndResumeCompletedChannel() {
+        prepareStory()
+        assertEquals(TourMode.MOCK, vm.mode)
+        assertFalse("This test uses ordinary MOCK controls, never the hybrid SDK source", vm.mockVehiclePuzzleSdk)
+        rule.runOnUiThread { vm.demoJump(DemoTarget.Scene(2)) }
+        awaitState { !it.saving && it.story?.chapterIndex == 2 && it.story?.phase == StoryPhase.PUZZLE && it.tourGate == TourGate.READY }
+        awaitTag("explore")
+        clickTag("hotspot-x3_farmbook")
+        awaitState { !it.saving && it.story?.puzzleProgressForCurrent?.found?.contains("x3_farmbook") == true }
+        clickTag("hotspot-x3_sluice")
+        clickTag("hotspot-open")
+        awaitState { it.storyPuzzle?.id == "c3_channel" && !it.saving }
+        assertTrue(vm.storyPuzzle!!.lock is StoryLockDefinition.Directions)
+        awaitTag("water-height-grid")
+        runCatching { rule.onNodeWithTag("water-height-grid").performScrollTo() }
+        (1..25).forEach { height ->
+            rule.onNodeWithContentDescription("높이 $height").assertIsDisplayed()
+        }
+
+        val expected = listOf(LockDirection.UP, LockDirection.UP, LockDirection.RIGHT, LockDirection.RIGHT,
+            LockDirection.DOWN, LockDirection.DOWN, LockDirection.DOWN, LockDirection.LEFT,
+            LockDirection.DOWN, LockDirection.LEFT, LockDirection.LEFT)
+        assertEquals(expected, (vm.storyPuzzle!!.lock as StoryLockDefinition.Directions).answer)
+        val beforeDraft = storedMock()
+        fun swipeDirection(direction: LockDirection) {
+            val pad = rule.onNodeWithContentDescription("방향 자물쇠 조작부")
+            runCatching { pad.performScrollTo() }
+            pad.assertIsDisplayed().performTouchInput {
+                val end = when (direction) {
+                    LockDirection.UP -> Offset(center.x, height * 0.05f)
+                    LockDirection.DOWN -> Offset(center.x, height * 0.95f)
+                    LockDirection.RIGHT -> Offset(width * 0.95f, center.y)
+                    LockDirection.LEFT -> Offset(width * 0.05f, center.y)
+                }
+                swipe(start = center, end = end, durationMillis = 300)
+            }
+            rule.waitForIdle()
+        }
+        fun resetDirections() {
+            val reset = rule.onNodeWithText("초기화")
+            runCatching { reset.performScrollTo() }
+            reset.assertIsEnabled().performClick()
+            rule.runOnIdle { assertTrue(vm.storyPuzzleDraft.directions.isEmpty()) }
+        }
+
+        // Draft and reset are reversible UI operations; they must not write any result.
+        expected.take(2).forEach(::swipeDirection)
+        rule.runOnIdle { assertEquals(expected.take(2), vm.storyPuzzleDraft.directions) }
+        assertEquals(beforeDraft, storedMock())
+        resetDirections()
+        assertEquals(beforeDraft, storedMock())
+
+        // A complete but wrong route records exactly one attempt and unlocks no clue.
+        val wrong = expected.dropLast(1) + LockDirection.RIGHT
+        wrong.forEach(::swipeDirection)
+        rule.runOnIdle { assertEquals(wrong, vm.storyPuzzleDraft.directions) }
+        assertEquals(beforeDraft, storedMock())
+        clickSubmit()
+        val originalAttempts = beforeDraft.puzzleProgress.single { it.checkpointId == TourCatalog.checkpoints[2].id }.wrongAttempts
+        awaitState { !it.saving && it.storyPuzzleProgress?.wrongAttempts == originalAttempts + 1 }
+        val afterWrong = storedMock()
+        assertFalse(vm.story!!.isStepDone("c3_channel"))
+        assertEquals(beforeDraft.items, afterWrong.items)
+        assertEquals(beforeDraft.clues, afterWrong.clues)
+        assertEquals(beforeDraft.tourRecords, afterWrong.tourRecords)
+        assertEquals(beforeDraft.puzzleProgress.single { it.checkpointId == TourCatalog.checkpoints[2].id }.solvedSteps,
+            afterWrong.puzzleProgress.single { it.checkpointId == TourCatalog.checkpoints[2].id }.solvedSteps)
+        resetDirections()
+
+        expected.forEachIndexed { index, direction ->
+            swipeDirection(direction)
+            rule.runOnIdle { assertEquals(expected.take(index + 1), vm.storyPuzzleDraft.directions) }
+            assertEquals("Swipes must not submit or persist puzzle results", afterWrong, storedMock())
+        }
+        runCatching { rule.onNodeWithTag("water-height-grid").performScrollTo() }
+        (1..25).forEach { rule.onNodeWithContentDescription("높이 $it").assertIsDisplayed() }
+        rule.onNodeWithContentDescription("방향 자물쇠 조작부").assertIsDisplayed()
+        rule.waitForIdle()
+        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        if (bitmap != null) {
+            try {
+                val directory = File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "verification")
+                check(directory.isDirectory || directory.mkdirs())
+                val file = File(directory, "water-grid-before-submit.png")
+                file.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+                Log.i("CarEscapeWaterGridTest", "MOCK_UI_SCREENSHOT:${file.absolutePath}")
+            } finally { bitmap.recycle() }
+        } else {
+            Log.w("CarEscapeWaterGridTest", "MOCK_UI_SCREENSHOT_UNAVAILABLE")
+        }
+        assertEquals("Screenshot capture must not submit", afterWrong, storedMock())
+        clickSubmit()
+        awaitState { !it.saving && it.story?.isStepDone("c3_channel") == true }
+        awaitTag("explore")
+        rule.onNodeWithTag("hotspot-x3_diary").assertIsDisplayed()
+        val submitted = storedMock()
+        assertEquals(afterWrong.sessionId, submitted.sessionId)
+        assertEquals(afterWrong.tourRecords, submitted.tourRecords)
+        assertTrue(submitted.puzzleProgress.single { it.checkpointId == TourCatalog.checkpoints[2].id }.solvedSteps.contains("c3_channel"))
+        clickTag("hotspot-x3_diary")
+        awaitState { !it.saving && it.story?.puzzleProgressForCurrent?.found?.contains("x3_diary") == true }
+        val completed = storedMock()
+
+        rule.activityRule.scenario.recreate()
+        rule.runOnIdle { vm = ViewModelProvider(rule.activity)[GameViewModel::class.java] }
+        awaitState { !it.loading && it.foreground }
+        assertEquals("Activity recreation must preserve the solved channel and acquired note", completed, storedMock())
+        awaitTag("sdk-safety-paused")
+        openDevPanel()
+        clickTag("sdk-sim-parked")
+        clickTag("sdk-sim-location")
+        awaitState { it.parked && it.tourGate == TourGate.READY && !it.saving }
+        closeDevPanel()
+        awaitTag("explore")
+        assertTrue(vm.story!!.isStepDone("c3_channel"))
+        assertTrue(vm.story!!.puzzleProgressForCurrent!!.found.contains("x3_diary"))
+        assertEquals(completed, storedMock())
+        rule.onNodeWithTag("hotspot-x3_diary").assertIsDisplayed()
+        Log.i("CarEscapeWaterGridTest", "MOCK_WATER_GRID_11_REAL_SWIPES_UI_SUBMIT_DATASTORE_RECREATE_PASS; LIVE_SDK_NOT_USED")
+    }
+
+    /** Explicit hybrid: MOCK tourism fixture, real SDK safety + controls, actual UI submit + DataStore. */
+    @Test
+    fun consoleSdkControlsReachHybridMockStoryUiSubmissionAndStoredProgress(): Unit = runBlocking {
+        assumeTrue("Opt-in required: -e vehicleConsoleControls true",
+            InstrumentationRegistry.getArguments().getString("vehicleConsoleControls") == "true")
+        val client = "carescape-hybrid-${UUID.randomUUID()}"
+        suspend fun http(path: String, method: String): String = withContext(Dispatchers.IO) {
+            val c = URL("http://127.0.0.1:8088$path").openConnection() as HttpURLConnection
+            try {
+                c.requestMethod = method
+                c.connectTimeout = 1500
+                c.readTimeout = 1500
+                c.useCaches = false
+                if (method == "POST") {
+                    c.doOutput = true
+                    c.setFixedLengthStreamingMode(0)
+                    c.outputStream.close()
+                }
+                assertTrue("Console HTTP ${c.responseCode}: $path", c.responseCode in 200..299)
+                c.inputStream.bufferedReader().use { it.readText() }
+            } finally { c.disconnect() }
+        }
+        val heartbeat = launch(Dispatchers.IO) {
+            while (isActive) {
+                http("/browser/session?client=$client", "POST")
+                delay(800)
+            }
+        }
+        var initialWiper: String? = null
+        var initialWindow: Int? = null
+        var initialTurnSignal: String? = null
+        var originalFailure: Throwable? = null
+        try {
+            val initial = JSONObject(http("/vehicle/state", "GET"))
+            assertEquals("Park", initial.getJSONObject("gear").getJSONObject("actual").getString("value"))
+            assertEquals(0.0, initial.getJSONObject("controls").getDouble("speed_kph"), 0.001)
+            initialWiper = initial.getJSONObject("body").getJSONObject("wipers").getJSONObject("front").getString("mode")
+            initialWindow = initial.getJSONObject("body").getJSONObject("windows").getInt("front_left")
+            initialTurnSignal = initial.getJSONObject("lights").getString("turn_signal_mode")
+            prepareStory()
+            awaitState { it.sdkStatus.carSafety.availability == com.team.carescape.platform.sdk.SdkAvailability.READY }
+            rule.runOnUiThread { vm.goLobby(); vm.setMockVehiclePuzzleSdk(true) }
+            awaitState { it.mockVehiclePuzzleSdk && it.parked && !it.saving }
+            assertEquals(TourMode.MOCK, vm.mode)
+            http("/vehicle/turn-signal?mode=Off", "PUT")
+            awaitState { it.vehiclePuzzleValues[CarControl.TURN_LEFT] == false && it.vehiclePuzzleValues[CarControl.TURN_RIGHT] == false }
+            rule.runOnUiThread { vm.demoJump(DemoTarget.Scene(1)) }
+            awaitState { !it.saving && it.story?.chapterIndex == 1 && it.story?.phase == StoryPhase.PUZZLE && it.tourGate == TourGate.READY }
+            awaitTag("explore")
+            clickTag("hotspot-x2_arch")
+            clickTag("hotspot-open")
+            awaitState { it.storyPuzzle?.id == "c2_arches" }
+            rule.runOnUiThread { vm.changeStoryNumbers(listOf(7)) }
+            clickSubmit()
+            awaitState { !it.saving && it.story?.isStepDone("c2_arches") == true }
+            awaitTag("explore")
+            clickTag("hotspot-x2_lever")
+            clickTag("hotspot-open")
+            awaitState { it.storyPuzzle?.id == "c2_gates" && (it.carPuzzleInput as? CarPuzzleInput.Vehicle)?.ready == true }
+            val expected = listOf(CarControl.TURN_RIGHT, CarControl.TURN_RIGHT, CarControl.TURN_RIGHT, CarControl.TURN_LEFT,
+                CarControl.TURN_RIGHT, CarControl.TURN_RIGHT, CarControl.TURN_RIGHT)
+            val beforeInputs = storedMock()
+            // Even in hybrid mode a screen callback must not forge the SDK answer.
+            rule.runOnUiThread { vm.changeStoryCar(expected) }
+            assertTrue(vm.storyPuzzleDraft.car.isEmpty())
+            suspend fun actual(control: CarControl, active: Boolean, path: String) {
+                assertTrue("Real safety must be valid before console input", vm.parked)
+                http(path, "PUT")
+                awaitState { it.vehiclePuzzleValues[control] == active }
+                assertTrue("Real safety must remain valid", vm.parked)
+                assertTrue(vm.mockVehiclePuzzleSdk)
+            }
+            suspend fun pulse(control: CarControl) {
+                val mode = if (control == CarControl.TURN_RIGHT) "BlinkRight" else "BlinkLeft"
+                val beforeCount = vm.storyPuzzleDraft.car.size
+                actual(control, true, "/vehicle/turn-signal?mode=$mode")
+                awaitState { it.storyPuzzleDraft.car.size >= beforeCount + 1 }
+                assertEquals(beforeCount + 1, vm.storyPuzzleDraft.car.size)
+                // Repeating the active level must not fill another gate.
+                http("/vehicle/turn-signal?mode=$mode", "PUT")
+                delay(600)
+                assertEquals("Repeated active turn signal must not add an answer", beforeCount + 1, vm.storyPuzzleDraft.car.size)
+                actual(control, false, "/vehicle/turn-signal?mode=Off")
+                awaitState { it.vehiclePuzzleValues[CarControl.TURN_LEFT] == false && it.vehiclePuzzleValues[CarControl.TURN_RIGHT] == false }
+                assertEquals("Returning to Off must not add an answer", beforeCount + 1, vm.storyPuzzleDraft.car.size)
+            }
+            repeat(3) { pulse(CarControl.TURN_RIGHT) }
+            pulse(CarControl.TURN_LEFT)
+            repeat(3) { pulse(CarControl.TURN_RIGHT) }
+            awaitState { it.storyPuzzleDraft.car.size >= expected.size }
+            assertEquals(expected, vm.storyPuzzleDraft.car)
+            assertEquals("SDK inputs must not save or submit automatically", beforeInputs, storedMock())
+            assertFalse(vm.story!!.isStepDone("c2_gates"))
+            clickTag("story-puzzle-submit")
+            awaitState { !it.saving && it.story?.isStepDone("c2_gates") == true }
+            val saved = storedMock()
+            assertEquals(beforeInputs.sessionId, saved.sessionId)
+            assertEquals(beforeInputs.tourRecords, saved.tourRecords)
+            assertTrue(saved.puzzleProgress.single { it.checkpointId == TourCatalog.checkpoints[1].id }.solvedSteps.contains("c2_gates"))
+            Log.i("CarEscapeVehicleSdkTest", "HYBRID_MOCK_TOUR_REAL_P_SDK_RRRLRRR_UI_SUBMIT_DATASTORE_PASS; LIVE_LOCATION_NOT_VERIFIED")
+            Unit
+        } catch (failure: Throwable) {
+            originalFailure = failure
+            throw failure
+        } finally {
+            withContext(NonCancellable) {
+                val errors = mutableListOf<Throwable>()
+                suspend fun clean(action: suspend () -> Unit) {
+                    try { action() } catch (error: Throwable) { errors += error }
+                }
+                clean {
+                    if (this@StoryIntegrationTest::vm.isInitialized) {
+                        awaitState { it.foreground && !it.loading && !it.saving }
+                        rule.runOnUiThread { vm.goLobby(); vm.setMockVehiclePuzzleSdk(false) }
+                        assertFalse(vm.mockVehiclePuzzleSdk)
+                    }
+                }
+                initialWiper?.let { clean { http("/vehicle/body?front_wiper=$it", "PUT") } }
+                initialWindow?.let { clean { http("/vehicle/body?window_fl=$it", "PUT") } }
+                initialTurnSignal?.let { clean { http("/vehicle/turn-signal?mode=$it", "PUT") } }
+                clean {
+                    if (initialWiper != null && initialWindow != null) {
+                        val restoredState = JSONObject(http("/vehicle/state", "GET"))
+                        val restored = restoredState.getJSONObject("body")
+                        assertEquals(initialWiper, restored.getJSONObject("wipers").getJSONObject("front").getString("mode"))
+                        assertEquals(initialWindow, restored.getJSONObject("windows").getInt("front_left"))
+                        assertEquals(initialTurnSignal, restoredState.getJSONObject("lights").getString("turn_signal_mode"))
+                    }
+                }
+                clean { heartbeat.cancelAndJoin() }
+                clean { http("/browser/session?client=$client&closing=1", "POST") }
+                if (errors.isNotEmpty()) {
+                    val primary = originalFailure ?: errors.removeAt(0)
+                    errors.forEach(primary::addSuppressed)
+                    if (originalFailure == null) throw primary
+                }
+            }
+        }
+    }
 
     @Test
     fun firstPalacePuzzlePersistsWrongAttemptHintAndTourStartBeforeUiCorrectSubmission() {
@@ -167,6 +455,35 @@ class StoryIntegrationTest {
         }
         rule.waitForIdle()
         assertEquals("A solved checkpoint must never grant twice", solved, storedMock())
+    }
+
+    @Test
+    fun confirmedTourRemainsUsableAfterLocationExpiryButDepartureNeedsANewFix() {
+        prepareFirstPuzzle()
+        val beforeExpiry = storedMock()
+        val observedAt = SystemClock.elapsedRealtime()
+        // Real elapsed time: Compose's animation clock does not age an SDK/location sample.
+        rule.waitUntil(45_000) {
+            SystemClock.elapsedRealtime() - observedAt > TourPolicy.MAX_LOCATION_AGE_MILLIS + 250
+        }
+        awaitState { it.tourGate == TourGate.READY && !it.saving }
+        assertEquals(beforeExpiry, storedMock())
+
+        rule.runOnUiThread { vm.openHotspotLock("x_plaque") }
+        awaitTag("story-puzzle")
+        clickTag("choice-shou")
+        clickSubmit()
+        awaitState { !it.saving && it.story?.puzzleProgress?.single()?.solvedSteps?.contains("c1_plaque") == true }
+        val afterSubmission = storedMock()
+        assertTrue(afterSubmission.puzzleProgress.single().solvedSteps.contains("c1_plaque"))
+        assertEquals(beforeExpiry.tourRecords.single().startedAt, afterSubmission.tourRecords.single().startedAt)
+
+        rule.runOnUiThread { vm.simSetParked(false); vm.simSetParked(true) }
+        awaitState { it.parked && it.tourGate == TourGate.LOCATION_NOT_UPDATED }
+        assertEquals(afterSubmission, storedMock())
+        rule.runOnUiThread { vm.demoArrive() }
+        awaitState { it.parked && it.tourGate == TourGate.READY }
+        assertEquals(afterSubmission, storedMock())
     }
 
     @Test

@@ -52,21 +52,26 @@ fun SdkDevPanel(vm: GameViewModel, modifier: Modifier = Modifier) {
             if (vm.isMock) {
                 val vehicle = vm.vehicle
                 val canInput = vm.parked && !vm.loading && !vm.saving
-                Text("시뮬레이션 데이터 · 실제 차량 신호·관광 증빙 아님", style = Esc.noto(13, Color(0xFFBFD8FF)))
-                Text(if (vehicle.parked == null) "주차 상태 미확인 · P를 직접 확인하세요" else if (vehicle.parked == true) "P 시연 확인" else "주행 상태 시연", style = Esc.noto(13, Esc.creamSoft))
+                val mockControls = canInput && !vm.mockVehiclePuzzleSdk
+                OutlineButton(if (vm.mockVehiclePuzzleSdk) "차량 답안: 실제 SDK" else "차량 답안: 화면 시연",
+                    { vm.setMockVehiclePuzzleSdk(!vm.mockVehiclePuzzleSdk) }, Modifier.testTag("sdk-mock-real-controls"),
+                    enabled = canChoose, minHeight = 44.dp, fontSize = 13)
+                if (vm.mockVehiclePuzzleSdk) Text("시연 관광 + 실제 차량 입력 · P·정지·CarUx도 실제 신호로 확인", Modifier.testTag("sdk-hybrid-label"), style = Esc.noto(12, Color(0xFFBFD8FF)))
+                Text(if (vm.mockVehiclePuzzleSdk) "관광·시간은 MOCK · 차량 답안은 실제 SDK" else "시뮬레이션 데이터 · 실제 차량 신호·관광 증빙 아님", style = Esc.noto(13, Color(0xFFBFD8FF)))
+                Text(if (vm.mockVehiclePuzzleSdk) "실제 차량 안전 상태: ${if (vm.parked) "P·정지·CarUx 확인" else "확인 대기"}" else if (vehicle.parked == null) "주차 상태 미확인 · P를 직접 확인하세요" else if (vehicle.parked == true) "P 시연 확인" else "주행 상태 시연", style = Esc.noto(13, Esc.creamSoft))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlineButton("P 정차", { vm.simSetParked(true) }, Modifier.testTag("sdk-sim-parked"), enabled = !vm.loading && !vm.saving, minHeight = 44.dp, fontSize = 13)
-                    OutlineButton("D 주행", { vm.simSetParked(false) }, Modifier.testTag("sdk-sim-driving"), enabled = !vm.loading && !vm.saving, minHeight = 44.dp, fontSize = 13)
+                    OutlineButton("P 정차", { vm.simSetParked(true) }, Modifier.testTag("sdk-sim-parked"), enabled = !vm.mockVehiclePuzzleSdk && !vm.loading && !vm.saving, minHeight = 44.dp, fontSize = 13)
+                    OutlineButton("D 주행", { vm.simSetParked(false) }, Modifier.testTag("sdk-sim-driving"), enabled = !vm.mockVehiclePuzzleSdk && !vm.loading && !vm.saving, minHeight = 44.dp, fontSize = 13)
                 }
                 if (vm.story != null) OutlineButton("현재 장소 위치 시연", vm::demoArrive,
                     Modifier.testTag("sdk-sim-location"), enabled = canInput, minHeight = 44.dp, fontSize = 13)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlineButton("← 왼쪽", { vm.simTurnSignal(TurnSide.LEFT) }, enabled = canInput, minHeight = 44.dp, fontSize = 13)
-                    OutlineButton("오른쪽 →", { vm.simTurnSignal(TurnSide.RIGHT) }, enabled = canInput, minHeight = 44.dp, fontSize = 13)
+                    OutlineButton("← 왼쪽", { vm.simTurnSignal(TurnSide.LEFT) }, enabled = mockControls, minHeight = 44.dp, fontSize = 13)
+                    OutlineButton("오른쪽 →", { vm.simTurnSignal(TurnSide.RIGHT) }, enabled = mockControls, minHeight = 44.dp, fontSize = 13)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlineButton("전조등 ${if (vehicle.lowBeamOn == true) "켜짐" else "전환"}", vm::simToggleLowBeam, enabled = canInput, minHeight = 44.dp, fontSize = 13)
-                    OutlineButton("와이퍼 ${if (vehicle.wiperOn == true) "켜짐" else "전환"}", vm::simToggleWiper, enabled = canInput, minHeight = 44.dp, fontSize = 13)
+                    OutlineButton("전조등 ${if (vehicle.lowBeamOn == true) "켜짐" else "전환"}", vm::simToggleLowBeam, enabled = mockControls, minHeight = 44.dp, fontSize = 13)
+                    OutlineButton("와이퍼 ${if (vehicle.wiperOn == true) "켜짐" else "전환"}", vm::simToggleWiper, enabled = mockControls, minHeight = 44.dp, fontSize = 13)
                 }
                 Text("시연 바로가기 · 앞부분을 정답으로 자동 진행한 새 시연 여행", style = Esc.noto(13, Color(0xFFBFD8FF)))
                 val jump = !vm.loading && !vm.saving && vm.parked
@@ -83,9 +88,9 @@ fun SdkDevPanel(vm: GameViewModel, modifier: Modifier = Modifier) {
                 JumpRow("장면", (0 until n).map { "${it + 1}" to DemoTarget.Scene(it) })
                 JumpRow("엔딩", listOf("공개" to DemoTarget.FinalReveal) + EndingKind.entries.map { it.label.removeSuffix(" 엔딩") to DemoTarget.Ending(it) })
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlineButton("배터리 모름", { vm.simSetBattery(null) }, enabled = canInput, minHeight = 44.dp, fontSize = 12)
-                    OutlineButton("30%", { vm.simSetBattery(30) }, enabled = canInput, minHeight = 44.dp, fontSize = 12)
-                    OutlineButton("80%", { vm.simSetBattery(80) }, enabled = canInput, minHeight = 44.dp, fontSize = 12)
+                    OutlineButton("배터리 모름", { vm.simSetBattery(null) }, enabled = mockControls, minHeight = 44.dp, fontSize = 12)
+                    OutlineButton("30%", { vm.simSetBattery(30) }, enabled = mockControls, minHeight = 44.dp, fontSize = 12)
+                    OutlineButton("80%", { vm.simSetBattery(80) }, enabled = mockControls, minHeight = 44.dp, fontSize = 12)
                 }
             } else {
                 Text("LIVE에서는 모의 입력을 제공하지 않습니다. 지원·권한은 SDK 상태에서 확인하세요.", style = Esc.noto(13, Esc.creamSoft))

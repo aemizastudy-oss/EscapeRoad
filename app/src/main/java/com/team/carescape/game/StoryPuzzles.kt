@@ -42,7 +42,7 @@ data class ChoiceOption(val id: String, val label: String)
 /** 차량 조작 퍼즐의 입력. 실제 차량 신호 연동 전에는 같은 이름의 화면 버튼으로 받는다. */
 enum class CarControl(val label: String, val short: String) {
     DOOR("운전석 문 열었다 닫기", "문"),
-    WIPER("와이퍼 1회", "와이퍼"),
+    WIPER("와이퍼 켜기", "와이퍼"),
     HAZARD("비상등", "비상등"),
     TURN_LEFT("왼쪽 깜빡이", "← 깜빡이"),
     TURN_RIGHT("오른쪽 깜빡이", "깜빡이 →"),
@@ -53,7 +53,7 @@ enum class CarControl(val label: String, val short: String) {
 /** 차량 조작 퍼즐 옆에 그리는 그림. */
 sealed interface CarVisual {
     data object None : CarVisual
-    /** 화홍문 판문. 입력 하나가 한 칸(와이퍼=내림, 비상등=열어 둠). */
+    /** 화홍문 판문. 입력 하나가 한 칸. 현재 flow5는 오른쪽 깜빡이=닫기, 왼쪽=열기. 구형 입력도 표시한다. */
     data class Sluice(val gates: Int) : CarVisual
     /** 만석거 물길. 갈림길마다 왼쪽/오른쪽 높이와 표시. */
     data class WaterMap(val start: Int, val forks: List<Fork>) : CarVisual
@@ -67,8 +67,14 @@ sealed interface StoryLockDefinition {
     data class Numeric(val answer: String) : StoryLockDefinition {
         init { require(answer.isNotEmpty() && answer.all { it in '0'..'9' }) }
     }
-    data class Directions(val answer: List<LockDirection>) : StoryLockDefinition {
-        init { require(answer.isNotEmpty()) }
+    data class Directions(
+        val answer: List<LockDirection>,
+        val heightGrid: WaterHeightGrid? = null,
+    ) : StoryLockDefinition {
+        init {
+            require(answer.isNotEmpty())
+            require(heightGrid == null || answer == heightGrid.directions) { "The answer must follow the height board." }
+        }
     }
     data class Device(val channel: Int, val level: Int, val min: Int = 0, val max: Int = 5) : StoryLockDefinition {
         init { require(min <= max && channel in min..max && level in min..max) }

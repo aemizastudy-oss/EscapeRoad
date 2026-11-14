@@ -77,11 +77,15 @@ fun SdkControls(vm: GameViewModel, onRequestPermissions: () -> Unit, modifier: M
                     }
                 }
             }
+            vm.vehiclePuzzleSignals.forEach { (control, state) ->
+                Text("${control.label}: ${sdkAvailabilityMessage(state.availability)} · ${state.detail.orEmpty()}",
+                    Modifier.testTag("sdk-puzzle-${control.name}"), style = Esc.noto(13, Esc.creamSoft))
+            }
             Text("길 안내 상태: ${vm.sdkStatus.routeState.take(64)}", style = Esc.noto(12, Esc.label))
             Text(if (vm.sdkStatus.vehicleReceivedElapsedMillis != null) "차량 보조 표본을 수신했습니다." else "차량 보조 표본 수신은 아직 확인되지 않았습니다.", style = Esc.noto(12, Esc.label))
             Text(safetyMessage(vm), Modifier.testTag("sdk-safety-reason"), style = Esc.noto(15, Esc.cream))
             if (vm.currentWaypoint != null) {
-                Text("도착 확인: ${tourGateMessage(vm.tourStartGate)}", style = Esc.noto(14, Esc.creamSoft))
+                Text("도착 확인: ${if (vm.tourGate == TourGate.READY) "현재 챕터의 도착·관광 조건을 확인했습니다." else tourGateMessage(vm.tourStartGate)}", style = Esc.noto(14, Esc.creamSoft))
                 Text("관광 후 진행: ${tourGateMessage(vm.tourGate)}", style = Esc.noto(14, Esc.creamSoft))
             }
             if (!vm.isMock && !vm.sdkStatus.locationAccuracyVerified) {

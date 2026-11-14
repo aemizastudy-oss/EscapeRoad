@@ -33,17 +33,38 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private var trip: StoredTrip? = null
     private var safetyRevision = 0L
     private var foregroundTicker: Job? = null
+    private val tourVisit = TourVisitConfirmation()
     private var mockLocation: TourLocation? = null
     private var mockWaypointId: String? = null
     private var mockParked: Boolean? = null
     private var puzzleDraftIdentity: String? = null
+    private val vehiclePuzzleMapper = VehiclePuzzleInputMapper()
+    private var vehiclePuzzleContextKey: String? = null
+    private var vehiclePuzzleResetRevision = 0L
+    private var mockVehicleSdkState by mutableStateOf(false)
+    /** Explicit debug hybrid: MOCK tourism, actual SDK safety and puzzle inputs. Never persisted. */
+    val mockVehiclePuzzleSdk: Boolean get() = BuildConfig.DEBUG && isMock && mockVehicleSdkState
+    private val usesVehiclePuzzleSdk: Boolean get() = !isMock || mockVehiclePuzzleSdk
+    var vehiclePuzzleValues by mutableStateOf<Map<CarControl, Boolean?>>(emptyMap())
+        private set
+    var vehiclePuzzleSignals by mutableStateOf<Map<CarControl, com.team.carescape.platform.sdk.SdkFeatureState>>(emptyMap())
+        private set
+    var carPuzzleInput by mutableStateOf<CarPuzzleInput>(CarPuzzleInput.Manual)
+        private set
     private var liveSafety by mutableStateOf(TourSafety(false, false, false, false))
     private val bootId = runCatching {
         "boot:${Settings.Global.getInt(application.contentResolver, Settings.Global.BOOT_COUNT)}"
     }.getOrDefault("")
 
-    var screen by mutableStateOf(Screen.LOBBY)
-        private set
+    private var screenState by mutableStateOf(Screen.LOBBY)
+    var screen: Screen
+        get() = screenState
+        private set(value) {
+            if (screenState != value) {
+                screenState = value
+                synchronizeVehiclePuzzle()
+            }
+        }
     var lockWorkshop by mutableStateOf(LockWorkshopState())
         private set
     var storyPuzzleDraft by mutableStateOf(StoryPuzzleDraft())
@@ -74,8 +95,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     /** 사건 기록부(정차 중에만). 주행 상태가 되면 닫는다. */
     var casebookOpen by mutableStateOf(false)
         private set
-    fun openCasebook() { if (parked && story != null && StoryCatalog.usesAwakening(story!!.flowVersion)) casebookOpen = true }
-    fun closeCasebook() { casebookOpen = false }
+    fun openCasebook() {
+        if (parked && story != null && StoryCatalog.usesAwakening(story!!.flowVersion)) {
+            safetyRevision++
+            casebookOpen = true
+            synchronizeVehiclePuzzle()
+        }
+    }
+    fun closeCasebook() { casebookOpen = false; synchronizeVehiclePuzzle() }
     var selectedCard by mutableStateOf(ThemeCatalog.cards.first())
         private set
     var game by mutableStateOf<GameState?>(null)
@@ -129,7 +156,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         private set
     val currentWaypoint get() = TourCatalog.checkpoints.getOrNull(story?.chapterIndex ?: 0)
     val parked: Boolean get() = foreground && !loading && storageError == null && vehicle.parked == true &&
-        if (isMock) mockParked == true else runtime.safety.value.let {
+        if (isMock && !mockVehiclePuzzleSdk) mockParked == true else runtime.safety.value.let {
             it.foreground && it.parked && it.stationary && it.carUxAllowed
         }
     val speechReady get() = parked && liveSafety.let { it.foreground && it.parked && it.stationary && it.carUxAllowed } &&
@@ -141,19 +168,41 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 try { command() }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (error: Exception) { storageError = error.message ?: "여행 기록 처리에 실패했습니다. 다시 시도해 주세요." }
-                finally { saving = false }
+                finally { saving = false; synchronizeVehiclePuzzle() }
             }
         }
         commands.trySend { loadCurrentMode() }
         viewModelScope.launch { runtime.safety.collect { liveSafety = it; updateLiveInputs() } }
         viewModelScope.launch { runtime.locations.collect { refreshTour() } }
         viewModelScope.launch { runtime.status.collect { sdkStatus = it; updateLiveInputs() } }
+        viewModelScope.launch { runtime.puzzleStatus.collect { vehiclePuzzleSignals = it; vehiclePuzzleValues = runtime.puzzleLatest.mapValues { sample -> sample.value.active }; synchronizeVehiclePuzzle() } }
+        viewModelScope.launch { runtime.puzzleSamples.collect { sample ->
+            vehiclePuzzleValues = runtime.puzzleLatest.mapValues { it.value.active }
+            refreshTour()
+            val lock = storyPuzzle?.lock as? StoryLockDefinition.CarSequence
+            if (usesVehiclePuzzleSdk && lock != null && carPuzzleInput is CarPuzzleInput.Vehicle &&
+                (carPuzzleInput as CarPuzzleInput.Vehicle).ready && canEditStoryPuzzle()) {
+                val control = vehiclePuzzleMapper.accept(sample, SystemClock.elapsedRealtime())
+                if (control != null && control in lock.controls && storyPuzzleDraft.car.size < lock.maxLength) {
+                    storyPuzzleDraft = storyPuzzleDraft.copy(car = storyPuzzleDraft.car + control)
+                    storyPuzzleMessage = null
+                }
+            }
+        } }
     }
 
     private fun now() = TourClock(System.currentTimeMillis(), SystemClock.elapsedRealtime(), bootId)
-    private fun safety() = if (isMock) TourSafety(foreground, mockParked == true, mockParked == true, mockParked == true)
+    private fun safety() = if (isMock && !mockVehiclePuzzleSdk) TourSafety(foreground, mockParked == true, mockParked == true, mockParked == true)
         else runtime.safety.value.copy(foreground = foreground && runtime.safety.value.foreground)
-    private fun location() = if (isMock) mockLocation.takeIf { mockWaypointId == currentWaypoint?.id } else runtime.locations.value
+    private fun rawLocation() = if (isMock) mockLocation.takeIf { mockWaypointId == currentWaypoint?.id } else runtime.locations.value
+    private fun location() = tourVisit.locationForGate(rawLocation())
+    private fun unlockTourGate(clock: TourClock = now()): TourGate {
+        val target = currentWaypoint ?: return TourGate.COORDINATES_NOT_CONFIGURED
+        val departureAt = if (isMock && !mockVehiclePuzzleSdk) clock.elapsedRealtimeMillis.takeIf { mockParked == false }
+            else runtime.lastDepartureElapsedMillis
+        tourVisit.observe(record(), mode, target, rawLocation(), safety(), clock, departureAt)
+        return TourPolicy.unlockGate(record(), mode, target, location(), safety(), clock, tourVisit.confirmation)
+    }
     private fun record() = trip?.tourRecords?.firstOrNull { it.checkpointId == currentWaypoint?.id }
 
     private suspend fun loadCurrentMode() {
@@ -196,10 +245,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun refreshTour() {
-        val target = currentWaypoint ?: return
+        val target = currentWaypoint ?: run { synchronizeVehiclePuzzle(); return }
         val clock = now()
+        tourGate = unlockTourGate(clock)
         tourStartGate = TourPolicy.startGate(mode, target, location(), safety(), clock)
-        tourGate = TourPolicy.unlockGate(record(), mode, target, location(), safety(), clock)
         tourRemainingMillis = record()?.let {
             when (val elapsed = TourPolicy.elapsed(it, clock)) {
                 is TourTimeResult.Valid -> if (isMock && it.debugTimeBypass) 0L else
@@ -213,18 +262,62 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             if (TourPolicy.startGate(mode, target, location(), safety(), now()) == TourGate.READY)
                 old?.copy(phase = StoryPhase.ARRIVED) else null
         }
+        synchronizeVehiclePuzzle()
+    }
+
+    /** Boundaries capture a queue watermark; cached snapshots can only establish a baseline. */
+    private fun synchronizeVehiclePuzzle(forceReset: Boolean = false) {
+        val lock = storyPuzzle?.lock as? StoryLockDefinition.CarSequence
+        val now = SystemClock.elapsedRealtime()
+        val required = lock?.controls.orEmpty()
+        val signalsReady = required.isNotEmpty() && required.all { control ->
+            vehiclePuzzleSignals[control]?.availability == SdkAvailability.READY &&
+                runtime.puzzleLatest[control]?.let { it.active != null && now - it.receivedElapsedMillis in 0..9_000L } == true
+        }
+        val eligible = usesVehiclePuzzleSdk && lock != null && signalsReady && canEditStoryPuzzle()
+        val scope = if (usesVehiclePuzzleSdk && lock != null && screen == Screen.STORY)
+            "${trip?.sessionId}:${story?.chapterIndex}:${storyPuzzle?.id}:$exploreFocus:$vehiclePuzzleResetRevision:${runtime.lastDepartureElapsedMillis}"
+            else null
+        val key = "$scope:$eligible:${runtime.puzzleGeneration}"
+        if (forceReset || key != vehiclePuzzleContextKey) {
+            vehiclePuzzleContextKey = key
+            if (usesVehiclePuzzleSdk && storyPuzzleDraft.car.isNotEmpty()) storyPuzzleDraft = storyPuzzleDraft.copy(car = emptyList())
+            vehiclePuzzleMapper.reset(VehiclePuzzleInputContext(scope, eligible, now, runtime.puzzleGeneration, runtime.puzzleSequence))
+            if (eligible) runtime.puzzleLatest.values.forEach(vehiclePuzzleMapper::seedBaseline)
+        }
+        carPuzzleInput = if (!usesVehiclePuzzleSdk) CarPuzzleInput.Manual else {
+            val unavailable = required.filter { vehiclePuzzleSignals[it]?.availability != SdkAvailability.READY }
+            val message = when {
+                unavailable.isNotEmpty() -> unavailable.joinToString(" · ") { control ->
+                    val state = vehiclePuzzleSignals[control]
+                    "${control.label}: ${state?.detail ?: "차량 표본 대기"}"
+                }
+                !eligible -> "정차·관광 조건과 최신 차량 표본을 확인하고 있습니다."
+                else -> {
+                    val guide = when {
+                        lock?.visual is CarVisual.Sluice && CarControl.TURN_RIGHT in required ->
+                            "오른쪽 깜빡이=수문 닫기 · 왼쪽=수문 열기. 같은 방향을 반복할 때는 껐다 켜세요. 켜 둔 동안의 점멸은 한 번만 입력됩니다."
+                        CarControl.TURN_LEFT in required || CarControl.TURN_RIGHT in required ->
+                            "깜빡이를 켜면 해당 방향을 1회 입력합니다. 같은 방향을 반복할 때는 껐다 켜세요."
+                        else -> "와이퍼는 꺼짐→켜짐, 운전석 창문은 완전히 닫힘→열림을 1회로 읽습니다."
+                    }
+                    "${if (mockVehiclePuzzleSdk) "시연 관광 + " else ""}실제 차량 입력 · $guide 제출 버튼으로 답을 확인합니다."
+                }
+            }
+            CarPuzzleInput.Vehicle(eligible, message)
+        }
     }
 
     private fun updateLiveInputs() {
         val previouslySafe = vehicle.parked == true
-        val safe = if (isMock) mockParked else runtime.safety.value.let {
+        val safe = if (isMock && !mockVehiclePuzzleSdk) mockParked else runtime.safety.value.let {
             when {
                 it.foreground && it.parked && it.stationary && it.carUxAllowed -> true
                 sdkStatus.carSafety.availability == SdkAvailability.READY && (!it.parked || !it.stationary) -> false
                 else -> null
             }
         }
-        vehicle = if (isMock) vehicle.copy(parked = mockParked) else VehicleState(
+        vehicle = if (isMock) vehicle.copy(parked = safe) else VehicleState(
             parked = safe, batteryPercent = sdkStatus.batteryPercent,
         )
         // Receiving the first live snapshot is a baseline, never a turn/lighting action.
@@ -240,6 +333,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         foregroundTicker?.cancel()
         foregroundTicker = null
         if (!value) {
+            tourVisit.clear()
             mockParked = null; mockLocation = null; mockWaypointId = null
             vehicle = VehicleState(); pendingNarration = null
             storyPuzzleDraft = StoryPuzzleDraft.forLock(storyPuzzle?.lock); storyPuzzleMessage = null
@@ -254,6 +348,20 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         refreshTour()
     }
 
+    fun setMockVehiclePuzzleSdk(enabled: Boolean) {
+        if (!BuildConfig.DEBUG || !isMock || !foreground || loading || saving || screen != Screen.LOBBY || enabled == mockVehicleSdkState) return
+        safetyRevision++
+        mockVehicleSdkState = enabled
+        mockParked = null
+        vehicle = VehicleState()
+        storyPuzzleDraft = storyPuzzleDraft.copy(car = emptyList())
+        vehiclePuzzleResetRevision++
+        tourVisit.clear()
+        sdkMessage = if (enabled) "시연 관광 + 실제 SDK 차량 입력. P·정지·CarUx는 실제 신호로 확인합니다." else "MOCK 관광·차량 입력으로 돌아왔습니다. P 정차를 다시 입력하세요."
+        updateLiveInputs()
+        synchronizeVehiclePuzzle(forceReset = true)
+    }
+
     fun chooseMode(next: TourMode) {
         if (!BuildConfig.DEBUG || next == mode || saving || screen != Screen.LOBBY) return
         safetyRevision++
@@ -261,6 +369,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         pendingNarration = null; mockLocation = null; mockWaypointId = null; mockParked = null
         storyPuzzleDraft = StoryPuzzleDraft(); storyPuzzleMessage = null; puzzleDraftIdentity = null
         vehicle = VehicleState(); story = null; trip = null; game = null
+        tourVisit.clear()
+        mockVehicleSdkState = false
         mode = next; loading = true
         commands.trySend { loadCurrentMode() }
     }
@@ -291,6 +401,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             if (mode != requestedMode || trip != previous || revision != safetyRevision || screen != sourceScreen || !parked ||
                 requestedMode == TourMode.LIVE && liveRevision != runtime.revision) return@trySend
             saving = true
+            synchronizeVehiclePuzzle()
             val next = transform(previous)?.let { t ->
                 // 엔딩에 처음 닿은 시각을 남긴다(사건 종결 보고서용).
                 if (t.phase == StoryPhase.ENDED && t.endedAtEpochMillis == null) t.copy(endedAtEpochMillis = System.currentTimeMillis()) else t
@@ -306,7 +417,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun goLobby() { safetyRevision++; stopAudio(); pendingNarration = null; endingPanel = ""; truthDraft = emptyMap(); screen = Screen.LOBBY }
+    fun goLobby() { safetyRevision++; stopAudio(); pendingNarration = null; endingPanel = ""; truthDraft = emptyMap(); screen = Screen.LOBBY; synchronizeVehiclePuzzle() }
     fun openLockWorkshop() {
         if (!parked || saving) return
         safetyRevision++; stopAudio(); pendingNarration = null
@@ -470,7 +581,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         refreshTour()
         if (tourGate != TourGate.READY || story?.phase != StoryPhase.EXPLORING) return
         changeTrip { old ->
-            if (old == null || TourPolicy.unlockGate(record(), mode, currentWaypoint!!, location(), safety(), now()) != TourGate.READY) null
+            if (old == null || unlockTourGate() != TourGate.READY) null
             else StoryEngine.returnToCar(story!!).let {
                 old.copy(phase = it.phase, items = it.items, clues = it.clues, puzzleProgress = it.puzzleProgress)
             }
@@ -478,7 +589,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Draft changes are local and never grant a clue or write a puzzle result. */
-    private fun canEditStoryPuzzle(): Boolean = parked && !saving && !loading &&
+    private fun canEditStoryPuzzle(): Boolean = parked && !saving && !loading && !casebookOpen && !showMap &&
         storageError == null && screen == Screen.STORY && story?.phase == StoryPhase.PUZZLE &&
         tourGate == TourGate.READY && storyPuzzleProgress?.solved == false
 
@@ -512,7 +623,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun changeStoryCar(value: List<CarControl>) {
         val lock = storyPuzzle?.lock as? StoryLockDefinition.CarSequence ?: return
         if (!canEditStoryPuzzle() || value.size > lock.maxLength || value.any { it !in lock.controls }) return
+        if (usesVehiclePuzzleSdk && value.isNotEmpty()) return // SDK answers only come from vehicle transitions.
         storyPuzzleDraft = storyPuzzleDraft.copy(car = value.toList()); storyPuzzleMessage = null
+        if (usesVehiclePuzzleSdk) { vehiclePuzzleResetRevision++; synchronizeVehiclePuzzle(forceReset = true) }
     }
     fun changeStoryDial(value: List<Int>) {
         val lock = storyPuzzle?.lock as? StoryLockDefinition.SymbolDial ?: return
@@ -561,7 +674,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (spot.record && !s.isHotspotDone(spot)) {
             changeTrip { old ->
                 if (old == null || story?.phase != StoryPhase.PUZZLE ||
-                    TourPolicy.unlockGate(record(), mode, currentWaypoint!!, location(), safety(), now()) != TourGate.READY) null
+                    unlockTourGate() != TourGate.READY) null
                 else old.copy(puzzleProgress = StoryEngine.examine(story!!, id).puzzleProgress)
             }
         }
@@ -577,12 +690,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         storyPuzzleDraft = StoryPuzzleDraft.forLock(story?.currentPuzzle?.lock)
         storyPuzzleMessage = null
         puzzleDraftIdentity = "${trip?.sessionId}:${s.chapterIndex}:${s.phase}:${s.currentStepIndex}:$stepId"
+        synchronizeVehiclePuzzle(forceReset = true)
     }
     /** 자물쇠를 닫고 장면으로 돌아간다. */
     fun closeHotspotLock() {
         exploreFocus = null
         story = story?.copy(exploreFocus = null)
         storyPuzzleMessage = null
+        synchronizeVehiclePuzzle()
     }
     /** 장면 힌트: 지금 손댈 곳 하나를 반짝인다(각성도 +1). */
     fun sceneHint() {
@@ -591,7 +706,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val target = s.actionableHotspots.firstOrNull() ?: return
         changeTrip(afterSave = { sceneGlow = target.id }) { old ->
             if (old == null || story?.phase != StoryPhase.PUZZLE ||
-                TourPolicy.unlockGate(record(), mode, currentWaypoint!!, location(), safety(), now()) != TourGate.READY) null
+                unlockTourGate() != TourGate.READY) null
             else old.copy(puzzleProgress = StoryEngine.sceneHint(story!!).puzzleProgress)
         }
     }
@@ -599,7 +714,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun submitStoryPuzzle(input: StoryPuzzleInput) {
         refreshTour()
         if (!canEditStoryPuzzle() || input != draftInput()) return
+        if (usesVehiclePuzzleSdk && storyPuzzle?.lock is StoryLockDefinition.CarSequence &&
+            (carPuzzleInput as? CarPuzzleInput.Vehicle)?.ready != true) return
         val puzzleId = storyPuzzle?.id ?: return
+        val submittedVehicleGeneration = runtime.puzzleGeneration
+        val submittedResetRevision = vehiclePuzzleResetRevision
+        val requiresVehicle = usesVehiclePuzzleSdk && storyPuzzle?.lock is StoryLockDefinition.CarSequence
         val verdict = storyPuzzle?.verdict == true
         var outcome = StoryPuzzleResult.LOCKED
         var note: String? = null
@@ -614,7 +734,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         // 저장 후 applyStored가 초안을 비운 다음에 결과 대사를 보여 준다.
         changeTrip(afterSave = { storyPuzzleMessage = message() }) { old ->
             if (old == null || story?.currentPuzzle?.id != puzzleId || story?.phase != StoryPhase.PUZZLE ||
-                TourPolicy.unlockGate(record(), mode, currentWaypoint!!, location(), safety(), now()) != TourGate.READY) null
+                casebookOpen || requiresVehicle && (runtime.puzzleGeneration != submittedVehicleGeneration || vehiclePuzzleResetRevision != submittedResetRevision) ||
+                unlockTourGate() != TourGate.READY) null
             else {
                 val result = StoryEngine.submitPuzzle(story!!, input)
                 outcome = result.result
@@ -630,7 +751,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val puzzleId = storyPuzzle?.id ?: return
         changeTrip { old ->
             if (old == null || story?.currentPuzzle?.id != puzzleId ||
-                TourPolicy.unlockGate(record(), mode, currentWaypoint!!, location(), safety(), now()) != TourGate.READY) null
+                unlockTourGate() != TourGate.READY) null
             else old.copy(puzzleProgress = StoryEngine.showPuzzleHint(story!!).puzzleProgress)
         }
     }
@@ -675,7 +796,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun continueAfterSolved() { if (parked) screen = if (game?.finished == true) Screen.SUCCESS else Screen.PLAY }
     fun abandon() { if (parked) { game = null; goLobby() } }
     fun simSetParked(value: Boolean) {
-        if (!isMock || !foreground) return
+        if (!isMock || mockVehiclePuzzleSdk || !foreground) return
         mockParked = value; updateLiveInputs()
     }
     fun simToggleLowBeam() { if (isMock) updateMockVehicle(vehicle.copy(lowBeamOn = vehicle.lowBeamOn != true)) }

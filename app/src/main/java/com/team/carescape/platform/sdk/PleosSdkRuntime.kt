@@ -4,11 +4,16 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.content.pm.PermissionInfo
 import android.os.Looper
+import android.os.SystemClock
 import java.lang.reflect.InvocationTargetException
 import com.team.carescape.model.TourLocation
 import com.team.carescape.model.TourMode
 import com.team.carescape.model.TourSafety
 import com.team.carescape.model.WaypointConfig
+import com.team.carescape.game.CarControl
+import com.team.carescape.game.VehiclePuzzleSample
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -21,6 +26,42 @@ class PleosSdkRuntime(context: Context) : AutoCloseable {
     val locations = mutableLocations.asStateFlow()
     val safety = mutableSafety.asStateFlow()
     val status = mutableStatus.asStateFlow()
+    // Ordered, single-consumer delivery to the VM. No replay across puzzle boundaries.
+    private val puzzleChannel = Channel<VehiclePuzzleSample>(128)
+    val puzzleSamples = puzzleChannel.receiveAsFlow()
+    private val mutablePuzzleStatus = MutableStateFlow<Map<CarControl, SdkFeatureState>>(emptyMap())
+    val puzzleStatus = mutablePuzzleStatus.asStateFlow()
+    var puzzleGeneration = 0L
+        private set
+    var puzzleSequence = 0L
+        private set
+    var puzzleLatest: Map<CarControl, VehiclePuzzleSample> = emptyMap()
+        private set
+    private var puzzleReader: PleosVehiclePuzzleReader? = null
+
+    private fun clearPuzzleInput() {
+        puzzleGeneration++
+        puzzleLatest = emptyMap()
+        while (puzzleChannel.tryReceive().isSuccess) { /* discard previous connection */ }
+        mutablePuzzleStatus.value = emptyMap()
+    }
+
+    private fun acceptPuzzleInput(control: CarControl, value: Boolean?, state: SdkFeatureState, receivedAt: Long) {
+        checkMain()
+        // Preserve loss boundaries even when state collectors see only the recovered value.
+        if (puzzleLatest[control]?.active != null && (value == null || state.availability != SdkAvailability.READY)) clearPuzzleInput()
+        val sample = VehiclePuzzleSample(control, value, puzzleGeneration, ++puzzleSequence, receivedAt)
+        puzzleLatest = puzzleLatest + (control to sample)
+        mutablePuzzleStatus.value = mutablePuzzleStatus.value + (control to state)
+        if (puzzleChannel.trySend(sample).isFailure) {
+            // Never silently turn dropped transitions into a valid answer.
+            clearPuzzleInput()
+            mutablePuzzleStatus.value = mapOf(control to SdkFeatureState(SdkAvailability.ERROR, "PUZZLE_INPUT_OVERFLOW"))
+        }
+    }
+    /** Updated from the same verified safety reading, never from an unknown/disconnected state. */
+    var lastDepartureElapsedMillis: Long? = null
+        private set
     var revision: Long = 0
         private set
     private var requested = false
@@ -59,6 +100,7 @@ class PleosSdkRuntime(context: Context) : AutoCloseable {
     private fun startServices() {
         active = true
         val token = ++generation
+        clearPuzzleInput()
         revision++; safetyRevision++
         mutableSafety.value = TourSafety(foreground, false, false, false)
         speech = PleosSpeechAdapter(context) { reading ->
@@ -68,7 +110,13 @@ class PleosSdkRuntime(context: Context) : AutoCloseable {
         }
         val onCarReading: (CarSafetyReading) -> Unit = { reading ->
             if (active && token == generation) {
+                if (reading.status.availability == SdkAvailability.READY && (!reading.parked || !reading.stationary)) {
+                    lastDepartureElapsedMillis = SystemClock.elapsedRealtime()
+                }
                 val next = TourSafety(foreground, reading.parked, reading.stationary, reading.uxAllowed)
+                val wasAllowed = mutableSafety.value.let { it.foreground && it.parked && it.stationary && it.carUxAllowed }
+                val nowAllowed = next.let { it.foreground && it.parked && it.stationary && it.carUxAllowed }
+                if (wasAllowed && !nowAllowed) clearPuzzleInput()
                 if (next != mutableSafety.value || reading.status != mutableStatus.value.carSafety) { revision++; safetyRevision++ }
                 mutableSafety.value = next
                 mutableStatus.value = mutableStatus.value.copy(carSafety = reading.status)
@@ -81,6 +129,9 @@ class PleosSdkRuntime(context: Context) : AutoCloseable {
                 vehicle = reading.status, brakePedal = reading.brakePedal, batteryPercent = reading.batteryPercent,
                 vehicleReceivedElapsedMillis = reading.receivedElapsedMillis,
             )
+        }.also { it.start() }
+        puzzleReader = PleosVehiclePuzzleReader(context) { control, value, state, receivedAt ->
+            if (active && token == generation) acceptPuzzleInput(control, value, state, receivedAt)
         }.also { it.start() }
         locationNavigation = PleosLocationNavigation(context, onLocation = { location ->
             if (active && token == generation) {
@@ -119,6 +170,7 @@ class PleosSdkRuntime(context: Context) : AutoCloseable {
         }
     }
     private fun unavailableCar(error: Throwable) {
+        clearPuzzleInput()
         runCatching { car?.close() }; car = null
         revision++; safetyRevision++
         mutableSafety.value = TourSafety(foreground, false, false, false)
@@ -134,6 +186,8 @@ class PleosSdkRuntime(context: Context) : AutoCloseable {
         mutableLocations.value = TourLocation(TourMode.LIVE, error = if (foreground) "SDK_STOPPED" else "BACKGROUND")
         speech?.close(); speech = null
         locationNavigation?.close(); locationNavigation = null
+        puzzleReader?.close(); puzzleReader = null
+        clearPuzzleInput()
         vehicle?.close(); vehicle = null
         car?.close(); car = null
         mutableStatus.value = PleosSdkStatus()
@@ -163,11 +217,13 @@ class PleosSdkRuntime(context: Context) : AutoCloseable {
         checkMain()
         if (closed) return
         stop(); closed = true
+        puzzleChannel.close()
     }
 
     companion object {
         val declaredSdkPermissions = listOf(
             "pleos.car.permission.FUSED_LOCATION", "pleos.car.permission.NAVI_ROUTE", "pleos.car.permission.NAVI_ROUTE_SEARCH",
+            "pleos.car.permission.CAR_WINDOWS", "pleos.car.permission.CAR_LIGHTS",
             "pleos.car.permission.CAR_DRIVE", "pleos.car.permission.CAR_ENERGY", "pleos.car.permission.TTS_SERVICE",
             "pleos.car.permission.STT_SERVICE", "android.car.permission.CAR_SPEED", "android.car.permission.CAR_POWERTRAIN",
         )

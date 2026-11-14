@@ -597,7 +597,7 @@ private fun ArrivalScreen(s: StoryState, vm: GameViewModel, onReplay: (() -> Uni
                     if (c.arrivalScene.isNotEmpty()) DialogueBlock(s.episode, c.arrivalScene)
                     else Text(c.arrival, style = Esc.noto(17, Esc.creamMuted, lineHeight = 1.75f))
                     if (c.explore != null) Text(c.explore, style = Esc.noto(15, Esc.creamSoft))
-                    Text("모든 장소에서 관광 시작을 저장하고 최소 15분 후 복귀 위치·안전 상태를 다시 확인합니다.", style = Esc.noto(14, Esc.creamSoft))
+                    Text("관광 시작을 저장하고 최소 15분 뒤 안전한 정차 상태에서 진행합니다. 같은 앱 이용 중 확인한 도착 위치는 표본이 오래돼도 유지하며, 출발·앱 재실행 뒤에는 위치를 다시 확인합니다.", style = Esc.noto(14, Esc.creamSoft))
                 }
                 Text(tourGateMessage(vm.tourStartGate), Modifier.testTag("tour-start-reason"), style = Esc.noto(14, Esc.gold))
                 MaterialsRow(ingredientCount(s))

@@ -199,6 +199,100 @@ class SiyeokFlow5Test {
         assertTrue(runCatching { validateStoredTrip(fake) }.isFailure)
     }
 
+    @Test fun currentSluiceUsesTurnSignalsWhileHistoricalFlowsKeepHazard() {
+        val wiper = CarControl.WIPER
+        val right = CarControl.TURN_RIGHT
+        val left = CarControl.TURN_LEFT
+        val hazard = CarControl.HAZARD
+        val current = episode.chapters[1].puzzleSteps.single { it.id == "c2_gates" }
+        val currentLock = current.lock as StoryLockDefinition.CarSequence
+        val currentAnswer = listOf(right, right, right, left, right, right, right)
+        val historicalAnswer = listOf(wiper, wiper, wiper, hazard, wiper, wiper, wiper)
+        assertEquals(currentAnswer, currentLock.answer)
+        assertEquals(setOf(right, left), currentLock.controls.toSet())
+        assertEquals(7, currentLock.maxLength)
+        assertEquals(StoryPuzzleResult.CORRECT, StoryPuzzles.evaluate(current, StoryPuzzleInput.CarSequence(currentAnswer)))
+        assertEquals(StoryPuzzleResult.INVALID_INPUT, StoryPuzzles.evaluate(current, StoryPuzzleInput.CarSequence(historicalAnswer)))
+        listOf(StoryCatalog.CASE_FLOW_VERSION, StoryCatalog.ITEM_FLOW_VERSION).forEach { version ->
+            val historical = StoryCatalog.episodeFor(version).chapters[1].puzzleSteps.single { it.id == "c2_gates" }
+            val lock = historical.lock as StoryLockDefinition.CarSequence
+            assertEquals("flow $version", historicalAnswer, lock.answer)
+            assertEquals("flow $version", setOf(wiper, hazard), lock.controls.toSet())
+            assertEquals(StoryPuzzleResult.CORRECT, StoryPuzzles.evaluate(historical, StoryPuzzleInput.CarSequence(historicalAnswer)))
+        }
+    }
+
+    @Test fun sluiceKeepsTheAllClosedTrapAndRejectsOpeningTwoGates() {
+        val gates = episode.chapters[1].puzzleSteps.single { it.id == "c2_gates" }
+        val allClosed = StoryPuzzleInput.CarSequence(List(7) { CarControl.TURN_RIGHT })
+        assertEquals(StoryPuzzleResult.WRONG, StoryPuzzles.evaluate(gates, allClosed))
+        assertEquals(2, gates.feedback(StoryPuzzles.answerKey(allClosed))!!.penalty)
+        val twoOpen = StoryPuzzleInput.CarSequence(listOf(
+            CarControl.TURN_RIGHT, CarControl.TURN_RIGHT, CarControl.TURN_RIGHT, CarControl.TURN_LEFT,
+            CarControl.TURN_RIGHT, CarControl.TURN_LEFT, CarControl.TURN_RIGHT,
+        ))
+        assertEquals(StoryPuzzleResult.WRONG, StoryPuzzles.evaluate(gates, twoOpen))
+        val note = gates.feedback(StoryPuzzles.answerKey(twoOpen))!!
+        assertEquals(0, note.penalty)
+        assertTrue(note.message.contains("한 칸"))
+    }
+
+    @Test fun reservoirHeightGridHasTheApprovedBoardAndElevenMoveAnswer() {
+        val channel = episode.chapters[2].puzzleSteps.single { it.id == "c3_channel" }
+        val lock = channel.lock as StoryLockDefinition.Directions
+        val grid = lock.heightGrid!!
+        assertEquals(listOf(
+            listOf(1, 16, 17, 15, 13), listOf(2, 18, 20, 19, 11), listOf(12, 24, 25, 21, 9),
+            listOf(14, 23, 22, 6, 7), listOf(10, 3, 4, 5, 8),
+        ), grid.rows)
+        assertEquals(25, grid.start)
+        assertEquals(listOf(25, 20, 17, 15, 13, 11, 9, 7, 6, 5, 4, 3), grid.path)
+        val answer = listOf(
+            LockDirection.UP, LockDirection.UP, LockDirection.RIGHT, LockDirection.RIGHT,
+            LockDirection.DOWN, LockDirection.DOWN, LockDirection.DOWN, LockDirection.LEFT,
+            LockDirection.DOWN, LockDirection.LEFT, LockDirection.LEFT,
+        )
+        assertEquals(answer, lock.answer)
+        assertEquals(11, lock.answer.size)
+        assertEquals(StoryPuzzleResult.CORRECT, StoryPuzzles.evaluate(channel, StoryPuzzleInput.Directions(answer)))
+        assertEquals(StoryPuzzleResult.WRONG, StoryPuzzles.evaluate(channel, StoryPuzzleInput.Directions(answer.reversed())))
+        assertEquals(3, grid.path.last())
+        // Stop at the local minimum 3 rather than jumping to the unrelated global minimum 1.
+        assertEquals(1, grid.rows.flatten().minOrNull())
+        assertEquals(listOf(10, 23, 4), listOf(grid.rows[4][0], grid.rows[3][1], grid.rows[4][2]))
+    }
+
+    @Test fun reservoirRejectsThePreviousThreeMoveAnswerAndKeepsHistoricalFlows() {
+        val channel = episode.chapters[2].puzzleSteps.single { it.id == "c3_channel" }
+        val oldDirections = listOf(LockDirection.LEFT, LockDirection.RIGHT, LockDirection.RIGHT)
+        assertEquals(StoryPuzzleResult.INVALID_INPUT, StoryPuzzles.evaluate(channel, StoryPuzzleInput.Directions(oldDirections)))
+        assertEquals(StoryPuzzleResult.INVALID_INPUT, StoryPuzzles.evaluate(channel, StoryPuzzleInput.Sequence(listOf("L", "R", "R"))))
+        assertEquals(StepKind.DEDUCE, channel.kind)
+        assertTrue(channel.feedback("LEFT,RIGHT,RIGHT")!!.message.contains("이동"))
+        val oldFlowFour = StoryCatalog.episodeFor(StoryCatalog.ITEM_FLOW_VERSION)
+        val oldStep = oldFlowFour.chapters[2].puzzleSteps.single { it.id == "c3_channel" }
+        assertEquals(listOf("L", "R", "R"), (oldStep.lock as StoryLockDefinition.Sequence).answer)
+        assertEquals(StoryPuzzleResult.CORRECT, StoryPuzzles.evaluate(oldStep, StoryPuzzleInput.Sequence(listOf("L", "R", "R"))))
+        assertEquals(listOf(CarControl.TURN_LEFT, CarControl.TURN_RIGHT, CarControl.TURN_RIGHT),
+            (StoryCatalog.episodeFor(StoryCatalog.CASE_FLOW_VERSION).chapters[2].puzzleSteps.single { it.id == "c3_channel" }.lock as StoryLockDefinition.CarSequence).answer)
+        val oldFarm = oldFlowFour.documents.single { it.id == "doc_farm" }
+        val currentFarm = episode.documents.single { it.id == "doc_farm" }
+        assertFalse(oldFarm.body.contains("25"))
+        assertTrue(currentFarm.body.contains("가운데 25"))
+        assertTrue(currentFarm.body.contains("곡식은 마지막이 아니다"))
+        assertEquals("x3_farmbook", currentFarm.afterStep)
+    }
+
+    @Test fun completedReservoirStepKeepsItsIdentityAndRemainsSolved() {
+        var state = atPuzzle(StoryEngine.start(episode, StoryCatalog.EXPLORE_FLOW_VERSION).copy(chapterIndex = 2))
+        state = StoryEngine.examine(state, "x3_farmbook").copy(exploreFocus = "c3_channel")
+        val solved = StoryEngine.submitPuzzle(state, answer(state.currentPuzzle!!.lock))
+        assertEquals(StoryPuzzleResult.CORRECT, solved.result)
+        assertTrue("c3_channel" in solved.state.puzzleProgressForCurrent!!.solvedSteps)
+        assertEquals(StoryPuzzleResult.LOCKED, StoryEngine.submitPuzzle(solved.state, answer(state.currentPuzzle!!.lock)).result)
+        assertEquals("c3_channel", episode.chapters[2].scene!!.hotspots.single { it.id == "x3_sluice" }.lockStep)
+    }
+
     @Test fun locksCannotBeGuessedCheaply() {
         val steps = episode.chapters.flatMap { it.puzzleSteps }
         steps.forEach { step ->

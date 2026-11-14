@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Debug emulator instrumentation only; release keeps its normal network policy. -->
+    <application android:networkSecurityConfig="@xml/vehicle_console_test_network" />
+</manifest>

@@ -132,7 +132,11 @@ fun DigitStepperLock(
     }
 }
 
-/** 차량 조작 대체 입력. 버튼 하나가 차량 조작 한 번이다. 실제 차량 설정을 읽거나 바꾸지 않는다. */
+/** The caller chooses a demo button source or read-only vehicle input. */
+sealed interface CarPuzzleInput {
+    data object Manual : CarPuzzleInput
+    data class Vehicle(val ready: Boolean, val message: String) : CarPuzzleInput
+}
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CarSequenceLock(
@@ -143,23 +147,34 @@ fun CarSequenceLock(
     onChange: (List<CarControl>) -> Unit,
     onSubmit: () -> Unit,
     feedback: @Composable () -> Unit,
+    input: CarPuzzleInput = CarPuzzleInput.Manual,
 ) {
-    LockPanel(if (scene) "In the Car" else "Car Controls", "차량 신호 연동 전 · 화면 버튼으로 입력") {
+    val vehicle = input as? CarPuzzleInput.Vehicle
+    fun actionLabel(control: CarControl): String = when {
+        lock.visual is CarVisual.Sluice && control == CarControl.TURN_RIGHT -> "오른쪽 깜빡이 · 수문 닫기"
+        lock.visual is CarVisual.Sluice && control == CarControl.TURN_LEFT -> "왼쪽 깜빡이 · 수문 열기"
+        else -> control.label
+    }
+    LockPanel(if (scene) "In the Car" else "Car Controls", if (vehicle == null) "시연 MOCK · 화면 버튼으로 입력" else "실제 차량 신호로 입력") {
         LockVisual(lock.visual, value.map { it.name })
-        if (!scene) Text(
+        Text(
             if (value.isEmpty()) "아직 입력이 없습니다" else value.joinToString("  →  ") { it.short },
             Modifier.testTag("car-sequence"), style = Esc.noto(15, Esc.gold), textAlign = TextAlign.Center,
         )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            lock.controls.forEach { control ->
-                OutlineButton(control.label, { if (value.size < lock.maxLength) onChange(value + control) },
-                    Modifier.testTag("car-${control.name}").semantics { contentDescription = "차량 조작 ${control.label}" },
-                    enabled = enabled && value.size < lock.maxLength && !(scene && value.isNotEmpty()), minHeight = 48.dp, fontSize = 15)
+        if (vehicle == null) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                lock.controls.forEach { control ->
+                    OutlineButton(actionLabel(control), { if (value.size < lock.maxLength) onChange(value + control) },
+                        Modifier.testTag("car-${control.name}").semantics { contentDescription = "차량 조작 ${actionLabel(control)}" },
+                        enabled = enabled && value.size < lock.maxLength && !(scene && value.isNotEmpty()), minHeight = 48.dp, fontSize = 15)
+                }
             }
+        } else {
+            Text(vehicle.message, Modifier.testTag("car-sdk-status"), style = Esc.noto(13, Esc.creamMuted), textAlign = TextAlign.Center)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (!scene) OutlineButton("처음부터", { onChange(emptyList()) }, Modifier.testTag("car-reset"), enabled = enabled && value.isNotEmpty(), minHeight = 48.dp)
-            ParchmentButton(if (scene) "했어요" else "제출", onSubmit, Modifier.testTag("story-puzzle-submit"), enabled = enabled && value.isNotEmpty(), minWidth = 140.dp, minHeight = 48.dp)
+            OutlineButton("처음부터", { onChange(emptyList()) }, Modifier.testTag("car-reset"), enabled = enabled && value.isNotEmpty(), minHeight = 48.dp)
+            ParchmentButton("제출", onSubmit, Modifier.testTag("story-puzzle-submit"), enabled = enabled && value.isNotEmpty() && vehicle?.ready != false, minWidth = 140.dp, minHeight = 48.dp)
         }
         feedback()
     }
@@ -174,17 +189,23 @@ internal fun LockVisual(visual: CarVisual, value: List<String>) {
         is CarVisual.Sluice -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
             repeat(visual.gates) { i ->
                 val state = value.getOrNull(i)
+                val closed = state == CarControl.TURN_RIGHT.name || state == CarControl.WIPER.name
+                val opened = state in listOf(CarControl.TURN_LEFT.name, CarControl.HAZARD.name, CarControl.WINDOW.name)
+                val gateLabel = if (closed) "닫힘" else if (opened) "열림" else "대기"
                 val current = i == value.size
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Box(
-                        Modifier.size(32.dp, 58.dp)
+                        Modifier.size(32.dp, 58.dp).semantics { contentDescription = "${i + 1}번 수문 $gateLabel" }
                             .border(if (current) 2.dp else 1.dp, if (current) Esc.gold else Esc.goldDim)
-                            .background(when (state) {
-                                CarControl.WIPER.name -> Esc.inkSoft
-                                CarControl.HAZARD.name -> Color(0xFF6F8AA0)
+                            .background(when {
+                                closed -> Esc.inkSoft
+                                opened -> Color(0xFF6F8AA0)
                                 else -> Color.Transparent
                             }),
-                    )
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (closed || opened) Text(gateLabel, style = Esc.noto(12, Esc.cream))
+                    }
                     Text("${i + 1}", style = Esc.noto(12, if (current) Esc.gold else Esc.creamSoft))
                 }
             }

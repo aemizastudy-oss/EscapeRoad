@@ -281,3 +281,74 @@ SDK 어댑터는 기존 `main`의 검증된 API 경계를 현재 패키지로 �
 - 빌드 확인: 관리형 gradle-run의 질문 “함께 보기 삭제 후 Debug 빌드와 여행 테스트가 통과하는가?”에 `:app:assembleDebug :app:testDebugUnitTest --tests com.team.carescape.travel.*` exit 0, 여행 테스트 18개 통과. 새 단위 테스트는 추가하지 않았다.
 - 에뮬레이터 시연 확인: Pleos Connect v2.1.0(API 34), emulator-5554 / 사용자 10. 업데이트 APK를 설치하고 MOCK/P 정차 상태에서 일정·둘러보기 양쪽의 함께 보기 탭 제거 및 나머지 주차·맛집·체험 탭 표시를 확인했다. 테스트 전후 방탈출 저장 JSON과 여행 프로필/저장 장소 SharedPreferences 원문이 같았다. 인증 값은 출력하거나 커밋하지 않았다.
 - 로컬 증거: `C:/my-car-buddy/.gradle/car-escape-remove-sight-20261114/device-result.json`, `without-sight-schedule.png`, `without-sight-explore.png`, `managed-result.json`.
+
+
+## 2026-11-14 · 창문·와이퍼 차량 퍼즐의 실제 SDK 연결 감사
+
+- 판정: **차량 조작 SDK 입력 미연결**. 현재 flow5의 차량 문제는 화홍문 c2_gates(와이퍼 3회 → 비상등 → 와이퍼 3회)와 호수 c5_window(창문 내리기)다. 문·깜빡이·전조등 문제는 구형 flow3에 있었으며 현재 flow4/5의 물길·봉화는 앱 내 Sequence 입력이다.
+- 코드 근거: `ui/CaseLocks.kt`의 CarSequenceLock은 ‘차량 신호 연동 전 · 화면 버튼으로 입력’으로 표시하고 화면 버튼의 onChange로만 답안을 만든다. `platform/sdk/PleosVehicleAssist.kt`는 Brake/EvBattery만 수집하며 창문·와이퍼·비상등 수집이 없다. `PleosSdkStatus`에도 해당 필드/이벤트가 없고 `ui/GameViewModel.kt`의 updateLiveInputs는 LIVE VehicleState에 parked/batteryPercent만 채운다. changeStoryCar와 StoryPuzzleDraft.car로 실제 SDK 조작을 연결하는 경로가 없다.
+- 정답 판정 테스트: 관리형 gradle-run의 질문 “현재 스토리의 창문·와이퍼 문제 정답 판정 테스트가 통과하는가?”에 `:app:testDebugUnitTest --tests com.team.carescape.game.SiyeokFlow4Test --tests com.team.carescape.game.SiyeokFlow5Test` exit 0, 17개 통과. 답안 배열을 직접 넣는 순수 엔진 테스트이며 실제 콘솔 → SDK → 퍼즐 입력 → 제출의 성공 증거가 아니다. 기존 StoryIntegrationTest도 vm.changeStoryCar로 정답 배열을 주입한다.
+- 에뮬레이터 관찰: Pleos Connect v2.1.0 / API 34 / emulator-5554 / 사용자 10. 기존 MOCK 상태에서 로비로 이동하여 LIVE 연결 상태 화면을 열었다. P_SPEED_CAR_UX_OBSERVED 및 OPTIONAL_READ_ONLY_SIGNALS의 연결 준비를 확인했다. 위치에는 UPDATED_LOCATION_ACCURACY_UNIT_UNVERIFIED가 표시된다. CAR_LIGHTS/CAR_DOORS/CAR_WINDOWS/CAR_SAFETY는 현재 설치 앱에서 granted=true였다. 따라서 이번 핵심 누락은 해당 신호를 수집하고 퍼즐 초안에 전달하는 앱 코드이며, 권한 선언만으로 구현됐다고 보지 않는다.
+- 콘솔은 GET과 페이지 JS를 읽어 창문·와이퍼·비상등 제어 경로를 확인했다. 브라우저 세션에 따라 DDS 준비 상태가 바뀌는 것도 관측했다. 이번 감사에서는 차량 제어 PUT을 보내거나 LIVE 관광/위치/안전 게이트를 우회하지 않았다. 실제 SDK 차량 조작으로 두 퍼즐이 풀리는 종단 테스트는 구현 부재로 진행하지 못했다. 화면 버튼 판정 성공을 실제 SDK 성공으로 바꾸어 설명하지 않는다.
+- 데이터 보존: 기존 여행 저장을 백업한 뒤 LIVE 상태를 읽었고, 원래 MOCK 모드로 복귀했다. 테스트 전후 저장 JSON이 같았다. 원래 완료 여행은 그대로 보존했다. 기능 코드 변경·APK 재설치·원격 푸시는 하지 않았다.
+- 필요한 후속 구현: 지원·권한을 확인한 SDK 수신 → 최초 표본/중복/오래된 값과 실제 조작 변화 구분 → 활성 문제 입력 누적 → 사용자의 제출 버튼에서 정답 판정. P·정지·UX·관광/위치 조건은 유지해야 한다.
+- 로컬 증거: `C:/my-car-buddy/.gradle/car-escape-sdk-puzzle-audit-20261114/live-sdk-status.json`, `live-sdk-status.png`, `managed-result.json`, `story-before.json`(원시 백업은 로컬 전용).
+
+
+## 2026-11-14 · 유효 도착과 15분 경과 후 위치 노후화 재차단 완화
+
+- 사용자 후속 정책 반영: 같은 앱 이용 중 현재 여행·챕터·모드에서 유효한 최신 도착 위치를 확인하고 관광 시작 후 15분을 충족하면, 위치 표본이 오래됐다는 이유만으로 다시 잠그지 않는다. 확인은 15분 이전에도 확보하므로 완료 순간 새 GPS 콜백을 강제하지 않는다. 이는 ‘도착 확인 후 관광 대기시간 충족’이며 그 장소에서 연속 15분 체류했다는 위치 증명이 아니다. 이 기록이 이전 명세의 매번 최신 위치 요구보다 우선한다.
+- 구현: TourLocationConfirmation/TourVisitConfirmation을 ViewModel 소유 메모리 상태로 둔다. 세션·챕터·모드·원래 관광 시작 시각·목표점/반경에 묶는다. 복귀·조사·힌트·정답 제출의 저장 직전 검사도 동일한 공통 unlockTourGate를 사용한다. 관광 시작 시각이나 SDK 수신 타임스탬프를 새 값으로 꾸미지 않으며 원시 위치를 영속 저장하지 않는다. 기존 저장 스키마·완료 단서·보관 여행은 변경하지 않는다.
+- 무효화: 확인된 차량 출발이나 새 반경 이탈, 유효하지 않은 위치/일반 SDK 오류, 백그라운드·모드 변경·앱 재실행에서는 위치를 다시 확인한다. 출발 직전의 아직 신선한 구표본으로 곧바로 재인증하지 않도록 수신 경계와 표본을 구분한다. 실제 출발 시각은 같은 READY CarSafetyReading에서 가져오고 미수신 초기 상태를 주행으로 만들지 않는다. P·정지·CarUx·시간 검증은 매번 유지한다.
+- 실제 만료 경로: 어댑터의 15초 만료값을 TourPolicy.SDK_LOCATION_EXPIRY_MILLIS로 공유한다(기존 수치 유지). 일반 30초 노후화와 정확한 LOCATION_STALE 만료 오류를 구분해 처리하고, LOCATION_SDK_ERROR/NULL/INVALID까지 무시하지 않는다. SDK 상태창의 관광 완료 안내도 반영했다. 새 챕터 최초 인증에는 최신 위치·좌표·정확도 검사를 유지한다.
+- 빌드 확인: 관리형 gradle-run 질문 “15분 이후 위치 노후화 완화가 빌드·단위 테스트·Lint를 통과하는가?”에 `:app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug` exit 0. JVM 단위 테스트 142개 통과, Lint 오류 0개. 기존 permission 보호 수준 관련 deprecated 경고는 남는다.
+- 에뮬레이터 시연 확인: Pleos Connect v2.1.0 / API 34, emulator-5554 / 사용자 10에서 ADB instrumentation으로 StoryIntegrationTest 4개 통과. 신규 케이스는 MOCK 관광 시간 명시 우회 뒤 실제 SystemClock으로 30.25초 넘게 기다려 위치가 노후화된 상태에서 화면 정답 제출·저장 성공을 확인한다. P→D→P 뒤 새 위치 없이는 막히고 새 위치 입력으로 복구되는 것도 확인했다. 기존 5챕터 전체 진행·힌트/오답·중복 지급 방지·재생성/백그라운드 차단도 회귀 확인했다. 실제 LIVE 15분 관광이나 연속 위치 체류 검증으로 표시하지 않는다.
+- 데이터 보존: 테스트 전 원본 여행·여행 도우미 설정을 백업했고 fixture 정리 뒤 원본 JSON 및 여행 설정 보존을 확인했다. 원래 완료 여행을 새 시연 여행으로 바꾸지 않았다. 앱을 다시 열고 명시적 MOCK P 상태로 돌려두었다.
+- 남은 제한: 현재 LIVE SDK의 accuracyMeters는 미터 단위 근거가 확인되지 않아 null이다. 최초 위치 인증 보류는 그대로이며, 이번 변경만으로 실제 LIVE 방문 인증이 성공한 것은 아니다. 창문·와이퍼 SDK 퍼즐 입력 연결은 앞 감사에서 확인한 대로 별도 미구현 상태다.
+- 로컬 증거: `C:/my-car-buddy/.gradle/car-escape-tour-stale-20261114/validation-summary.json`, `instrumentation-result.json`, `managed-result.json`, `updated-app-lobby.png`. 원시 사용자 저장 백업과 계측 로그는 로컬에만 보관한다.
+
+## 2026-11-14 · 차량 문제 실제 SDK·콘솔 입력 / release/v0.4.0
+
+**구현 완료 / Debug·단위·Lint 확인 / Pleos 에뮬레이터 확인.** Windows·Android Studio JBR·Pleos Connect v2.1.0/API 34·emulator-5554·Android 사용자 10에서 실행했다. Ubuntu·실차 하드웨어·전체 LIVE 위치 인증은 미확인이다.
+
+- Vehicle 2.3.2의 Wiper/Window capability·초기 현재값·리스너를 실제 연결했다. `pleos.car.permission.CAR_WINDOWS`가 granted=true임을 확인했다. 와이퍼 OFF→ON과 ROW_1_LEFT 창문 0→양수를 각각 1회로 센다. 켜진 상태 반복·Low→High·창문 추가 이동은 입력을 늘리지 않는다. 앱은 차량 설정을 제어하지 않는다.
+- 최초 신호는 기준선이다. foreground·문제·초기화·안전·신호 오류·기록부·화면 전환 경계에서 큐/세대를 검증하며 제출 직전에도 입력 세대와 초기화 여부를 재검사한다. SDK 모드는 화면 버튼으로 답안을 만들 수 없다.
+- 첫 비상등 대안 검증에서 Android 표준 `CAR_EXTERIOR_LIGHTS` 권한 granted=false를 확인했다. 당시 SDK 테스트는 1개 통과·비상등 1개 건너뜀으로 구분했다. 이후 사용자 승인으로 **flow5만 WIPER×3→WINDOW→WIPER×3**로 바꿨다. 최신 정답·힌트·solution·오답 피드백·판문 색 표시를 함께 수정했고 사용하지 않는 AAOS 대안/특권 권한 선언은 제거했다. flow3·4의 기존 정답과 기존 해결 기록은 유지한다.
+- 디버그 로비에 명시적 `차량 답안: 실제 SDK` 선택을 추가했다. 관광·시간·저장은 MOCK, P·실제 정지·CarUx·문제 입력은 SDK다. 자동 전환·영구 저장·LIVE 위치 검증 우회는 없다. 실제 안전 신호가 없으면 모의 P 입력으로 열 수 없다.
+
+| 검증 | 결과 |
+| --- | --- |
+| 관리형 Gradle 질문 | “실제 차량 입력 연결과 순서 판정이 빌드·단위 테스트·Lint를 통과하는가?” → 통과. `gradle_with_jbr.py`/gradle-run 관리 래퍼, `:app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug`, 최종 79.304초 exit 0 |
+| JVM | 164개, 실패·오류·건너뜀 0. 새 입력 매퍼 20개와 창문 정답/구형 정답·함정 보존 2개 포함 |
+| SDK 콘솔 | `PleosVehicleConsoleTest` 2개 통과·건너뜀 0. 실제 와이퍼 3회·창문 내림, 7개 순서 수집과 명시적 메모리 엔진 제출 정답 |
+| 앱 스토리·저장 | `StoryIntegrationTest` 5개 통과·건너뜀 0. 기존 4개 회귀 + 실제 콘솔→실제 SDK 안전/조작→VM→화면 제출→DataStore의 c2_gates 해결 저장 |
+| 입력 UI | `CarSequenceInputTest` 3개 통과·건너뜀 0. SDK 대체 버튼 숨김·미확인 제출 차단·제출 전 무판정·MOCK 보존 |
+| Lint | 오류 0·경고 61. 권한 protectionLevel deprecation, 기존 의존성·Compose·리소스 등 경고는 잔존. 초기 새 테스트의 잘못된 assertDoesNotExist import는 제거 후 재검증 |
+| 사용자 데이터·콘솔 | 원본 여행 JSON 의미 동일, 여행 안내 설정 바이트 동일, 초기 와이퍼 Off·앞왼쪽 창문 0·비상등 false 복원. 초기 원본·로컬 원시 로그는 Git 밖에 보관 |
+
+실제 입력의 샘플 로그는 `REAL_SDK_SEVEN_GATE_SUBMIT_CORRECT` 및 `HYBRID_MOCK_TOUR_REAL_P_SDK_WWW_WINDOW_WWW_UI_SUBMIT_DATASTORE_PASS; LIVE_LOCATION_NOT_VERIFIED`다. 독립 SDK 검증의 관광/foreground는 메모리 fixture이며, 앱 통합은 실제 MainActivity foreground와 MOCK 관광을 사용했다. LIVE FusedLocation confidence의 미터 단위 정확도는 여전히 확인되지 않았다. 이 결과를 실제 방문 인증·실차 성공으로 표시하지 않는다.
+
+재현과 데이터 경계: [차량 문제 SDK 안내](vehicle-puzzle-sdk.md). 로컬 검증·백업 경로는 `C:\my-car-buddy\.gradle\car-escape-vehicle-sdk-20261114`이며 커밋·푸시하지 않는다. 이번 코드는 기존 release/v0.4.0의 로컬 변경으로 두며 원격 푸시는 실행하지 않았다.
+
+
+## 2026-11-14 · 화홍문 수문을 좌우 깜빡이로 변경
+
+- 구현 완료: 현재 flow5 `c2_gates`는 **오른쪽 깜빡이=수문 닫기, 왼쪽 깜빡이=수문 열기**다. 정답은 오른쪽 3번 → 왼쪽 1번 → 오른쪽 3번이며 총 7칸 후 제출한다. 안내·힌트·해설·일곱 칸의 닫힘/열림 표시·일반 MOCK 버튼·오답 피드백을 함께 변경했다. 전부 닫으면 기존 각성도 +2 함정을 적용한다. 단계 ID·기존 해결 기록과 호수 창문 문제, flow3·4 과거 정답은 보존한다.
+- SDK 구현: Vehicle 2.3.2 `TurnSignal.checkTurnSignalStateCapabilities`, `getCurrentTurnSignalState`, `registerTurnSignalState`, 기존 `pleos.car.permission.CAR_LIGHTS` 읽기 권한을 사용한다. 단일 OFF/LEFT/RIGHT 상태를 같은 수신 시각의 좌우 값으로 변환한다. 초기값·재연결 첫값은 기준선이며 같은 활성 상태 반복은 입력하지 않는다. 같은 방향은 Off 후 다시 켜며 직접 좌우 전환은 새 방향 1회다. 오류·최신성·생명주기·P/정지/CarUx 제한과 명시적 제출·저장 조건을 유지한다. 앱이 방향지시등을 제어하는 기능은 추가하지 않았다.
+- 빌드 확인: 관리형 `gradle-run` 질문 “깜빡이 수문 변경이 빌드·단위 테스트·Lint를 통과하는가?”에 `:app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug` 최종 exit 0(64.799초). JVM 테스트 **171개**, 실패·오류·건너뜀 0개. Lint 오류 0개, 경고 61개. 최종 안내 문구 수정 전 실행도 성공했으며 동일 최종 코드로 APK·기기 테스트를 진행했다.
+- 에뮬레이터 시연 확인: Windows·Android Studio JBR·Pleos Connect v2.1.0/API 34, `emulator-5554`, Android 사용자 10. 실제 콘솔 `/vehicle/turn-signal?mode=Off|BlinkLeft|BlinkRight` → SDK → 순서 판정 검증. 첫 오른쪽 입력을 3.5초 이상 유지하고 동일 활성값을 재전송해도 추가 칸이 생기지 않았다. 독립 SDK 2개·스토리 통합 5개·UI 4개, 총 **11개 기기 테스트 통과**, 건너뜀 0개. 창문·와이퍼 기존 입력 회귀도 통과했다.
+- 화면·저장 확인: MainActivity에서 MOCK 관광 + 실제 P/정지/CarUx + 실제 깜빡이 SDK 입력으로 `RRRLRRR` 초안을 만들었다. 화면 콜백으로 답안 위조는 차단됐고 신호 입력만으로 저장되지 않았다. 실제 UI의 제출 버튼을 누른 후 DataStore에 `c2_gates` 해결이 저장됐다. 관측 표식: `HYBRID_MOCK_TOUR_REAL_P_SDK_RRRLRRR_UI_SUBMIT_DATASTORE_PASS`. 테스트는 격리된 MOCK 여행에서 진행하고 기존 MOCK/LIVE·archive·schema를 복원했다.
+- 데이터·콘솔 확인: 테스트 전후 사용자 여행 JSON·여행 설정이 같았고 방향지시등 Off·와이퍼 Off·앞왼쪽 창문 0·비상등 false 원래 상태를 확인했다. 테스트 heartbeat를 정리했다. 원시 사용자 기록·로그는 `C:\my-car-buddy\.gradle\car-escape-turn-signal-20261114` 로컬 백업에만 두며 커밋·푸시하지 않는다.
+- 확인 불가: 실제 차량 하드웨어와 Ubuntu 실행은 미확인이다. 관광은 MOCK 시연이며 LIVE 위치 정확도 계약은 여전히 미확정이다. 이번 콘솔 SDK·UI 제출 성공을 실제 방문 인증 전체 성공으로 해석하지 않는다. Android Studio에서 `C:\car_escape`의 app을 Run해 확인하며, Ubuntu 명령과 콘솔 조작 순서는 [차량 문제 SDK 안내](vehicle-puzzle-sdk.md)를 따른다.
+
+
+## 2026-11-14 · 만석거 높이표와 방향 자물쇠
+
+- 구현 완료: 도착 3의 flow5 `c3_channel`을 사용자 제공 5×5 숫자 표와 기존 방향 자물쇠로 교체했다. 중앙 25에서 상하좌우의 더 작은 수 중 최솟값을 골라 이동하며, 막히면 종료한다. 정확한 경로는 25→20→17→15→13→11→9→7→6→5→4→3, 방향은 **↑ ↑ → → ↓ ↓ ↓ ← ↓ ← ←**다. 3의 이웃 10·23·4는 모두 더 크므로 1까지 이동하지 않는다. 대각선·표 밖 이동은 경로에 포함하지 않는다.
+- 화면·내용: 왼쪽에 숫자 표와 네 규칙, 오른쪽에 기존 중앙 원 스와이프 자물쇠를 배치했다. 시작 칸만 금색과 START로 표시한다. 경로를 자동으로 보여 주지 않으며 입력된 방향·초기화·제출을 유지한다. 농서·수문 살펴보기·힌트·해설·오답·완료 문구도 맞췄다. 표는 `WaterHeightGrid`에서 경로와 정답을 계산하고, UI는 숫자와 시작점만 표시한다. 기존 flow3·4와 해결 단계 ID·획득 기록은 보존한다.
+- 빌드 확인: 관리형 `gradle-run` 질문 “물길 표와 방향 자물쇠가 빌드·단위 테스트·Lint를 통과하는가?”에 `:app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug` exit 0. JVM **180개**, 실패·오류·건너뜀 0개. Lint 오류 0개, 경고 61개. 최소 하강·대각선 제외·지역 최솟값 종료·표/답 일치·구형 흐름 보존 회귀를 포함한다.
+- 에뮬레이터 시연 확인: Windows·Android Studio JBR·Pleos Connect v2.1.0/API 34·emulator-5554/사용자 10. 새 물길 통합 1개, 표 UI 1개, 다섯 장소 완주 회귀 1개, 총 **3개 기기 테스트 통과**, 건너뜀 0개. 일반 MOCK 관광/P 상태로 검증했으며 이 퍼즐은 차량 SDK 입력을 사용하지 않는다. 정차·위치 조건은 기존 앱 계약을 따른다.
+- 제출·저장: 농서 조사→수문 접근→실제 중앙 원 스와이프→초기화→같은 길이 오답→11방향 정답→UI 제출→`c3_channel` 저장→갈대 사이 일기 해금·획득→Activity 재생성 후 보존을 확인했다. 입력·초기화만으로 기록이 바뀌지 않았고, 오답·정답은 제출 후에만 반영됐다. 관측 표식은 `MOCK_WATER_GRID_11_REAL_SWIPES_UI_SUBMIT_DATASTORE_RECREATE_PASS; LIVE_SDK_NOT_USED`다.
+- 시각 확인: `WaterHeightGridUiTest`가 25개 셀의 표시·배치 순서·중앙 시작 표시를 검사했다. 격리된 MOCK 화면의 실제 캡처 `C:\my-car-buddy\.gradle\car-escape-water-grid-20261114\water-grid-before-submit.png`를 저장해 표·규칙·자물쇠의 배치를 직접 확인했다. 스크린샷 기준 이미지 자동 비교를 실행했다는 뜻은 아니다.
+- 데이터 경계: 테스트 후 사용자 MOCK/LIVE·archive·schema와 여행 설정을 복원·대조했다. 차량 콘솔 상태도 변경되지 않았다. 원시 저장·로그·캡처는 위 로컬 비공개 경로에만 보관한다. 실제 차량·실제 관광 인증·Ubuntu 실행은 이번 확인 범위가 아니다. 커밋·푸시는 실행하지 않았다.
+- 재현: Android Studio에서 `C:\car_escape` → app Run, 일반 MOCK의 도착 3 → 둑 위 종이 → 둑 끝 수문. Ubuntu에서는 `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug` 후 테스트 APK를 설치하고 `adb -s emulator-5554 shell am instrument --user 10 -w -r -e class com.team.carescape.ui.StoryIntegrationTest#reservoirHeightGridCentralSwipesSubmitSaveAndResumeCompletedChannel,com.team.carescape.ui.WaterHeightGridUiTest com.team.carescape.test/androidx.test.runner.AndroidJUnitRunner`로 재현할 수 있다(기기·사용자 번호는 환경에 맞게 변경). 위 Ubuntu 명령은 안내이며 이 Windows 환경에서 Ubuntu 실행했다고 표시하지 않는다.
