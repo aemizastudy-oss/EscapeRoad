@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
@@ -110,7 +111,10 @@ fun LobbyScreen(vm: GameViewModel) {
                 OutlineButton("사건 기록부", {}, minWidth = 170.dp, minHeight = 58.dp, fontSize = 19, transparent = true)
             }
             VSpace(12.dp)
-            OutlineButton("자물쇠 체험", vm::openLockWorkshop, minWidth = 220.dp, minHeight = 48.dp, fontSize = 17, transparent = true)
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                OutlineButton("자물쇠 체험", vm::openLockWorkshop, minWidth = 190.dp, minHeight = 48.dp, fontSize = 17, transparent = true)
+                OutlineButton("여행 도우미", vm::openTravelGuide, Modifier.testTag("lobby-travel"), minWidth = 190.dp, minHeight = 48.dp, fontSize = 17, transparent = true)
+            }
         }
         val story = vm.story
         if (story != null) {

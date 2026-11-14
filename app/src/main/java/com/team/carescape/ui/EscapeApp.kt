@@ -65,6 +65,7 @@ private fun Screens(vm: GameViewModel, narrator: Narrator, onRequestPermissions:
                 Screen.STORY_PROLOGUE -> StoryPrologueScreen(vm)
                 Screen.STORY -> StoryScreen(vm, narrator)
                 Screen.LOCK_WORKSHOP -> LockWorkshopScreen(vm)
+                Screen.TRAVEL_GUIDE -> TravelGuideScreen(vm)
             }
         }
         Column(

@@ -315,7 +315,7 @@ private fun StoryScreenBody(s: StoryState, vm: GameViewModel, narrator: Narrator
         StoryPhase.PUZZLE -> if (s.isExplore && s.currentPuzzle == null) ExploreScreen(s, vm) else StoryPuzzleScreen(vm)
         StoryPhase.REVEALED -> SceneGate(s, vm, "reveal", s.chapter.revealScene, "${s.chapter.place} · 단서", "단서 확인") { RevealScreen(s, vm, it) }
         StoryPhase.FINAL_REVEAL -> FinalRevealScreen(s, vm)
-        StoryPhase.ENDED -> SceneGate(s, vm, "ending", endingScene(s), "Epilogue", "기록 보기", SceneBg.LAKE_NIGHT) { EndingScreen(s, vm, it) }
+        StoryPhase.ENDED -> SceneGate(s, vm, "ending-${s.endingKind}", endingScene(s), "Epilogue", "기록 보기", SceneBg.LAKE_NIGHT) { EndingScreen(s, vm, it) }
     }
 }
 
@@ -737,8 +737,13 @@ private fun CasebookButton(s: StoryState, vm: GameViewModel) {
 @Composable
 private fun EndingScreen(s: StoryState, vm: GameViewModel, onReplay: (() -> Unit)? = null) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
-    val sec = ((now - vm.storyStartedAtMs) / 1000).coerceAtLeast(0)
+    LaunchedEffect(vm.storyEndedAtMs) { while (vm.storyEndedAtMs == null) { now = System.currentTimeMillis(); delay(1000) } }
+    // 엔딩에 닿은 시각이 있으면 수사 시간을 거기서 멈춘다.
+    val sec = (((vm.storyEndedAtMs ?: now) - vm.storyStartedAtMs) / 1000).coerceAtLeast(0)
+    when (vm.endingPanel) {
+        "retry" -> { if (s.canRetryTruth) { TruthRetryPanel(s, vm) { vm.endingPanel = "" }; return } }
+        "report" -> { CaseReport(s, vm) { vm.endingPanel = "" }; return }
+    }
     val kind = s.endingKind
     val ending = kind?.let { s.episode.endings[it] }
     val stampColor = if (kind == EndingKind.BAD) Esc.locked else Esc.alarm
@@ -772,7 +777,7 @@ private fun EndingScreen(s: StoryState, vm: GameViewModel, onReplay: (() -> Unit
                 }
                 Text(s.episode.disclaimer, style = Esc.noto(13, Esc.label, lineHeight = 1.5f))
             }
-            Box(Modifier.width(420.dp), contentAlignment = Alignment.Center) {
+            Column(Modifier.width(420.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.CenterVertically)) {
                 Column(
                     Modifier.rotate(-8f).border(2.dp, stampColor).padding(2.dp).border(2.dp, stampColor).background(Color(239, 228, 204).copy(alpha = 0.06f)).padding(horizontal = 34.dp, vertical = 26.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -781,6 +786,10 @@ private fun EndingScreen(s: StoryState, vm: GameViewModel, onReplay: (() -> Unit
                     Text(if (kind == EndingKind.BAD) "UNSEALED" else "SOLVED", style = Esc.cormorant(if (kind == EndingKind.BAD) 56 else 72, stampColor, 0f, FontWeight.Bold).copy(lineHeight = 76.sp))
                     Text(ending?.let { kind!!.label } ?: "임무 완료", Modifier.padding(top = 6.dp), style = Esc.nanum(18, stampColor))
                 }
+                // 엔딩 뒤에 할 일은 긴 본문에 묻히지 않게 도장 아래에 둔다.
+                vm.truthRetryMessage?.let { Text(it, Modifier.testTag("truth-retry-result"), style = Esc.noto(15, Esc.gold), textAlign = TextAlign.Center) }
+                if (s.canRetryTruth) ParchmentButton("진상 다시 추리하기 (1회)", { vm.endingPanel = "retry" }, Modifier.testTag("truth-retry-open"), minWidth = 300.dp)
+                if (ending != null) ParchmentButton("사건 종결 보고서", { vm.endingPanel = "report" }, Modifier.testTag("report-open"), minWidth = 300.dp)
             }
         }
     }

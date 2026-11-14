@@ -127,13 +127,33 @@ data class StoryState(
     val truthSteps: List<StoryPuzzleDefinition> get() = episode.chapters.flatMap { it.puzzleSteps }.filter { it.verdict }
     /** 진상 추리를 모두 답했고 하나도 틀리지 않았는지. */
     val truthSolved: Boolean get() = truthSteps.isNotEmpty() && truthSteps.all { isStepDone(it.id) } &&
-        puzzleProgress.none { it.verdictMisses.isNotEmpty() }
+        (puzzleProgress.none { it.verdictMisses.isNotEmpty() } || puzzleProgress.any { it.truthRetrySolved })
+    val truthRetryUsed: Boolean get() = puzzleProgress.any { it.truthRetryUsed }
+    /** 일반 엔딩(진상 추리를 틀림)이고 아직 다시 풀지 않았으면 한 번 더 풀 수 있다. 배드 엔딩은 대상이 아니다. */
+    val canRetryTruth: Boolean get() = phase == StoryPhase.ENDED && endingKind == EndingKind.NORMAL &&
+        truthSteps.all { isStepDone(it.id) } && !truthRetryUsed
 
     val endingKind: EndingKind? get() = when {
         episode.endings.isEmpty() || phase != StoryPhase.ENDED -> null
         awakening >= SiyeokCase.BAD_THRESHOLD -> EndingKind.BAD
         truthSolved -> EndingKind.TRUE
         else -> EndingKind.NORMAL
+    }
+}
+
+/** 일반 엔딩 뒤 진상 추리 다시 풀기. 한 번만, 각성도·오답 수는 바꾸지 않는다. */
+object TruthRetry {
+    /** [answers]: 진상 추리 단계 id → 입력. 모든 단계에 답해야 한다. 결과 상태와 정답 여부를 돌려준다. */
+    fun submit(state: StoryState, answers: Map<String, StoryPuzzleInput>): Pair<StoryState, Boolean>? {
+        if (!state.canRetryTruth) return null
+        val steps = state.truthSteps
+        if (steps.any { it.id !in answers }) return null
+        val correct = steps.all { StoryPuzzles.evaluate(it, answers.getValue(it.id)) == StoryPuzzleResult.CORRECT }
+        val id = TourCatalog.checkpoints.getOrNull(state.episode.finalChapterIndex)?.id ?: return null
+        val next = state.copy(puzzleProgress = state.puzzleProgress.map {
+            if (it.checkpointId == id) it.copy(truthRetryUsed = true, truthRetrySolved = correct) else it
+        })
+        return next to correct
     }
 }
 

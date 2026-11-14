@@ -21,6 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.team.carescape.game.DemoTarget
+import com.team.carescape.game.EndingKind
+import com.team.carescape.game.TourCatalog
 import com.team.carescape.game.TurnSide
 import com.team.carescape.model.TourMode
 
@@ -65,6 +68,20 @@ fun SdkDevPanel(vm: GameViewModel, modifier: Modifier = Modifier) {
                     OutlineButton("전조등 ${if (vehicle.lowBeamOn == true) "켜짐" else "전환"}", vm::simToggleLowBeam, enabled = canInput, minHeight = 44.dp, fontSize = 13)
                     OutlineButton("와이퍼 ${if (vehicle.wiperOn == true) "켜짐" else "전환"}", vm::simToggleWiper, enabled = canInput, minHeight = 44.dp, fontSize = 13)
                 }
+                Text("시연 바로가기 · 앞부분을 정답으로 자동 진행한 새 시연 여행", style = Esc.noto(13, Color(0xFFBFD8FF)))
+                val jump = !vm.loading && !vm.saving && vm.parked
+                val n = TourCatalog.checkpoints.size
+                @Composable fun JumpRow(title: String, targets: List<Pair<String, DemoTarget>>) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(title, Modifier.width(52.dp), style = Esc.noto(12, Esc.creamSoft))
+                        targets.forEach { (label, t) ->
+                            OutlineButton(label, { vm.demoJump(t) }, Modifier.testTag("sdk-jump-${t.label}"), enabled = jump, minHeight = 40.dp, fontSize = 12)
+                        }
+                    }
+                }
+                JumpRow("도착", (0 until n).map { "${it + 1}" to DemoTarget.Arrive(it) })
+                JumpRow("장면", (0 until n).map { "${it + 1}" to DemoTarget.Scene(it) })
+                JumpRow("엔딩", listOf("공개" to DemoTarget.FinalReveal) + EndingKind.entries.map { it.label.removeSuffix(" 엔딩") to DemoTarget.Ending(it) })
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlineButton("배터리 모름", { vm.simSetBattery(null) }, enabled = canInput, minHeight = 44.dp, fontSize = 12)
                     OutlineButton("30%", { vm.simSetBattery(30) }, enabled = canInput, minHeight = 44.dp, fontSize = 12)

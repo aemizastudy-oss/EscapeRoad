@@ -147,6 +147,10 @@ data class StoryPuzzleProgress(
     val found: List<String> = emptyList(),
     /** flow5 탐색 장면: 자물쇠마다 연 힌트 수. */
     val stepHints: Map<String, Int> = emptyMap(),
+    /** 일반 엔딩 뒤 진상 추리를 다시 풀었는지(한 번만). 마지막 장소 영수증에만 쓴다. */
+    val truthRetryUsed: Boolean = false,
+    /** 다시 푼 진상 추리가 모두 맞았는지. 맞으면 진 엔딩으로 바뀐다. */
+    val truthRetrySolved: Boolean = false,
 )
 
 data class StorySubmission(val state: StoryState, val result: StoryPuzzleResult, val note: String? = null)

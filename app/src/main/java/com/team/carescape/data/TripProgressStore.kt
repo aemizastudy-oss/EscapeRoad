@@ -47,6 +47,8 @@ data class StoredTrip(
     val legacyCompletedCount: Int = 0,
     val puzzleProgress: List<StoryPuzzleProgress> = emptyList(),
     val legacySourceSessionId: String? = null,
+    /** 엔딩에 닿은 시각. 사건 종결 보고서의 수사 시간에 쓴다. */
+    val endedAtEpochMillis: Long? = null,
 )
 
 @Serializable
@@ -137,6 +139,7 @@ internal fun validateTripState(state: TripStoreState) {
 }
 
 internal fun validateStoredTrip(trip: StoredTrip, archivedTrips: List<StoredTrip> = emptyList()) {
+    trip.endedAtEpochMillis?.let { requireValid(trip.phase == StoryPhase.ENDED && it >= trip.startedAtEpochMillis) }
     if (trip.flowVersion !in StoryCatalog.LEGACY_FLOW_VERSION..StoryCatalog.CURRENT_FLOW_VERSION) {
         throw TripStorageException(TripStorageFailure.UNSUPPORTED_SCHEMA)
     }
@@ -211,6 +214,10 @@ internal fun validateStoredTrip(trip: StoredTrip, archivedTrips: List<StoredTrip
                 steps.take(if (progress.solved) steps.size else progress.stepIndex).filter { it.verdict }.map { it.id }
             requireValid(progress.verdictMisses.distinct().size == progress.verdictMisses.size &&
                 progress.verdictMisses.all { it in verdictIds })
+            // 진상 다시 풀기는 엔딩 뒤 마지막 장소 영수증에만, 맞았으면 반드시 사용한 것이어야 한다.
+            requireValid(!progress.truthRetrySolved || progress.truthRetryUsed)
+            if (progress.truthRetryUsed) requireValid(trip.phase == StoryPhase.ENDED && index == episode.finalChapterIndex &&
+                progress.verdictMisses.isNotEmpty())
             if (!StoryCatalog.usesAwakening(trip.flowVersion)) {
                 requireValid(progress.awakening == 0 && progress.hintsUsed == 0 && progress.verdictMisses.isEmpty())
             }
@@ -282,6 +289,7 @@ internal fun upsertTrip(previous: TripStoreState, trip: StoredTrip): TripStoreSt
         requireValid(old.episodeId == trip.episodeId && old.startedAtEpochMillis == trip.startedAtEpochMillis)
         requireValid(old.flowVersion == trip.flowVersion && old.legacyCompletedCount == trip.legacyCompletedCount)
         requireValid(old.legacySourceSessionId == trip.legacySourceSessionId)
+        requireValid(old.endedAtEpochMillis == null || old.endedAtEpochMillis == trip.endedAtEpochMillis)
         requireValid(trip.chapterIndex >= old.chapterIndex)
         if (trip.chapterIndex == old.chapterIndex) requireValid(trip.phase.ordinal >= old.phase.ordinal)
         old.puzzleProgress.forEach { saved ->
@@ -290,6 +298,8 @@ internal fun upsertTrip(previous: TripStoreState, trip: StoredTrip): TripStoreSt
             requireValid(next != null && (!saved.solved || next.solved))
             requireValid(next != null && next.awakening >= saved.awakening && next.hintsUsed >= saved.hintsUsed &&
                 next.verdictMisses.containsAll(saved.verdictMisses))
+            // 진상 다시 풀기는 한 번뿐이고 결과를 바꿀 수 없다.
+            requireValid(next != null && (!saved.truthRetryUsed || (next.truthRetryUsed && next.truthRetrySolved == saved.truthRetrySolved)))
             // 탐색 장면에서 푼 자물쇠·찾은 곳·연 힌트는 되돌릴 수 없다.
             requireValid(next != null && next.solvedSteps.containsAll(saved.solvedSteps) && next.found.containsAll(saved.found) &&
                 saved.stepHints.all { (id, n) -> (next.stepHints[id] ?: 0) >= n })

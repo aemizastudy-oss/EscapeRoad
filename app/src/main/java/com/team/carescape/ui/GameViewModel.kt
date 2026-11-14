@@ -23,7 +23,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class Screen { LOBBY, THEME_SELECT, BRIEFING, PLAY, SOLVED, SUCCESS, STORY_BRIEFING, STORY_PROLOGUE, STORY, LOCK_WORKSHOP }
+enum class Screen { LOBBY, THEME_SELECT, BRIEFING, PLAY, SOLVED, SUCCESS, STORY_BRIEFING, STORY_PROLOGUE, STORY, LOCK_WORKSHOP, TRAVEL_GUIDE }
 
 /** Existing screens use one live runtime and one serialized, durable story state. */
 class GameViewModel(application: Application) : AndroidViewModel(application) {
@@ -92,6 +92,19 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     var showMap by mutableStateOf(false)
         private set
     var storyStartedAtMs by mutableStateOf(0L)
+        private set
+    /** 엔딩에 닿은 시각(없으면 null). */
+    var storyEndedAtMs by mutableStateOf<Long?>(null)
+        private set
+    /** 경유지별 관광 시작 시각(보고서용). */
+    var storyTourStarts by mutableStateOf<Map<String, Long>>(emptyMap())
+        private set
+    /** 엔딩 화면 위에 연 패널("retry"·"report"). 사건 기록부를 다녀와도 남는다. */
+    var endingPanel by mutableStateOf("")
+    /** 진상 다시 풀기에서 고른 답(단계 id → 보기 id). */
+    var truthDraft by mutableStateOf(mapOf<String, String>())
+    /** 진상 다시 풀기 결과 안내. */
+    var truthRetryMessage by mutableStateOf<String?>(null)
         private set
     var mode by mutableStateOf(if (BuildConfig.DEBUG) TourMode.MOCK else TourMode.LIVE)
         private set
@@ -177,6 +190,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             storyPuzzleMessage = null
         }
         storyStartedAtMs = value?.startedAtEpochMillis ?: 0L
+        storyEndedAtMs = value?.endedAtEpochMillis
+        storyTourStarts = value?.tourRecords?.associate { it.checkpointId to it.startedAt.wallTimeMillis }.orEmpty()
         showMap = value?.showMap ?: false
     }
 
@@ -276,7 +291,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             if (mode != requestedMode || trip != previous || revision != safetyRevision || screen != sourceScreen || !parked ||
                 requestedMode == TourMode.LIVE && liveRevision != runtime.revision) return@trySend
             saving = true
-            val next = transform(previous) ?: return@trySend
+            val next = transform(previous)?.let { t ->
+                // 엔딩에 처음 닿은 시각을 남긴다(사건 종결 보고서용).
+                if (t.phase == StoryPhase.ENDED && t.endedAtEpochMillis == null) t.copy(endedAtEpochMillis = System.currentTimeMillis()) else t
+            } ?: return@trySend
             if (next == previous) { afterSave?.invoke(); return@trySend }
             val saved = store.save(next)
             if (mode == requestedMode) {
@@ -288,7 +306,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun goLobby() { safetyRevision++; stopAudio(); pendingNarration = null; screen = Screen.LOBBY }
+    fun goLobby() { safetyRevision++; stopAudio(); pendingNarration = null; endingPanel = ""; truthDraft = emptyMap(); screen = Screen.LOBBY }
     fun openLockWorkshop() {
         if (!parked || saving) return
         safetyRevision++; stopAudio(); pendingNarration = null
@@ -334,6 +352,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             lockWorkshop = lockWorkshop.copy(submitted = value.joinToString(""))
     }
     fun goThemeSelect() { if (parked) screen = Screen.THEME_SELECT }
+    /** 여행 도우미(부가 서비스). 방탈출 진행 상태는 바꾸지 않는다. */
+    fun openTravelGuide() { if (parked) { sdkMessage = null; screen = Screen.TRAVEL_GUIDE } }
+    /** 여행 도우미의 장소로 길 안내. 정차 중에만, 시연(MOCK)에서는 실제 안내를 요청하지 않는다. */
+    fun guideToPlace(name: String, lat: Double, lng: Double) {
+        if (!parked) return
+        if (isMock) { sdkMessage = "시연 모드입니다. 실제 길 안내를 요청하지 않았습니다."; return }
+        if (sdkStatus.navigation.availability != SdkAvailability.READY) { sdkMessage = "길 안내 연결을 확인한 뒤 다시 시도해 주세요."; return }
+        sdkMessage = if (runtime.navigate(WaypointConfig("travel_place", name, lat, lng)))
+            "길 안내를 요청했습니다. 결과는 내비게이션에서 확인해 주세요." else "길 안내를 요청하지 못했습니다."
+    }
     fun select(card: ThemeCard) { if (parked && card.playable) selectedCard = card }
     fun goBriefing() {
         if (!parked || !selectedCard.playable) return
@@ -400,6 +428,38 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+    /**
+     * 시연 바로가기(debug·MOCK 전용). 앞부분을 정답으로 자동 진행한 새 시연 여행으로 바꾼다.
+     * LIVE 기록은 건드리지 않는다. 관광 15분은 시연 우회로 표시하고, 지난 장소의 관광 시각은 75분 간격으로 앞당겨 적는다.
+     */
+    fun demoJump(target: DemoTarget) {
+        if (!isMock || !parked || selectedCard.story?.id != Siyeok.episode.id) return
+        val flow = StoryCatalog.CURRENT_FLOW_VERSION
+        val state = DemoShortcut.play(StoryCatalog.episodeFor(flow), flow, target)
+        val clock = now()
+        val session = UUID.randomUUID().toString()
+        val visited = state.chapterIndex + if (state.phase.ordinal >= StoryPhase.EXPLORING.ordinal) 1 else 0
+        val records = TourCatalog.checkpoints.take(visited).mapIndexed { i, c ->
+            val back = (visited - 1 - i) * 75L * 60_000
+            TourStartRecord(session, c.id, TourMode.MOCK,
+                clock.copy(wallTimeMillis = clock.wallTimeMillis - back, elapsedRealtimeMillis = (clock.elapsedRealtimeMillis - back).coerceAtLeast(0)),
+                debugTimeBypass = true)
+        }
+        val started = (records.firstOrNull()?.startedAt?.wallTimeMillis ?: clock.wallTimeMillis) - 20 * 60_000
+        changeTrip(afterSave = {
+            endingPanel = ""; truthDraft = emptyMap(); truthRetryMessage = null
+            screen = Screen.STORY
+            demoArrive()
+            sdkMessage = "시연 바로가기: ${target.label} (자동 진행한 시연 기록)"
+        }) {
+            StoredTrip(
+                mode = TourMode.MOCK, sessionId = session, chapterIndex = state.chapterIndex, phase = state.phase,
+                items = state.items, clues = state.clues, startedAtEpochMillis = started, showMap = false,
+                tourRecords = records, flowVersion = flow, puzzleProgress = state.puzzleProgress,
+            )
+        }
+    }
+
     fun simElapseTour() {
         if (!isMock || story?.phase != StoryPhase.EXPLORING) return
         changeTrip { old -> old?.copy(tourRecords = old.tourRecords.map {
@@ -585,6 +645,20 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun replayDrama() { if (parked) story?.let { pendingNarration = it.chapter.travelDrama } }
     // Leaving the screen preserves the durable trip. A new completed trip starts a new session.
     fun endStory() { goLobby() }
+
+    /** 일반 엔딩 뒤 진상 추리를 한 번 더 푼다. 결과는 저장되고 바꿀 수 없다. */
+    fun retryTruth(answers: Map<String, StoryPuzzleInput>) {
+        val s = story ?: return
+        if (!parked || !s.canRetryTruth) return
+        var correct = false
+        changeTrip(afterSave = {
+            truthRetryMessage = if (correct) "진상을 밝혔습니다. 기록 한 장이 복원되었습니다." else "추리가 맞지 않았습니다. 기록은 비어 있는 채로 남습니다."
+        }) { old ->
+            val r = story?.let { TruthRetry.submit(it, answers) } ?: return@changeTrip null
+            correct = r.second
+            old?.copy(puzzleProgress = r.first.puzzleProgress)
+        }
+    }
     fun restartStory() { if (parked) { pendingNarration = null; screen = Screen.STORY_BRIEFING } }
 
     // Retained puzzle demo. It never accepts unsafe or release mock inputs.

@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -18,6 +19,14 @@ android {
         versionCode = 4
         versionName = "0.4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // 여행 도우미 API 키. local.properties에만 적고 저장소에는 올리지 않는다(없으면 빈 값 → 화면에 '키 없음').
+        val local = Properties().apply {
+            rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+        }
+        fun key(name: String) = "\"" + (local.getProperty(name) ?: "").replace("\"", "") + "\""
+        buildConfigField("String", "NAVER_CLIENT_ID", key("NAVER_CLIENT_ID"))
+        buildConfigField("String", "NAVER_CLIENT_SECRET", key("NAVER_CLIENT_SECRET"))
+        buildConfigField("String", "TOUR_API_KEY", key("TOUR_API_KEY"))
     }
 
     buildFeatures {
