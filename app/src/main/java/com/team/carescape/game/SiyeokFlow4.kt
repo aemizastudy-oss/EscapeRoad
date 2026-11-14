@@ -104,7 +104,7 @@ object SiyeokFlow4 {
                 StoryPuzzleDefinition(
                     id = "c4_flint", speaker = "physician", kind = StepKind.DEDUCE,
                     title = "꺼진 화구",
-                    prompt = "丙-10 자리의 봉화함. 화구 다섯 개가 모두 비어 있고, 함 옆에 ‘불을 먼저 얻어라’라고 새겨져 있습니다. 소지품에서 쓸 것을 고르세요.",
+                    prompt = "丙 상자 10번 자리의 봉화함. 화구 다섯 개가 모두 비어 있고, 함 옆에 ‘불을 먼저 얻어라’라고 새겨져 있습니다. 소지품에서 쓸 것을 고르세요.",
                     hints = listOf("불을 일으킬 수 있는 것이 소지품에 있어요.", "만석거에서 김 노인이 건넨 것이에요.", "부싯돌"),
                     solution = "김 노인이 준 부싯돌로 불씨를 얻습니다.",
                     lock = use("flint"),
