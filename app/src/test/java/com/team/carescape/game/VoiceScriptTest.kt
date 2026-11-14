@@ -11,31 +11,11 @@ import org.junit.Test
  * 환경 변수 EXPORT_VOICE_SCRIPT=<폴더>가 있으면 그 폴더에 script.csv와 script.md를 쓴다.
  */
 class VoiceScriptTest {
-    data class VoiceLine(val id: String, val section: String, val speaker: String, val text: String, val bg: String)
+    private fun lines(): List<VoiceLine> = VoiceCatalog.lines()
 
-    private val episode = StoryCatalog.episodeFor(StoryCatalog.CURRENT_FLOW_VERSION)
-
-    private fun lines(): List<VoiceLine> {
-        val out = mutableListOf<VoiceLine>()
-        fun add(prefix: String, section: String, list: List<Line>) {
-            var bg = ""
-            list.forEachIndexed { i, l ->
-                l.bg?.let { bg = it.name }
-                val who = episode.speakerFor(l.speaker)?.name ?: "내레이션"
-                out += VoiceLine("%s_%02d".format(prefix, i + 1), section, who, l.text, bg)
-            }
-        }
-        add("prologue", "프롤로그", SiyeokScenes.prologue)
-        episode.chapters.forEachIndexed { i, c ->
-            val n = i + 1
-            add("ch${n}_travel", "${n}장 ${c.place} · 이동 중(주행 중 음성)", c.travelScene)
-            add("ch${n}_arrival", "${n}장 ${c.place} · 도착", c.arrivalScene)
-            add("ch${n}_reveal", "${n}장 ${c.place} · 단서 해금", c.revealScene)
-        }
-        EndingKind.entries.forEach { k ->
-            add("ending_${k.name.lowercase()}", "엔딩 · ${k.label}", SiyeokScenes.endingDrama.getValue(k))
-        }
-        return out
+    @Test fun prologueLinesMapToTheirVoiceIds() {
+        SiyeokScenes.prologue.forEachIndexed { i, l -> assertEquals("prologue_%02d".format(i + 1), VoiceCatalog.idFor(l.text)) }
+        assertEquals(null, VoiceCatalog.idFor("대본에 없는 글"))
     }
 
     @Test fun everyLineHasAUniqueVoiceId() {

@@ -421,3 +421,10 @@ SDK 어댑터는 기존 `main`의 검증된 API 경계를 현재 패키지로 �
 - 통합본 관리형 Gradle: `:app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest :app:lintDebug` 성공. 단위 193개 성공, 오류/실패 0, Lint 오류 0(Warning 66, Hint 3). Release unsigned 상태 유지.
 - 바뀐 상자 정답에서 봉화로 이어지는 기기 회귀 `StoryIntegrationTest#museumBeaconUsesCurrentMockCountAndPreservesCompletionAfterRecreation` 1개 성공. 기존 MOCK/LIVE 저장 기록과 콘솔 원래 상태를 보존했다. 독서등 실제 SDK 수신과 독립 UI 검증은 바로 위 5개 성공 결과를 재사용했으며 다시 실행했다고 표시하지 않는다.
 - staging 검사에서 실제 인증/환경/서명키/빌드 산출물 경로와 토큰 패턴 없음. local.properties·nearby.properies.env·.gradle·app/build는 제외했다. 강제 푸시나 원격 기록 삭제는 사용하지 않는다. 실제 원격 반영 commit은 Git 상태와 공유 결과를 따른다.
+
+## 2026-11-15 · 프롤로그 녹음 음성 적용
+
+- 내용: 팀이 만든 프롤로그 녹음 17개(`res/raw/voice_prologue_01~17.mp3`)를 넣고, 장면 대사가 나올 때 같은 번호의 녹음이 있으면 재생하고 없으면 기기 음성(TTS)으로 읽게 했다(`VoiceCatalog`, `VoicePlayer`, `Narrator`). 녹음이 나오는 동안 배경음악을 줄인다. 음성 끄기 스위치·정차 조건·화면 이동 때 멈추는 규칙은 기존 안내와 같다. 대본 번호는 `VoiceCatalog`가 정하고 대본 내보내기(`VoiceScriptTest`)와 같은 번호를 쓴다.
+- 확인: 단위 테스트 통과(프롤로그 17줄이 prologue_01~17로 연결). 기기 테스트 `VoicePlaybackTest` 통과(에뮬레이터에서 17개 파일 모두 재생 시작).
+- 확인하지 못한 것: 실제 소리를 귀로 들어 보지는 못했다(에뮬레이터 화면이 멈춰 프롤로그를 직접 눌러 보지 못함). 녹음 파일의 이용 조건은 팀이 확인한다.
+- 소리 크기 조정(같은 날): 녹음 파일 자체는 정상 크기였다(최대 약 −3 dBFS, 평균 −16~−22 dBFS, 에뮬레이터에서 디코딩해 측정). 재생 쪽을 고쳤다 — 녹음을 기기 음성 안내(TTS)와 같은 안내 음성 채널(`USAGE_ASSISTANCE_NAVIGATION_GUIDANCE`)로 내보내고, `LoudnessEnhancer`로 약 9 dB 키우고(내장 리미터), 대사가 나오는 동안 배경음악을 0.15→0.06으로 더 줄였다. 실제로 들리는 크기는 팀이 확인한다.

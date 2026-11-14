@@ -56,13 +56,13 @@ private fun Screens(vm: GameViewModel, narrator: Narrator, onRequestPermissions:
             narrator.stop()
         } else {
             val pending = vm.pendingNarration
-            if (pending != null && narrator.ready && narrator.speak(pending) && vm.pendingNarration == pending) {
+            if (pending != null && narrator.canSpeak(pending) && narrator.speak(pending) && vm.pendingNarration == pending) {
                 vm.pendingNarration = null
             }
         }
     }
     // 배경음악은 주행 중에도 이어서 튼다(화면은 가려도 소리만 나간다).
-    BgmHost(bgmFor(vm), ducked = vm.sdkStatus.speaking, active = vm.foreground && !vm.loading)
+    BgmHost(bgmFor(vm), ducked = vm.sdkStatus.speaking || narrator.voice.playing, active = vm.foreground && !vm.loading)
     Box(Modifier.fillMaxSize()) {
         if (!vm.foreground || !vm.parked || vm.loading || vm.storageError != null) {
             // Unknown vehicle/UX/storage state does not expose story or puzzle details.
