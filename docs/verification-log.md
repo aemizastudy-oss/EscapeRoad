@@ -412,3 +412,12 @@ SDK 어댑터는 기존 `main`의 검증된 API 경계를 현재 패키지로 �
 - 정리: 기존 MOCK/LIVE 여행과 archive/schema 동일 확인, 콘솔 네 독서등과 P/속도 원상 복원 확인. 로컬 `.gradle` 아래 원본 백업·기기 테스트 결과는 커밋하지 않는다. Git commit/push는 이번 요청에 포함되지 않아 수행하지 않았다.
 
 재현: Android Studio에서 `C:\car_escape`를 열고 `app` Run → 안전한 P 정차 → 시연 관광+실제 차량 입력 → 4장 봉화함(부싯돌 먼저) → 콘솔 Reading Lights 앞·뒤 좌우 ON → 앱 4개 확인 → 제출. 일반 MOCK에서는 카드 네 개로 동일 흐름을 확인한다. 시연 바로가기는 현재 MOCK 여행을 교체하므로 원래 기록을 보존할 때는 위 격리 테스트를 쓴다.
+
+
+## 2026-11-15 — release/v0.4.0 공유를 위한 최신 스토리 통합
+
+- 사용자 푸시 요청에 따라 로컬 독서등 봉화·공모전용 장소 카드/길 안내·사건 선택 효과/로비 정리 변경을 `e58afa3`에 보존했다.
+- 원격 `6b9794b`까지의 스토리 9커밋을 병합했다. `c4_index` 정답 `丙 상자 · 10 (p10)`과 일지·노인 구술·힌트·해설·장면을 보존하고, flow5 봉화는 현재 켜진 독서등 4개 제출로 유지했다. 문서 한 곳의 충돌도 두 설명을 모두 보존해 해결했다.
+- 통합본 관리형 Gradle: `:app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest :app:lintDebug` 성공. 단위 193개 성공, 오류/실패 0, Lint 오류 0(Warning 66, Hint 3). Release unsigned 상태 유지.
+- 바뀐 상자 정답에서 봉화로 이어지는 기기 회귀 `StoryIntegrationTest#museumBeaconUsesCurrentMockCountAndPreservesCompletionAfterRecreation` 1개 성공. 기존 MOCK/LIVE 저장 기록과 콘솔 원래 상태를 보존했다. 독서등 실제 SDK 수신과 독립 UI 검증은 바로 위 5개 성공 결과를 재사용했으며 다시 실행했다고 표시하지 않는다.
+- staging 검사에서 실제 인증/환경/서명키/빌드 산출물 경로와 토큰 패턴 없음. local.properties·nearby.properies.env·.gradle·app/build는 제외했다. 강제 푸시나 원격 기록 삭제는 사용하지 않는다. 실제 원격 반영 commit은 Git 상태와 공유 결과를 따른다.
