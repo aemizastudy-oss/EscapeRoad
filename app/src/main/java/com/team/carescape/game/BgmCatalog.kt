@@ -12,6 +12,9 @@ object BgmCatalog {
     val title = BgmCue("bgm_title")
     val yeoni = BgmCue("bgm_yeoni_theme")
 
+    /** 운전 중(DriveAudio) 곡. 장소 순서대로이고, 범위를 벗어나면 마지막 장소 곡을 쓴다. */
+    fun driveTrack(chapterIndex: Int): String = drive[chapterIndex.coerceIn(0, drive.lastIndex)]
+
     private val drive = listOf("bgm_palace_drive", "bgm_sluice_drive", "bgm_reservoir_drive", "bgm_museum_drive", "bgm_lake_drive")
     private val explore = listOf("bgm_palace_explore", "bgm_sluice_explore", "bgm_reservoir_explore", "bgm_museum_explore", "bgm_lake_explore")
 
