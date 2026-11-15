@@ -13,7 +13,7 @@
 </div>
 
 <p align="center">
-  <img src="docs/screenshots/case-flow/18-explore-scene.png" width="80%" alt="화성행궁 탐색 장면" />
+  <img src="docs/screenshots/readme/01-lobby.png" width="80%" alt="Escape Road 첫 화면" />
 </p>
 
 > [!NOTE]
@@ -69,11 +69,11 @@ flowchart LR
     G --> H[엔딩 3종<br/>사건 종결 보고서]
 ```
 
-| 사건 선택 | 이동 중 | 사건 종결 보고서 |
+| 사건 선택 | 탐색 장면 (화성행궁) | 사건 종결 보고서 |
 | :---: | :---: | :---: |
-| <img src="docs/screenshots/siyeok/01-theme-select.png" width="260" /> | <img src="docs/screenshots/siyeok/05-driving.png" width="260" /> | <img src="docs/screenshots/case-flow/33-case-report.png" width="260" /> |
+| <img src="docs/screenshots/readme/02-case-select.png" width="300" /> | <img src="docs/screenshots/readme/03-explore-palace.png" width="300" /> | <img src="docs/screenshots/case-flow/33-case-report.png" width="300" /> |
 
-> 위 스크린샷은 개발 중 에뮬레이터에서 찍은 화면이라 최신 화면과 일부 다를 수 있습니다.
+> Pleos Connect 에뮬레이터 Debug 빌드에서 찍은 화면입니다. 오른쪽 위 `시연 · SIM` 버튼은 Debug 전용이며 Release에는 없습니다.
 
 ## 4. 핵심 기능
 
