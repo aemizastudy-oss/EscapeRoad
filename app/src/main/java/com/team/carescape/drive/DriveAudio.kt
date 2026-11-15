@@ -255,7 +255,7 @@ internal class DriveAudio(private val context: Context, private val onVoice: (St
     private companion object {
         const val TAG = "DriveAudio"
         /** Low enough not to cover road noise. */
-        const val BGM_VOLUME = 0.35f
+        const val BGM_VOLUME = 0.45f
         const val RESUME_DELAY_MS = 800L
         /** Navigation prompts, assistants, calls, ringtones, alarms, notifications and car system sounds. */
         val INTERRUPTING_USAGES = setOf(

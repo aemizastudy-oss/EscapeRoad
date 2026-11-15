@@ -18,7 +18,7 @@ import com.team.carescape.game.Siyeok
 import com.team.carescape.game.StoryPhase
 import kotlinx.coroutines.delay
 
-private const val FULL = 0.55f
+private const val FULL = 0.7f
 /** 음성 안내·녹음 대사가 나오는 동안은 대사가 묻히지 않게 크게 줄인다. */
 private const val DUCKED = 0.04f
 
