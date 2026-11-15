@@ -2,9 +2,15 @@ package com.team.carescape.model
 
 import kotlinx.serialization.Serializable
 
-/** A mock observation or start record is never evidence for a live trip. */
+/** MOCK and explicit REVIEW coordinates/records are never evidence for a LIVE trip. */
 @Serializable
-enum class TourMode { MOCK, LIVE }
+enum class TourMode { MOCK, LIVE, REVIEW }
+
+/** Stores only the explicit review choice; no positions or trip clocks belong in preferences. */
+object ReviewTourSettings {
+    const val PREFERENCES = "review_tour"
+    const val ENABLED = "enabled"
+}
 
 @Serializable
 data class WaypointConfig(
@@ -32,7 +38,7 @@ data class TourClock(
     val bootId: String,
 )
 
-/** Live observations come only from an updated official SDK callback. Never persist raw positions. */
+/** LIVE is updated SDK data; REVIEW is explicitly entered synthetic data. Never persist positions. */
 data class TourLocation(
     val mode: TourMode,
     val latitude: Double? = null,
@@ -40,6 +46,7 @@ data class TourLocation(
     val accuracyMeters: Double? = null,
     val timestampEpochMillis: Long? = null,
     val receivedElapsedRealtimeMillis: Long? = null,
+    /** A new observation/input rather than a cached fix; REVIEW never authenticates LIVE. */
     val fromLiveUpdate: Boolean = true,
     val error: String? = null,
     /** Explicit debug simulation only; ignored in LIVE mode. */

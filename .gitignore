@@ -12,3 +12,5 @@ nearby.properties.env
 nearby.properies.env
 .env
 .env.*
+# Submission binaries are distributed through GitHub Releases.
+apk/*.apk

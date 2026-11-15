@@ -87,6 +87,7 @@ private fun Screens(vm: GameViewModel, narrator: Narrator, onRequestPermissions:
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            ReviewTourControls(vm)
             SdkControls(vm, onRequestPermissions)
             SdkDevPanel(vm)
             NarrationToggle(narrationOn, Modifier) { NarrationSwitch.set(context, it) }

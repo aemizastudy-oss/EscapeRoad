@@ -24,6 +24,7 @@ import com.team.carescape.data.StoredTrip
 import com.team.carescape.data.TripProgressStore
 import com.team.carescape.game.StoryPhase
 import com.team.carescape.model.TourMode
+import com.team.carescape.model.ReviewTourSettings
 import java.io.FileDescriptor
 import java.io.PrintWriter
 import kotlinx.coroutines.CoroutineScope
@@ -75,8 +76,8 @@ class DriveService : Service() {
             this,
             onGear = { feed(DriveInput.Gear(it)); if (it == DriveGear.DRIVE) refreshTripSoon() },
             // While the debug demo drive runs, its route positions replace the emulator's stationary GPS.
-            onLocation = { lat, lon -> if (demo == null) feed(DriveInput.Location(lat, lon)) },
-            onNavigation = { m, s -> feed(DriveInput.Navigation(m, s, System.currentTimeMillis())) },
+            onLocation = { lat, lon -> if (demo == null && tripMode != TourMode.REVIEW) feed(DriveInput.Location(lat, lon)) },
+            onNavigation = { m, s -> if (tripMode != TourMode.REVIEW) feed(DriveInput.Navigation(m, s, System.currentTimeMillis())) },
             onStatus = { status = it; notifyStatus() },
         ).also { it.start() }
         scope.launch {
@@ -112,16 +113,27 @@ class DriveService : Service() {
 
     /** The saved trip decides whether a leg may start (EN_ROUTE = previous place finished). */
     private suspend fun refreshTrip() {
-        val trip = runCatching { activeTrip(store.load().trips) }.onFailure { Log.w(TAG, "trip: ${it.message}") }.getOrNull()
+        val trip = runCatching { activeTrip(store.load().trips, reviewSelected(this)) }.onFailure { Log.w(TAG, "trip: ${it.message}") }.getOrNull()
         if (trip == null) {
             if (state.trip != null) feed(DriveInput.Trip(null))
             if (state.trip == null && state.leg == null) { Log.i(TAG, "no active trip, stopping"); stopSelf() }
             return
         }
         flowVersion = trip.flowVersion
+        if (tripMode != trip.mode) {
+            demo?.close(); demo = null
+            audio?.stopBgm(); audio?.stopVoice()
+            // A new mode never inherits a previous trip's position, navigation or arrival state.
+            state = state.copy(trip = null, leg = null, latitude = null, longitude = null,
+                straightM = null, remainingM = null, navRemainingM = null, navEtaSec = null,
+                navAtMillis = 0L, fromNavigation = false, armed = false, awaitingStop = false)
+        }
         tripMode = trip.mode
         val snapshot = TripSnapshot(trip.sessionId, trip.chapterIndex, trip.phase == StoryPhase.EN_ROUTE, trip.phase == StoryPhase.ENDED)
-        if (snapshot != state.trip) feed(DriveInput.Trip(snapshot))
+        if (snapshot != state.trip) {
+            if (tripMode == TourMode.REVIEW && !snapshot.enRoute) audio?.stopVoice()
+            feed(DriveInput.Trip(snapshot))
+        }
     }
 
     private fun feed(input: DriveInput) {
@@ -139,8 +151,8 @@ class DriveService : Service() {
                 DriveAction.PauseBgm -> audio?.pauseBgm()
                 DriveAction.StopBgm -> audio?.stopBgm()
                 is DriveAction.Speak -> audio?.speak(action.id, action.text)
-                is DriveAction.SetNavigation -> DriveCourse.plan(action.chapterIndex, script)?.let { signals?.route(it) }
-                DriveAction.ShowNavigation -> signals?.showNavigation()
+                is DriveAction.SetNavigation -> if (tripMode != TourMode.REVIEW) DriveCourse.plan(action.chapterIndex, script)?.let { signals?.route(it) } else Unit
+                DriveAction.ShowNavigation -> if (tripMode != TourMode.REVIEW) signals?.showNavigation() else Unit
                 DriveAction.StopVoice -> audio?.stopVoice()
                 // Demo drive: park as soon as the place is reached, like a driver pulling over near it.
                 is DriveAction.LegArrived -> { demo?.close(); demo = null; if (status == "시연 주행 중") status = null }
@@ -195,7 +207,11 @@ class DriveService : Service() {
         }.onFailure { Log.w(TAG, "foreground: ${it.message}") }
     }
 
-    private fun modeLabel() = if (tripMode == TourMode.MOCK) "시연 MOCK" else "실제 SDK"
+    private fun modeLabel() = when (tripMode) {
+        TourMode.MOCK -> "시연 MOCK"
+        TourMode.REVIEW -> "관광 위치 시연 · 실제 차량 SDK"
+        else -> "실제 SDK"
+    }
 
     private fun notification(): Notification {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
@@ -251,15 +267,22 @@ class DriveService : Service() {
                 .onFailure { Log.w(TAG, "depart: ${it.message}") }
         }
 
-        /** The trip the player is on: LIVE first, the demo (MOCK) trip otherwise. */
-        internal fun activeTrip(trips: List<StoredTrip>): StoredTrip? =
-            trips.filter { it.phase != StoryPhase.ENDED }.let { open -> open.firstOrNull { it.mode == TourMode.LIVE } ?: open.firstOrNull() }
+        /** Explicit review selection never falls back to a different mode's saved trip. */
+        internal fun activeTrip(trips: List<StoredTrip>, reviewMode: Boolean = false): StoredTrip? =
+            trips.filter { it.phase != StoryPhase.ENDED }.let { open ->
+                if (reviewMode) open.firstOrNull { it.mode == TourMode.REVIEW }
+                else open.firstOrNull { it.mode == TourMode.LIVE } ?: open.firstOrNull { it.mode == TourMode.MOCK }
+            }
+
+        private fun reviewSelected(context: Context): Boolean =
+            context.getSharedPreferences(ReviewTourSettings.PREFERENCES, Context.MODE_PRIVATE)
+                .getBoolean(ReviewTourSettings.ENABLED, false)
 
         /** Starts the service when a trip is in progress. Safe to call from Activity.onStart. */
         fun ensureRunning(context: Context) {
             val app = context.applicationContext
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
-                val active = runCatching { activeTrip(TripProgressStore(app).load().trips) }.getOrNull()
+                val active = runCatching { activeTrip(TripProgressStore(app).load().trips, reviewSelected(app)) }.getOrNull()
                 if (active != null) runCatching { app.startForegroundService(Intent(app, DriveService::class.java)) }
                     .onFailure { Log.w(TAG, "start: ${it.message}") }
             }

@@ -1,9 +1,22 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+}
+
+// Signing credentials remain in a local, Git-ignored file; no key is packaged in the APK.
+val releaseSigningFile = rootProject.file("keystore.properties")
+val releaseSigning = Properties().apply {
+    if (releaseSigningFile.isFile) releaseSigningFile.inputStream().use { load(it) }
+}
+val releaseSigningKeys = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+if (releaseSigningFile.isFile) {
+    require(releaseSigningKeys.all { !releaseSigning.getProperty(it).isNullOrBlank() }) {
+        "Incomplete local release signing settings. See keystore.properties.example."
+    }
 }
 
 android {
@@ -19,6 +32,26 @@ android {
         versionName = "0.4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // 공모전용: 장소 정보는 앱에 포함하며 외부 서비스 인증값을 읽지 않는다.
+    }
+
+    signingConfigs {
+        if (releaseSigningFile.isFile) {
+            create("submissionRelease") {
+                storeFile = rootProject.file(releaseSigning.getProperty("storeFile"))
+                storePassword = releaseSigning.getProperty("storePassword")
+                keyAlias = releaseSigning.getProperty("keyAlias")
+                keyPassword = releaseSigning.getProperty("keyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            isDebuggable = false
+            if (releaseSigningFile.isFile) {
+                signingConfig = signingConfigs.getByName("submissionRelease")
+            }
+        }
     }
 
     buildFeatures {

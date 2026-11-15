@@ -1,6 +1,8 @@
 package com.team.carescape.ui
 
 import android.app.Application
+import android.content.Context
+import android.content.Intent
 import android.os.SystemClock
 import android.provider.Settings
 import androidx.compose.runtime.getValue
@@ -11,6 +13,7 @@ import androidx.lifecycle.viewModelScope
 import com.team.carescape.BuildConfig
 import com.team.carescape.data.StoredTrip
 import com.team.carescape.data.TripProgressStore
+import com.team.carescape.drive.DriveService
 import com.team.carescape.game.*
 import com.team.carescape.model.*
 import com.team.carescape.platform.sdk.PleosSdkRuntime
@@ -42,6 +45,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private var mockLocation: TourLocation? = null
     private var mockWaypointId: String? = null
     private var mockParked: Boolean? = null
+    private val reviewPreferences = application.getSharedPreferences(ReviewTourSettings.PREFERENCES, Context.MODE_PRIVATE)
+    private var reviewLocation by mutableStateOf<TourLocation?>(null)
+    private var reviewWaypointId: String? = null
     private var puzzleDraftIdentity: String? = null
     var interiorLightSnapshot by mutableStateOf(InteriorLightSnapshot())
         private set
@@ -165,9 +171,26 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     /** 진상 다시 풀기 결과 안내. */
     var truthRetryMessage by mutableStateOf<String?>(null)
         private set
-    var mode by mutableStateOf(if (liveSdkVehicleTest || !BuildConfig.DEBUG) TourMode.LIVE else TourMode.MOCK)
+    var mode by mutableStateOf(when {
+        liveSdkVehicleTest -> TourMode.LIVE
+        reviewPreferences.getBoolean(ReviewTourSettings.ENABLED, false) -> TourMode.REVIEW
+        BuildConfig.DEBUG -> TourMode.MOCK
+        else -> TourMode.LIVE
+    })
         private set
     val isMock get() = BuildConfig.DEBUG && mode == TourMode.MOCK
+    val reviewTour: Boolean get() = mode == TourMode.REVIEW
+    val canChooseReviewTour: Boolean get() = !liveSdkVehicleTest && foreground && !loading && !saving &&
+        storageError == null && screen == Screen.LOBBY && actualSdkSafe()
+    val canSetReviewLocation: Boolean get() = reviewTour && parked && !saving && !loading &&
+        screen == Screen.STORY && story != null && story?.phase != StoryPhase.ENDED
+    val reviewLocationMessage: String get() = when {
+        !reviewTour -> "실제 관광 · SDK 위치 확인"
+        reviewLocation == null || reviewWaypointId != currentWaypoint?.id -> "시연 위치 미입력 · 실제 GPS가 아닙니다."
+        tourStartGate == TourGate.LOCATION_STALE || tourStartGate == TourGate.LOCATION_NOT_UPDATED ->
+            "시연 위치를 다시 입력해 주세요. 실제 GPS가 아닙니다."
+        else -> "사용자가 입력한 시연 좌표 · 실제 반경 검사 · 실제 GPS가 아닙니다."
+    }
     private var foregroundState by mutableStateOf(false)
     val foreground: Boolean get() = foregroundState
     var loading by mutableStateOf(true)
@@ -227,7 +250,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private fun now() = TourClock(System.currentTimeMillis(), SystemClock.elapsedRealtime(), bootId)
     private fun safety() = if (isMock && !mockVehiclePuzzleSdk) TourSafety(foreground, mockParked == true, mockParked == true, mockParked == true)
         else runtime.safety.value.copy(foreground = foreground && runtime.safety.value.foreground)
-    private fun rawLocation() = if (isMock) mockLocation.takeIf { mockWaypointId == currentWaypoint?.id } else runtime.locations.value
+    private fun actualSdkSafe() = runtime.safety.value.let {
+        it.foreground && it.parked && it.stationary && it.carUxAllowed
+    }
+    private fun rawLocation() = when {
+        reviewTour -> reviewLocation.takeIf { reviewWaypointId == currentWaypoint?.id }
+        isMock -> mockLocation.takeIf { mockWaypointId == currentWaypoint?.id }
+        else -> runtime.locations.value
+    }
     private fun location() = tourVisit.locationForGate(rawLocation())
     private fun unlockTourGate(clock: TourClock = now()): TourGate {
         val target = currentWaypoint ?: return TourGate.COORDINATES_NOT_CONFIGURED
@@ -376,6 +406,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (!value) {
             tourVisit.clear()
             mockParked = null; mockLocation = null; mockWaypointId = null
+            reviewLocation = null; reviewWaypointId = null
             vehicle = VehicleState(); pendingNarration = null
             storyPuzzleDraft = StoryPuzzleDraft.forLock(storyPuzzle?.lock); storyPuzzleMessage = null
             casebookOpen = false
@@ -403,11 +434,48 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         synchronizeVehiclePuzzle(forceReset = true)
     }
 
+    /** Only the explicit parked selector can enter or leave the submission review mode. */
+    fun chooseReviewTour(enabled: Boolean) {
+        val next = if (enabled) TourMode.REVIEW else TourMode.LIVE
+        if (next == mode || !canChooseReviewTour) return
+        if (!reviewPreferences.edit().putBoolean(ReviewTourSettings.ENABLED, enabled).commit()) {
+            sdkMessage = "관광 체험 방식 선택을 저장하지 못했습니다. 다시 시도해 주세요."
+            return
+        }
+        // End the old mode's drive narration before another saved trip is selected.
+        val application = getApplication<Application>()
+        application.stopService(Intent(application, DriveService::class.java))
+        switchMode(next)
+        sdkMessage = if (enabled) "관광 위치만 시연 입력합니다. 반경 검사·실제 15분·차량 SDK 안전/답안 조건은 유지합니다."
+            else "실제 관광으로 전환했습니다. 위치는 SDK에서 확인합니다."
+    }
+
+    fun setReviewLocation(insideRadius: Boolean) {
+        if (!canSetReviewLocation) return
+        val target = currentWaypoint ?: return
+        val input = ReviewTourLocation.input(target, now(), insideRadius) ?: run {
+            sdkMessage = "현재 장소의 시연 좌표를 만들 수 없습니다."
+            return
+        }
+        safetyRevision++
+        reviewWaypointId = target.id
+        reviewLocation = input
+        sdkMessage = if (insideRadius) "목적지의 시연 좌표를 입력했습니다. 실제 GPS 인증이 아니며 관광 시작을 직접 눌러야 합니다."
+            else "목적지 반경 밖 시연 좌표를 입력했습니다. 반경 검사로 관광 시작이 차단됩니다."
+        refreshTour()
+    }
+
     fun chooseMode(next: TourMode) {
-        if (!BuildConfig.DEBUG || liveSdkVehicleTest || next == mode || saving || screen != Screen.LOBBY) return
+        if (!BuildConfig.DEBUG || liveSdkVehicleTest || next == mode || saving || screen != Screen.LOBBY ||
+            reviewTour || next == TourMode.REVIEW) return
+        switchMode(next)
+    }
+
+    private fun switchMode(next: TourMode) {
         safetyRevision++
         runtime.stopAudio()
         pendingNarration = null; mockLocation = null; mockWaypointId = null; mockParked = null
+        reviewLocation = null; reviewWaypointId = null
         storyPuzzleDraft = StoryPuzzleDraft(); storyPuzzleMessage = null; puzzleDraftIdentity = null
         vehicle = VehicleState(); story = null; trip = null; game = null
         tourVisit.clear()
@@ -440,7 +508,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val sourceScreen = screen
         commands.trySend {
             if (mode != requestedMode || trip != previous || revision != safetyRevision || screen != sourceScreen || !parked ||
-                requestedMode == TourMode.LIVE && liveRevision != runtime.revision) return@trySend
+                requestedMode != TourMode.MOCK && liveRevision != runtime.revision) return@trySend
             saving = true
             synchronizeVehiclePuzzle()
             val next = transform(previous)?.let { t ->
@@ -548,11 +616,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun startGuidance() {
         if (!parked || story == null) return
         val target = currentWaypoint ?: return
-        if (!isMock && sdkStatus.navigation.availability != SdkAvailability.READY) {
+        if (!isMock && !reviewTour && sdkStatus.navigation.availability != SdkAvailability.READY) {
             sdkMessage = "길 안내 연결을 확인한 뒤 다시 시도해 주세요."; return
         }
         changeTrip(afterSave = {
-            if (isMock) sdkMessage = "시연 경로입니다. 실제 길 안내를 요청하지 않았습니다."
+            if (isMock || reviewTour) sdkMessage = "시연 경로입니다. 실제 길 안내를 요청하지 않았습니다."
             else sdkMessage = if (runtime.navigate(target)) "길 안내를 요청했습니다. 결과는 내비게이션에서 확인해 주세요."
                 else "길 안내를 요청하지 못했습니다. SDK 연결과 안전 상태를 확인해 주세요."
         }) { it?.copy(showMap = false) }
