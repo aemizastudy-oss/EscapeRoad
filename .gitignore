@@ -12,6 +12,11 @@ nearby.properties.env
 nearby.properies.env
 .env
 .env.*
+<<<<<<< HEAD
 
 # APK exceeds 100MB; distributed via GitHub Release
 release/*.apk
+=======
+# Submission binaries are distributed through GitHub Releases.
+apk/*.apk
+>>>>>>> afa312750eb014eb568dd561ab7eb69c24131a39

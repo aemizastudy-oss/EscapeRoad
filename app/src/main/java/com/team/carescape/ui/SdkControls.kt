@@ -39,7 +39,7 @@ fun SdkControls(vm: GameViewModel, onRequestPermissions: () -> Unit, modifier: M
         if (!canOpen || !vm.foreground) open = false
     }
     OutlineButton(
-        if (vm.isMock) "시연 모드 · SDK 상태" else "실제 SDK · 연결 상태",
+        if (vm.reviewTour) "체험 모드 · SDK 상태" else if (vm.isMock) "시연 모드 · SDK 상태" else "실제 SDK · 연결 상태",
         { if (canOpen) open = true }, modifier.testTag("sdk-status-open"),
         enabled = canOpen, minHeight = 36.dp, fontSize = 13,
     )
@@ -51,7 +51,7 @@ fun SdkControls(vm: GameViewModel, onRequestPermissions: () -> Unit, modifier: M
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("차량 기능 연결 상태", style = Esc.nanum(26))
-            Text(if (vm.isMock) "MOCK · 개발용 시연 데이터" else "LIVE · 실제 SDK 입력", style = Esc.noto(15, Esc.gold))
+            Text(if (vm.reviewTour) "체험 · 시연 위치 / 실제 15분 / 실제 차량 SDK" else if (vm.isMock) "MOCK · 개발용 시연 데이터" else "LIVE · 실제 SDK 입력", style = Esc.noto(15, Esc.gold))
             Text("연결 준비와 실제 위치 인증·길 안내·음성 출력 성공은 별도로 확인합니다.", style = Esc.noto(14, Esc.creamSoft))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlineButton("권한 확인", onRequestPermissions, Modifier.testTag("sdk-request-permissions"), enabled = !vm.loading, minHeight = 44.dp, fontSize = 15)
@@ -88,7 +88,7 @@ fun SdkControls(vm: GameViewModel, onRequestPermissions: () -> Unit, modifier: M
                 Text("도착 확인: ${if (vm.tourGate == TourGate.READY) "현재 챕터의 도착·관광 조건을 확인했습니다." else tourGateMessage(vm.tourStartGate)}", style = Esc.noto(14, Esc.creamSoft))
                 Text("관광 후 진행: ${tourGateMessage(vm.tourGate)}", style = Esc.noto(14, Esc.creamSoft))
             }
-            if (!vm.isMock && !vm.sdkStatus.locationAccuracyVerified) {
+            if (!vm.isMock && !vm.reviewTour && !vm.sdkStatus.locationAccuracyVerified) {
                 Text("위치 정확도의 미터 단위 근거를 확인하지 못해 실제 도착 인증을 보류합니다.", Modifier.testTag("sdk-accuracy-pending"), style = Esc.noto(14, Esc.gold))
             }
             vm.sdkMessage?.let { Text(it, Modifier.testTag("sdk-message"), style = Esc.noto(14, Esc.creamSoft)) }

@@ -449,7 +449,7 @@ private fun TripMapScreen(s: StoryState, vm: GameViewModel) {
                 Text("관광지 대표점 안내입니다. 지정 주차장은 없으며 합법적인 주차 위치는 직접 확인해 주세요.", style = Esc.noto(12, Esc.label))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlineButton("닫기", vm::goLobby, minWidth = 90.dp)
-                    ParchmentButton(if (vm.isMock) "시연 이동 시작" else "다음 장소 길 안내 요청", vm::startGuidance,
+                    ParchmentButton(if (vm.reviewTour) "시연 이동 화면 열기" else if (vm.isMock) "시연 이동 시작" else "다음 장소 길 안내 요청", vm::startGuidance,
                         Modifier.weight(1f).testTag("story-start-guidance"), enabled = !vm.loading && !vm.saving, minWidth = 150.dp)
                 }
             }
@@ -524,7 +524,7 @@ private fun EnRouteActions(s: StoryState, vm: GameViewModel, narrator: Narrator?
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(tourGateMessage(vm.tourStartGate), Modifier.testTag("story-arrival-reason"), style = Esc.noto(15, Esc.creamSoft))
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            if (!vm.isMock) {
+            if (!vm.isMock && !vm.reviewTour) {
                 OutlineButton("위치 다시 확인", vm::reconnectSdk, Modifier.testTag("story-location-retry"), enabled = !vm.loading && !vm.saving)
                 OutlineButton("길 안내 다시 요청", vm::startGuidance, Modifier.testTag("story-guidance-retry"), enabled = !vm.loading && !vm.saving)
             }
@@ -532,7 +532,8 @@ private fun EnRouteActions(s: StoryState, vm: GameViewModel, narrator: Narrator?
                 Modifier.testTag("story-replay-narration"), enabled = narrator?.ready == true && !vm.saving)
         }
         MockArrivalAction(vm)
-        if (!vm.liveSdkVehicleTest) DepartButton(s, allowDemoDrive = vm.isMock && !vm.mockVehiclePuzzleSdk)
+        if (vm.reviewTour) Text("오른쪽 위 체험 설정에서 시연 위치를 입력하세요. 관광 시작 후 실제 15분을 기다립니다.", style = Esc.noto(15, Esc.gold))
+        if (!vm.liveSdkVehicleTest && !vm.reviewTour) DepartButton(s, allowDemoDrive = vm.isMock && !vm.mockVehiclePuzzleSdk)
     }
 }
 
