@@ -124,13 +124,15 @@ fun CaseReport(s: StoryState, vm: GameViewModel, onClose: () -> Unit) {
             }
             Column(Modifier.width(220.dp), verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)) {
                 Text("사건 종결 보고서", style = Esc.nanum(22))
-                Text("이번 여행의 수사 기록이에요. 사진으로 저장해 두고 함께 간 사람과 나눠 보세요.", style = Esc.noto(14, Esc.creamMuted, lineHeight = 1.6f))
+                Text(if (vm.liveSdkVehicleTest) "위치·15분을 제외한 SDK 테스트 기록입니다. 테스트 기록은 사진으로 저장하지 않습니다."
+                    else "이번 여행의 수사 기록이에요. 사진으로 저장해 두고 함께 간 사람과 나눠 보세요.",
+                    style = Esc.noto(14, Esc.creamMuted, lineHeight = 1.6f))
                 ParchmentButton("사진으로 저장", {
                     scope.launch {
                         val bmp = layer.toImageBitmap().asAndroidBitmap()
                         saved = withContext(Dispatchers.IO) { savePicture(context, bmp, "escape-road-case-${System.currentTimeMillis()}") }
                     }
-                }, Modifier.testTag("report-save"), enabled = vm.parked, minWidth = 200.dp)
+                }, Modifier.testTag("report-save"), enabled = vm.parked && !vm.liveSdkVehicleTest, minWidth = 200.dp)
                 saved?.let { Text(it, Modifier.testTag("report-saved"), style = Esc.noto(13, Esc.gold, lineHeight = 1.5f)) }
                 OutlineButton("닫기", onClose, Modifier.testTag("report-close"), minWidth = 200.dp)
             }

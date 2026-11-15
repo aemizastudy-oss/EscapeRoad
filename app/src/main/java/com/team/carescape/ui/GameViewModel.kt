@@ -30,7 +30,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val runtime = PleosSdkRuntime(application)
     /** 녹음한 대사 재생기. 소리를 멈추는 모든 경로([stopAudio])가 함께 멈춘다. */
     val voice = VoicePlayer(application)
-    private val store = TripProgressStore(application)
+    private val liveTourTestSession = LiveTourTestSession.capture()
+    /** Debug session only; location/time are excluded, SDK safety and answers remain real. */
+    val liveSdkVehicleTest: Boolean get() = liveTourTestSession != null
+    private val store = liveTourTestSession?.progressStore(application) ?: TripProgressStore(application)
     private val commands = Channel<suspend () -> Unit>(Channel.UNLIMITED)
     private var trip: StoredTrip? = null
     private var safetyRevision = 0L
@@ -154,7 +157,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     /** 진상 다시 풀기 결과 안내. */
     var truthRetryMessage by mutableStateOf<String?>(null)
         private set
-    var mode by mutableStateOf(if (BuildConfig.DEBUG) TourMode.MOCK else TourMode.LIVE)
+    var mode by mutableStateOf(if (liveSdkVehicleTest || !BuildConfig.DEBUG) TourMode.LIVE else TourMode.MOCK)
         private set
     val isMock get() = BuildConfig.DEBUG && mode == TourMode.MOCK
     private var foregroundState by mutableStateOf(false)
@@ -223,7 +226,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val departureAt = if (isMock && !mockVehiclePuzzleSdk) clock.elapsedRealtimeMillis.takeIf { mockParked == false }
             else runtime.lastDepartureElapsedMillis
         tourVisit.observe(record(), mode, target, rawLocation(), safety(), clock, departureAt)
-        return TourPolicy.unlockGate(record(), mode, target, location(), safety(), clock, tourVisit.confirmation)
+        return liveTourTestSession?.unlockGate(record(), mode, target, location(), safety(), clock, tourVisit.confirmation)
+            ?: TourPolicy.unlockGate(record(), mode, target, location(), safety(), clock, tourVisit.confirmation)
+    }
+    private fun startTourGate(clock: TourClock = now()): TourGate {
+        val target = currentWaypoint ?: return TourGate.COORDINATES_NOT_CONFIGURED
+        return liveTourTestSession?.startGate(mode, target, location(), safety(), clock)
+            ?: TourPolicy.startGate(mode, target, location(), safety(), clock)
     }
     private fun record() = trip?.tourRecords?.firstOrNull { it.checkpointId == currentWaypoint?.id }
 
@@ -270,10 +279,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val target = currentWaypoint ?: run { synchronizeVehiclePuzzle(); return }
         val clock = now()
         tourGate = unlockTourGate(clock)
-        tourStartGate = TourPolicy.startGate(mode, target, location(), safety(), clock)
+        tourStartGate = startTourGate(clock)
         tourRemainingMillis = record()?.let {
             when (val elapsed = TourPolicy.elapsed(it, clock)) {
-                is TourTimeResult.Valid -> if (isMock && it.debugTimeBypass) 0L else
+                is TourTimeResult.Valid -> if (liveSdkVehicleTest || isMock && it.debugTimeBypass) 0L else
                     (TourPolicy.MIN_TOUR_MILLIS - elapsed.elapsedMillis).coerceAtLeast(0L)
                 is TourTimeResult.Pending -> null
             }
@@ -281,7 +290,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (screen == Screen.STORY && story?.phase == StoryPhase.EN_ROUTE && !showMap &&
             tourStartGate == TourGate.READY && !saving && storageError == null
         ) changeTrip { old ->
-            if (TourPolicy.startGate(mode, target, location(), safety(), now()) == TourGate.READY)
+            if (startTourGate() == TourGate.READY)
                 old?.copy(phase = StoryPhase.ARRIVED) else null
         }
         synchronizeVehiclePuzzle()
@@ -385,7 +394,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun chooseMode(next: TourMode) {
-        if (!BuildConfig.DEBUG || next == mode || saving || screen != Screen.LOBBY) return
+        if (!BuildConfig.DEBUG || liveSdkVehicleTest || next == mode || saving || screen != Screen.LOBBY) return
         safetyRevision++
         runtime.stopAudio()
         pendingNarration = null; mockLocation = null; mockWaypointId = null; mockParked = null
@@ -552,7 +561,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         refreshTour()
         if (tourStartGate != TourGate.READY || story?.phase != StoryPhase.ARRIVED) return
         changeTrip { old ->
-            if (old == null || TourPolicy.startGate(mode, currentWaypoint!!, location(), safety(), now()) != TourGate.READY) null
+            if (old == null || startTourGate() != TourGate.READY) null
             else {
                 val existing = old.tourRecords.firstOrNull { it.checkpointId == currentWaypoint!!.id }
                 val started = existing ?: TourStartRecord(old.sessionId, currentWaypoint!!.id, mode, now())

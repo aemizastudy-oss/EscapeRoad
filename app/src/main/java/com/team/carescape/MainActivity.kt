@@ -5,10 +5,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import com.team.carescape.ui.EscapeApp
 import com.team.carescape.ui.GameViewModel
+import com.team.carescape.ui.LiveTourTestSession
 import com.team.carescape.platform.sdk.PleosSdkRuntime
 import com.team.carescape.drive.DriveService
 import com.team.carescape.drive.DemoArrival
@@ -19,13 +25,22 @@ class MainActivity : ComponentActivity() {
         vm.onPermissionsChanged()
     }
 
+    @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        DriveService.watch(this) // 주행 중 안내: 진행 중인 여행이 생기면 백그라운드 서비스 시작
-        DemoArrival.watch(this, vm) // 주행 중 안내: 시연 주행이 도착해 정차하면 시연 도착 처리
+        // The debug-only explicit session is selected before the first ViewModel access.
+        LiveTourTestSession.configure(intent.getStringExtra(LiveTourTestSession.INTENT_EXTRA))
+        if (LiveTourTestSession.capture() == null) {
+            DriveService.watch(this) // 원본 여행용 안내는 격리된 SDK 검증 세션에서 시작하지 않는다.
+            DemoArrival.watch(this, vm)
+        }
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
-                EscapeApp(vm, ::requestSdkPermissions)
+                if (vm.liveSdkVehicleTest) {
+                    Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
+                        EscapeApp(vm, ::requestSdkPermissions)
+                    }
+                } else EscapeApp(vm, ::requestSdkPermissions)
             }
         }
     }
