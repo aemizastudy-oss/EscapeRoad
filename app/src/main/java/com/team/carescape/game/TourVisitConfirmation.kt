@@ -8,7 +8,7 @@ import com.team.carescape.model.TourSafety
 import com.team.carescape.model.TourStartRecord
 import com.team.carescape.model.WaypointConfig
 
-/** Process/foreground-owned evidence. Never serializes positions or grants tourism time. */
+/** Initial-arrival location tracking. Return/submission permission does not consume this evidence. */
 class TourVisitConfirmation {
     var confirmation: TourLocationConfirmation? = null
         private set

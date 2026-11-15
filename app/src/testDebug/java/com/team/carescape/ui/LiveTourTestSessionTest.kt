@@ -51,17 +51,20 @@ class LiveTourTestSessionTest {
         assertNull(LiveTourTestSession.capture())
     }
 
-    @Test fun onlyLiveLocationChecksAreExcludedAndTheOriginalPolicyRemainsUnchanged() {
+    @Test fun onlyLiveStartLocationChecksAreExcludedAndMockReturnStillWaitsFifteenMinutes() {
         val session = session()
         assertEquals(TourGate.LOCATION_MISSING, TourPolicy.startGate(TourMode.LIVE, target, null, safe, now))
         assertEquals(TourGate.READY, session.startGate(TourMode.LIVE, target, null, safe, now))
         assertEquals(TourGate.READY, session.startGate(TourMode.LIVE, WaypointConfig("unconfigured", "No coordinates"), null, safe, now))
         assertEquals(TourGate.LOCATION_MISSING, session.startGate(TourMode.MOCK, target, null, safe, now))
-        assertEquals(TourGate.LOCATION_MISSING, session.unlockGate(record.copy(mode = TourMode.MOCK), TourMode.MOCK, target, null, safe, now, null))
+        assertEquals(TourGate.TOUR_TIME_REMAINING, session.unlockGate(record.copy(mode = TourMode.MOCK), TourMode.MOCK, target, safe, now))
+        val completedAt = now.copy(wallTimeMillis = now.wallTimeMillis + TourPolicy.MIN_TOUR_MILLIS,
+            elapsedRealtimeMillis = now.elapsedRealtimeMillis + TourPolicy.MIN_TOUR_MILLIS)
+        assertEquals(TourGate.READY,
+            session.unlockGate(record.copy(mode = TourMode.MOCK), TourMode.MOCK, target, safe, completedAt))
         // This pure source-mode mismatch fixture must not become a LIVE observation.
         val wrongSource = TourLocation(mode = TourMode.MOCK)
         assertEquals(TourGate.MODE_MISMATCH, session.startGate(TourMode.LIVE, target, wrongSource, safe, now))
-        assertEquals(TourGate.MODE_MISMATCH, session.unlockGate(record, TourMode.LIVE, target, wrongSource, safe, now, null))
         assertEquals(TourGate.LOCATION_MISSING, TourPolicy.startGate(TourMode.LIVE, target, null, safe, now))
     }
 
@@ -75,30 +78,27 @@ class LiveTourTestSessionTest {
         )
         for ((safety, expected) in unsafe) {
             assertEquals(expected, session.startGate(TourMode.LIVE, target, null, safety, now))
-            assertEquals(expected, session.unlockGate(record, TourMode.LIVE, target, null, safety, now, null))
+            assertEquals(expected, session.unlockGate(record, TourMode.LIVE, target, safety, now))
         }
         for (invalid in listOf(now.copy(wallTimeMillis = 0), now.copy(elapsedRealtimeMillis = -1), now.copy(bootId = ""))) {
             assertEquals(TourGate.CLOCK_INVALID, session.startGate(TourMode.LIVE, target, null, safe, invalid))
-            assertEquals(TourGate.CLOCK_INVALID, session.unlockGate(record, TourMode.LIVE, target, null, safe, invalid, null))
+            assertEquals(TourGate.CLOCK_INVALID, session.unlockGate(record, TourMode.LIVE, target, safe, invalid))
         }
-        assertEquals(TourGate.CLOCK_BACKWARD, session.unlockGate(record, TourMode.LIVE, target, null, safe,
-            now.copy(wallTimeMillis = now.wallTimeMillis - 1), null))
-        assertEquals(TourGate.CLOCK_SUSPICIOUS, session.unlockGate(record, TourMode.LIVE, target, null, safe,
-            now.copy(wallTimeMillis = now.wallTimeMillis + 130_001, elapsedRealtimeMillis = now.elapsedRealtimeMillis + 1), null))
-        assertEquals(TourGate.CLOCK_INVALID, session.unlockGate(record.copy(startedAt = now.copy(bootId = "")),
-            TourMode.LIVE, target, null, safe, now, null))
+        assertEquals(TourGate.CLOCK_BACKWARD, session.unlockGate(record, TourMode.LIVE, target, safe, now.copy(wallTimeMillis = now.wallTimeMillis - 1)))
+        assertEquals(TourGate.CLOCK_SUSPICIOUS, session.unlockGate(record, TourMode.LIVE, target, safe, now.copy(wallTimeMillis = now.wallTimeMillis + 130_001, elapsedRealtimeMillis = now.elapsedRealtimeMillis + 1)))
+        assertEquals(TourGate.CLOCK_INVALID, session.unlockGate(record.copy(startedAt = now.copy(bootId = "")), TourMode.LIVE, target, safe, now))
     }
 
     @Test fun zeroWaitStillRequiresAnActualStartRecordWithMatchingModeAndCheckpoint() {
         val session = session()
         // Zero elapsed time is allowed without modifying the recorded start clock or a bypass flag.
-        assertEquals(TourGate.READY, session.unlockGate(record, TourMode.LIVE, target, null, safe, now, null))
+        assertEquals(TourGate.READY, session.unlockGate(record, TourMode.LIVE, target, safe, now))
         assertEquals(now, record.startedAt)
         assertEquals(false, record.debugTimeBypass)
-        assertEquals(TourGate.TOUR_NOT_STARTED, session.unlockGate(null, TourMode.LIVE, target, null, safe, now, null))
-        assertEquals(TourGate.MODE_MISMATCH, session.unlockGate(record.copy(mode = TourMode.MOCK), TourMode.LIVE, target, null, safe, now, null))
-        assertEquals(TourGate.RECORD_MISMATCH, session.unlockGate(record.copy(sessionId = " "), TourMode.LIVE, target, null, safe, now, null))
-        assertEquals(TourGate.RECORD_MISMATCH, session.unlockGate(record.copy(checkpointId = "another-checkpoint"), TourMode.LIVE, target, null, safe, now, null))
-        assertEquals(TourGate.MODE_MISMATCH, session.unlockGate(record.copy(debugTimeBypass = true), TourMode.LIVE, target, null, safe, now, null))
+        assertEquals(TourGate.TOUR_NOT_STARTED, session.unlockGate(null, TourMode.LIVE, target, safe, now))
+        assertEquals(TourGate.MODE_MISMATCH, session.unlockGate(record.copy(mode = TourMode.MOCK), TourMode.LIVE, target, safe, now))
+        assertEquals(TourGate.RECORD_MISMATCH, session.unlockGate(record.copy(sessionId = " "), TourMode.LIVE, target, safe, now))
+        assertEquals(TourGate.RECORD_MISMATCH, session.unlockGate(record.copy(checkpointId = "another-checkpoint"), TourMode.LIVE, target, safe, now))
+        assertEquals(TourGate.MODE_MISMATCH, session.unlockGate(record.copy(debugTimeBypass = true), TourMode.LIVE, target, safe, now))
     }
 }

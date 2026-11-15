@@ -16,7 +16,6 @@ import com.team.carescape.data.StoredTrip
 import com.team.carescape.data.TripProgressStore
 import com.team.carescape.data.TripStoreState
 import com.team.carescape.game.StoryPhase
-import com.team.carescape.game.StoryPuzzleInput
 import com.team.carescape.game.TourGate
 import com.team.carescape.model.TourMode
 import kotlinx.coroutines.runBlocking
@@ -74,7 +73,7 @@ class TourLifecycleTest {
     val rules: TestRule = RuleChain.outerRule(isolateMockTrip).around(rule)
 
     @Test
-    fun tourismStartSurvivesRecreationAndRequiresFreshLocationBeforeExplicitTimeBypass() {
+    fun tourismStartSurvivesRecreationAndMockTimeBypassAllowsReturnWithoutNewLocation() {
         prepareExploring()
         val started = storedMock()
         val firstStart = started.tourRecords.single().startedAt
@@ -88,29 +87,41 @@ class TourLifecycleTest {
         assertEquals(started, storedMock())
         openDevPanel()
         click("sdk-sim-parked")
-        awaitState { it.parked && it.tourGate == TourGate.LOCATION_MISSING }
+        awaitState { it.parked && it.tourGate == TourGate.TOUR_TIME_REMAINING }
+        assertEquals("A new tourism start still requires location", TourGate.LOCATION_MISSING, vm.tourStartGate)
         rule.onNodeWithTag("tour-return").assertIsNotEnabled()
+        assertTrue("Losing GPS must not skip the fifteen-minute requirement", vm.tourRemainingMillis!! > 0L)
 
-        click("sdk-sim-location")
-        awaitState { it.tourGate == TourGate.TOUR_TIME_REMAINING }
+        // This MOCK fixture explicitly skips the wait; it does not claim fifteen real minutes or LIVE GPS.
         click("sdk-dev-toggle")
         click("sdk-demo-elapse")
         awaitState { !it.saving && it.tourGate == TourGate.READY }
         click("tour-return")
         awaitState { !it.saving && it.story?.phase == StoryPhase.PUZZLE }
         assertTrue("Returning from tourism must not grant clues", storedMock().clues.isEmpty())
-        rule.runOnUiThread {
-            vm.changeStoryNumbers(listOf(0, 4, 2, 7))
-            vm.submitStoryPuzzle(StoryPuzzleInput.Numeric("0427"))
-        }
-        awaitState { !it.saving && it.story?.phase == StoryPhase.REVEALED }
+        click("hotspot-x_plaque")
+        click("hotspot-open")
+        click("choice-shou")
+        click("story-puzzle-submit")
+        awaitState { !it.saving && it.story?.puzzleProgress?.single()?.solvedSteps?.contains("c1_plaque") == true }
 
-        val revealed = storedMock()
-        assertEquals(firstStart, revealed.tourRecords.single().startedAt)
-        assertTrue(revealed.tourRecords.single().debugTimeBypass)
-        assertEquals(StoryPhase.REVEALED, revealed.phase)
-        assertEquals(started.sessionId, revealed.sessionId)
-        assertTrue(revealed.clues.isNotEmpty())
+        val submitted = storedMock()
+        assertEquals(firstStart, submitted.tourRecords.single().startedAt)
+        assertTrue(submitted.tourRecords.single().debugTimeBypass)
+        assertEquals(StoryPhase.PUZZLE, submitted.phase)
+        assertEquals(started.sessionId, submitted.sessionId)
+        assertEquals(listOf("c1_plaque"), submitted.puzzleProgress.single().solvedSteps)
+        assertTrue("One solved lock must not grant the whole chapter clue", submitted.clues.isEmpty())
+
+        rule.activityRule.scenario.recreate()
+        awaitTag("sdk-safety-paused")
+        openDevPanel()
+        click("sdk-sim-parked")
+        awaitState { it.parked && !it.saving && it.tourGate == TourGate.READY }
+        assertEquals(TourGate.LOCATION_MISSING, vm.tourStartGate)
+        click("sdk-dev-toggle")
+        awaitTag("explore")
+        assertEquals("Recreation must preserve the submitted result without a new location", submitted, storedMock())
     }
 
     @Test
@@ -149,13 +160,14 @@ class TourLifecycleTest {
 
         openDevPanel()
         click("sdk-sim-parked")
-        awaitState { it.parked && it.tourGate == TourGate.LOCATION_MISSING }
-        rule.onNodeWithTag("tour-return").assertIsNotEnabled()
-        assertEquals(before, storedMock())
+        awaitState { it.parked && it.tourGate == TourGate.READY }
+        assertEquals(TourGate.LOCATION_MISSING, vm.tourStartGate)
+        rule.onNodeWithTag("tour-return").assertIsEnabled()
+        assertEquals("Restoring safety alone must not change the stored trip", before, storedMock())
     }
 
     @Test
-    fun modeSelectionKeepsLiveRecordsSeparateAndRequiresNewMockConfirmation() {
+    fun modeSelectionKeepsLiveRecordsSeparateAndRequiresNewMockSafetyConfirmation() {
         prepareExploring()
         val mockBefore = storedMock()
         rule.runOnUiThread {
@@ -182,12 +194,11 @@ class TourLifecycleTest {
 
         openDevPanel()
         click("sdk-sim-parked")
-        awaitState { it.parked && it.tourGate == TourGate.LOCATION_MISSING }
+        awaitState { it.parked && it.tourGate == TourGate.TOUR_TIME_REMAINING }
+        assertEquals(TourGate.LOCATION_MISSING, vm.tourStartGate)
         rule.runOnUiThread { vm.resumeStory() }
         awaitTag("tour-return")
         rule.onNodeWithTag("tour-return").assertIsNotEnabled()
-        click("sdk-sim-location")
-        awaitState { it.tourStartGate == TourGate.READY }
         assertEquals(mockBefore, storedMock())
         assertEquals(originalLive, runBlocking { store.load().trips.firstOrNull { it.mode == TourMode.LIVE } })
     }
@@ -205,10 +216,13 @@ class TourLifecycleTest {
         awaitState { !it.saving && it.story?.phase == StoryPhase.EN_ROUTE && it.showMap }
         click("story-start-guidance")
         awaitState { !it.saving && !it.showMap }
+        assertEquals("Initial arrival must still wait for location", TourGate.LOCATION_MISSING, vm.tourStartGate)
+        assertEquals(StoryPhase.EN_ROUTE, vm.story?.phase)
         openDevPanel()
         click("sdk-sim-location")
         awaitState { !it.saving && it.story?.phase == StoryPhase.ARRIVED }
         click("sdk-dev-toggle")
+        click("scene-skip")
         click("tour-start")
         awaitState { !it.saving && it.story?.phase == StoryPhase.EXPLORING }
         awaitTag("tour-return")
@@ -228,6 +242,14 @@ class TourLifecycleTest {
     }
 
     private fun click(tag: String) {
+        if (tag != "item-acquired-ok" && exists("item-acquired-ok")) {
+            rule.onNodeWithTag("item-acquired-ok").performClick()
+            rule.waitForIdle()
+        }
+        if (tag != "explore-guide-close" && exists("explore-guide-close")) {
+            rule.onNodeWithTag("explore-guide-close").performClick()
+            rule.waitForIdle()
+        }
         rule.waitUntil(30_000) {
             runCatching { rule.onNodeWithTag(tag).assertIsEnabled(); true }.getOrDefault(false)
         }
