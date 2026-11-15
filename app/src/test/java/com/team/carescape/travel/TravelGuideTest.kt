@@ -70,12 +70,48 @@ class TravelGuideTest {
         }
     }
 
-    @Test fun unpreparedCategoriesAndUnknownStopsStayEmptyWithoutFictionalResults() {
+    @Test fun everyStopHasCardsAcrossAllSupportedCategoriesWithSafeNavigation() {
         val repo = TravelRepository()
-        assertTrue(repo.load(stops.first(), TravelTab.STAY).places.isEmpty())
-        assertTrue(repo.load(stops.first(), TravelTab.CAFE).places.isEmpty())
-        assertTrue(repo.load(stops.first().copy(checkpointId = "unknown"), TravelTab.PARKING).places.isEmpty())
+        val categories = listOf(TravelTab.PARKING, TravelTab.FOOD, TravelTab.CAFE,
+            TravelTab.ACTIVITY, TravelTab.STAY, TravelTab.NIGHT)
+        stops.forEach { stop -> categories.forEach { tab ->
+            val places = repo.load(stop, tab).places
+            assertTrue("${stop.checkpointId}/${tab.name} needs prepared cards", places.isNotEmpty())
+            assertEquals("A result must not repeat a card", places.size, places.map { it.catalogId }.toSet().size)
+            places.forEach { place ->
+                assertTrue(place.catalogId!!.startsWith("curated:"))
+                assertTrue(place.address.isNotBlank() && place.source.isNotBlank() && place.link!!.startsWith("https://"))
+                assertEquals(null, place.lat)
+                assertEquals(null, place.lng)
+                assertEquals(null, place.distanceM)
+                assertEquals(stop.lat, place.navigationLat)
+                assertEquals(stop.lng, place.navigationLng)
+                assertEquals(stop.name, place.navigationName)
+                assertEquals("주변 관광지로 안내", place.navigationLabel)
+                assertTrue(place.note.contains("입구 좌표"))
+            }
+        } }
+    }
+
+    @Test fun unsupportedCategoryAndUnknownStopsStayEmptyWithoutFictionalResults() {
+        val repo = TravelRepository()
+        TravelTab.entries.forEach { tab ->
+            assertTrue(repo.load(stops.first().copy(checkpointId = "unknown"), tab).places.isEmpty())
+        }
         assertTrue(repo.load(stops.first(), TravelTab.SIGHT).places.isEmpty())
+    }
+
+    @Test fun originalCardIdsAndSharedCandidatesRemainStableWhenSaved() {
+        val repo = TravelRepository()
+        val originals = listOf("haenggung-parking", "hwahong-parking", "manseok-parking-5",
+            "gwanggyo-museum-parking", "woncheon-parking", "jinmi-chicken", "yeonpo-galbi", "siru-hyanggi")
+        val all = stops.flatMap { stop -> TravelTab.entries.flatMap { repo.load(stop, it).places } }
+        originals.forEach { id -> assertTrue("Keep existing saved ID $id", all.any { it.catalogId == "curated:$id" }) }
+        val first = repo.load(stops[0], TravelTab.STAY).places.first { it.catalogId == "curated:dono-hotel" }.toSaved(0, TravelTab.STAY)
+        val nearby = repo.load(stops[2], TravelTab.STAY).places.first { it.catalogId == first.id }.toSaved(2, TravelTab.STAY)
+        assertTrue(nearby.note.contains("차량 이동"))
+        val saved = TripPlan().save(first).save(nearby)
+        assertEquals(listOf(first), saved.saved)
     }
 
     @Test fun savedCardsPreserveAttributionAndTheDifferentNavigationTarget() {

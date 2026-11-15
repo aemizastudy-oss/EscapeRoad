@@ -32,6 +32,11 @@ import com.team.carescape.model.TourMode
 fun SdkDevPanel(vm: GameViewModel, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
     Column(modifier, horizontalAlignment = Alignment.End) {
+        if (vm.liveSdkVehicleTest) Text(
+            "LIVE SDK 테스트\n위치·15분 제외 · 테스트 기록",
+            Modifier.width(340.dp).background(Color(0xF0101010)).padding(8.dp).testTag("sdk-live-test-notice"),
+            style = Esc.noto(12, Color(0xFFFFD38A)),
+        )
         OutlineButton(if (vm.isMock) "시연 · SIM ${if (open) "▴" else "▾"}" else "개발 모드 ${if (open) "▴" else "▾"}",
             { open = !open }, Modifier.testTag("sdk-dev-toggle"), minHeight = 36.dp, fontSize = 13)
         if (open) Column(
@@ -39,7 +44,7 @@ fun SdkDevPanel(vm: GameViewModel, modifier: Modifier = Modifier) {
                 .border(1.dp, Color(0xFF7FB2FF)).padding(12.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val canChoose = !vm.loading && !vm.saving && vm.screen == Screen.LOBBY
+            val canChoose = !vm.liveSdkVehicleTest && !vm.loading && !vm.saving && vm.screen == Screen.LOBBY
             Text("입력 모드 · 자동 전환 없음", style = Esc.noto(13, Color(0xFFBFD8FF)))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlineButton("실제 SDK", { vm.chooseMode(TourMode.LIVE) }, Modifier.testTag("sdk-mode-live"), enabled = canChoose, minHeight = 44.dp, fontSize = 13)

@@ -532,7 +532,7 @@ private fun EnRouteActions(s: StoryState, vm: GameViewModel, narrator: Narrator?
                 Modifier.testTag("story-replay-narration"), enabled = narrator?.ready == true && !vm.saving)
         }
         MockArrivalAction(vm)
-        DepartButton(s, allowDemoDrive = vm.isMock && !vm.mockVehiclePuzzleSdk)
+        if (!vm.liveSdkVehicleTest) DepartButton(s, allowDemoDrive = vm.isMock && !vm.mockVehiclePuzzleSdk)
     }
 }
 
