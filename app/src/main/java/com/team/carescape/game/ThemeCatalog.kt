@@ -15,6 +15,10 @@ data class ThemeCard(
     val episode: Episode?,
     val story: StoryEpisode? = null,
     val playable: Boolean = false,
+    /** 테마 선택 화면 상세에 보이는 값. 난이도·공포도는 0~5. */
+    val genre: String = "",
+    val difficulty: Int = 0,
+    val fear: Int = 0,
 )
 
 object ThemeCatalog {
@@ -33,6 +37,9 @@ object ThemeCatalog {
             episode = null,
             story = IntegratedSiyeok.episode,
             playable = true,
+            genre = "시간여행 · 미스터리",
+            difficulty = 5,
+            fear = 3,
         ),
         // 아래 테마는 시연용으로 카드만 보여 준다(2026-11-12 팀 결정). 콘텐츠와 테스트는 보존한다.
         ThemeCard(
@@ -44,6 +51,9 @@ object ThemeCatalog {
             playTime = "15~25분",
             description = "차량에 남은 기록으로 10년 전 실종 사건의 공백 17분을 밝힌다.",
             episode = Case001.episode,
+            genre = "추리 · 누아르",
+            difficulty = 4,
+            fear = 2,
         ),
         ThemeCard(
             mode = "MODE 2",
@@ -54,6 +64,9 @@ object ThemeCatalog {
             playTime = "5~10분",
             description = "자동차 친구들의 문제를 풀며 우리 차와 친해지는 탐정 놀이.",
             episode = CarDetective.episode,
+            genre = "키즈 · 탐정 놀이",
+            difficulty = 1,
+            fear = 0,
         ),
         ThemeCard(
             mode = "MODE 3",
@@ -64,6 +77,20 @@ object ThemeCatalog {
             playTime = "30~60분",
             description = "세 장소를 찾아가 가족이 함께 단서를 모아 사라진 지도를 완성한다.",
             episode = null,
+            genre = "가족 · 어드벤처",
+            difficulty = 2,
+            fear = 0,
+        ),
+        ThemeCard(
+            mode = "SEALED",
+            title = "봉인된 사건",
+            subtitle = "새로운 의뢰가 곧 도착합니다",
+            tone = ThemeTone.NOIR,
+            audience = "미정",
+            playTime = "미정",
+            description = "아직 열리지 않은 사건입니다.",
+            episode = null,
+            genre = "미공개",
         ),
     )
 }

@@ -18,9 +18,9 @@ import com.team.carescape.game.Siyeok
 import com.team.carescape.game.StoryPhase
 import kotlinx.coroutines.delay
 
-private const val FULL = 0.55f
+private const val FULL = 0.7f
 /** 음성 안내·녹음 대사가 나오는 동안은 대사가 묻히지 않게 크게 줄인다. */
-private const val DUCKED = 0.06f
+private const val DUCKED = 0.04f
 
 /** res/raw의 배경음악 한 곡을 재생한다. 소리 크기는 [fadeTo]로 천천히 바꾼다. 메인 스레드에서만 쓴다. */
 private class BgmPlayer(private val context: Context) {

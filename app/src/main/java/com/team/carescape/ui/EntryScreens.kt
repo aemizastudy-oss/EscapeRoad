@@ -152,7 +152,12 @@ fun LobbyScreen(vm: GameViewModel) {
 // ───────────────────────── 2. 테마 선택 (ThemeSelect.dc.html) ─────────────────────────
 
 @Composable
-fun ThemeSelectScreen(vm: GameViewModel) {
+fun ThemeSelectScreen(vm: GameViewModel) = ThemeShowcaseScreen(vm)
+
+/** 이전 게시판형 테마 선택(카드 3장). 포스터 진열대로 바꾸며 보존한다. */
+@Suppress("unused")
+@Composable
+internal fun ThemeBoardScreen(vm: GameViewModel) {
     val main = ThemeCatalog.cards.first { it.playable }
     GoldFrame(padTop = 28.dp, padH = 44.dp, padBottom = 26.dp) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(22.dp)) {

@@ -44,7 +44,7 @@ class VoicePlayer(private val context: Context) {
                 start()
             }
         }.getOrNull() ?: return false
-        // 녹음은 평균 −16~−22 dBFS라 차 안에서 작게 들린다. 약 9 dB 키운다(내장 리미터가 찢어짐을 막는다).
+        // 녹음은 평균 −16~−22 dBFS라 차 안에서 작게 들린다. 약 15 dB 키운다(내장 리미터가 찢어짐을 막는다).
         enhancer = runCatching { LoudnessEnhancer(mp.audioSessionId).apply { setTargetGain(GAIN_MB); enabled = true } }.getOrNull()
         player = mp
         playing = true
@@ -60,5 +60,5 @@ class VoicePlayer(private val context: Context) {
     }
 }
 
-/** 녹음 대사를 키우는 양(밀리벨). 900 = 9 dB. */
-private const val GAIN_MB = 900
+/** 녹음 대사를 키우는 양(밀리벨). 1500 = 15 dB. */
+private const val GAIN_MB = 1500

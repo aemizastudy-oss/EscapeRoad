@@ -25,7 +25,7 @@ import java.util.Locale
  *  2. `<external files>/voice/` or `<files>/voice/voice_<id>.(mp3|ogg|m4a|wav)` – drop-in for testing recordings
  *     without a rebuild (tools/push_demo_voices.py fills the latter on the emulator),
  *  3. Pleos TextToSpeech (ON_DEVICE).
- * BGM: `<external files>/bgm/bgm_drive.*` if present, else `res/raw/bgm_drive_siyeok`.
+ * BGM: `<external files>/bgm/bgm_drive.*` if present, else the place's `res/raw/bgm_<place>_drive`, else `res/raw/bgm_drive_siyeok`.
  *
  * Never on top of other speech: while navigation prompts or any vehicle/system voice play (detected by audio
  * focus loss and by active playback of navigation/assistant/call/alarm/notification/safety/vehicle usages),
@@ -48,6 +48,7 @@ internal class DriveAudio(private val context: Context, private val onVoice: (St
         }.build()
 
     private var bgm: MediaPlayer? = null
+    private var bgmId = 0
     private var bgmWanted = false
     private var hasFocus = false
     private var focusLost = false
@@ -94,17 +95,21 @@ internal class DriveAudio(private val context: Context, private val onVoice: (St
         }.onFailure { Log.w(TAG, "tts unavailable: ${it.message}") }
     }
 
-    fun startBgm() {
+    /** [track]은 장소별 운전 곡 이름(res/raw). 없으면 공용 `bgm_drive_siyeok`을 쓴다. 곡이 바뀌면 새로 연다. */
+    fun startBgm(track: String? = null) {
         bgmWanted = true
         requestFocus()
+        val id = track?.let(::raw)?.takeIf { it != 0 } ?: raw("bgm_drive_siyeok")
+        if (bgm != null && bgmId != id) { runCatching { bgm?.release() }; bgm = null }
         if (bgm == null) bgm = runCatching {
             MediaPlayer().apply {
                 setAudioAttributes(music)
                 val override = external("bgm", "bgm_drive")
                 if (override != null) setDataSource(override.path) else {
-                    val id = raw("bgm_drive_siyeok").takeIf { it != 0 } ?: return
+                    if (id == 0) return
                     context.resources.openRawResourceFd(id).use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
                 }
+                bgmId = id
                 isLooping = true
                 prepare()
             }
@@ -250,7 +255,7 @@ internal class DriveAudio(private val context: Context, private val onVoice: (St
     private companion object {
         const val TAG = "DriveAudio"
         /** Low enough not to cover road noise. */
-        const val BGM_VOLUME = 0.35f
+        const val BGM_VOLUME = 0.45f
         const val RESUME_DELAY_MS = 800L
         /** Navigation prompts, assistants, calls, ringtones, alarms, notifications and car system sounds. */
         val INTERRUPTING_USAGES = setOf(

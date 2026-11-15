@@ -1,5 +1,6 @@
 package com.team.carescape.drive
 
+import com.team.carescape.game.BgmCatalog
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -134,7 +135,7 @@ class DriveService : Service() {
         if (step.actions.isNotEmpty()) Log.i(TAG, "${input.javaClass.simpleName} -> ${step.actions.joinToString { it.javaClass.simpleName }}")
         step.actions.forEach { action ->
             when (action) {
-                DriveAction.StartBgm -> audio?.startBgm()
+                DriveAction.StartBgm -> audio?.startBgm((state.leg?.chapterIndex ?: state.trip?.chapterIndex)?.let(BgmCatalog::driveTrack))
                 DriveAction.PauseBgm -> audio?.pauseBgm()
                 DriveAction.StopBgm -> audio?.stopBgm()
                 is DriveAction.Speak -> audio?.speak(action.id, action.text)
