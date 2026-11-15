@@ -69,7 +69,7 @@ private fun Screens(vm: GameViewModel, narrator: Narrator, onRequestPermissions:
             SdkSafetyWaitingScreen(vm)
         } else {
             when (vm.screen) {
-                Screen.LOBBY -> LobbyScreen(vm)
+                Screen.LOBBY -> if (vm.showcase) ShowcaseScreen(vm) else LobbyScreen(vm)
                 Screen.THEME_SELECT -> ThemeSelectScreen(vm)
                 Screen.BRIEFING -> StoryBriefingScreen(vm)
                 Screen.PLAY -> PuzzleScreen(vm, narrator)

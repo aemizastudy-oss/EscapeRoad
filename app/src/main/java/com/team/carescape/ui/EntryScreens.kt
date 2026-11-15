@@ -125,6 +125,7 @@ fun LobbyScreen(vm: GameViewModel) {
             VSpace(12.dp)
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 OutlineButton("여행 도우미", vm::openTravelGuide, Modifier.testTag("lobby-travel"), minWidth = 190.dp, minHeight = 48.dp, fontSize = 17, transparent = true)
+                OutlineButton("자동 시연", vm::startShowcase, Modifier.testTag("lobby-showcase"), minWidth = 160.dp, minHeight = 48.dp, fontSize = 17, transparent = true)
             }
         }
         val story = vm.story

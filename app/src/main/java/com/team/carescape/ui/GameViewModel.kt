@@ -495,6 +495,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun speakNarration(text: String): Boolean = parked && runtime.speak(text)
     fun stopAudio() { runtime.stopAudio(); voice.stop() }
 
+    /** 자동 시연(로비에서만, 정차 중에만). 저장된 여행·퍼즐 진행은 건드리지 않는다. */
+    var showcase by mutableStateOf(false)
+        private set
+    fun startShowcase() { if (parked && screen == Screen.LOBBY) { stopAudio(); pendingNarration = null; showcase = true } }
+    fun stopShowcase() { showcase = false; stopAudio(); pendingNarration = null }
+
     /** Serialize a click against its original mode, session, phase and safety generation. */
     private fun changeTrip(
         afterSave: (() -> Unit)? = null,

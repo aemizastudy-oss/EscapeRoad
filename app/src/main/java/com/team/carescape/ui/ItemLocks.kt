@@ -78,21 +78,21 @@ fun SymbolDialLock(
 @Composable
 fun ItemTile(
     item: CaseItem, used: Boolean, selected: Boolean, enabled: Boolean, onClick: (() -> Unit)?,
-    modifier: Modifier = Modifier, allowUsed: Boolean = false,
+    modifier: Modifier = Modifier, allowUsed: Boolean = false, compact: Boolean = false,
 ) {
     val on = selected && (allowUsed || !used)
     Column(
-        modifier.width(104.dp)
+        modifier.width(if (compact) 82.dp else 104.dp)
             .border(if (on) 2.dp else 1.dp, if (on) Esc.gold else Esc.goldDim)
             .background(if (on) Esc.gold.copy(alpha = 0.2f) else Color.Transparent)
             .semantics { this.selected = on; contentDescription = "소지품 ${item.name}${if (used) " (사용함)" else ""}" }
             .let { if (onClick != null) it.clickable(enabled = enabled && (allowUsed || !used), role = Role.RadioButton, onClick = onClick) else it }
             .testTag("item-${item.id}")
-            .padding(8.dp),
+            .padding(if (compact) 5.dp else 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 4.dp),
     ) {
-        ItemArt(item.id, Modifier.size(64.dp), used)
+        ItemArt(item.id, Modifier.size(if (compact) 46.dp else 64.dp), used)
         Text(item.name, style = Esc.noto(12, if (used) Esc.locked else Esc.cream, lineHeight = 1.3f), textAlign = TextAlign.Center)
         if (used) Text("사용함", style = Esc.noto(11, Esc.locked))
     }
@@ -111,14 +111,17 @@ fun UseItemLock(
 ) {
     Panel("Use an Item", "소지품에서 쓸 것을 고르세요.") {
         if (inventory.isEmpty()) Text("소지품이 비어 있습니다.", style = Esc.noto(14, Esc.creamSoft))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            inventory.forEach { (item, used) -> ItemTile(item, used, item.id == selected, enabled, { onSelect(item.id) }) }
-        }
-        inventory.firstOrNull { it.first.id == selected }?.let { (item, _) ->
-            Text(item.description, style = Esc.noto(13, Esc.creamMuted, lineHeight = 1.5f), textAlign = TextAlign.Center)
-        }
+        // 소지품이 늘어도 '쓰기'가 화면 밖으로 밀리지 않게 고른 물건·버튼을 목록 위에 두고, 칸을 작게 한다.
+        val chosen = inventory.firstOrNull { it.first.id == selected }?.first
+        Text(
+            chosen?.let { "${it.name} · ${it.description}" } ?: "아래 소지품에서 하나를 고르세요.",
+            style = Esc.noto(13, if (chosen != null) Esc.cream else Esc.creamMuted, lineHeight = 1.45f), textAlign = TextAlign.Center, maxLines = 3,
+        )
         ParchmentButton("쓰기", onSubmit, Modifier.testTag("story-puzzle-submit"), enabled = enabled && selected != null, minWidth = 180.dp, minHeight = 48.dp)
         feedback()
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            inventory.forEach { (item, used) -> ItemTile(item, used, item.id == selected, enabled, { onSelect(item.id) }, compact = true) }
+        }
     }
 }
 
