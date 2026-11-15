@@ -140,13 +140,13 @@ private fun sdkAvailabilityMessage(value: SdkAvailability): String = when (value
 
 fun tourRemainingMessage(remainingMillis: Long?): String = when {
     remainingMillis == null -> "관광 시작 기록을 먼저 저장해 주세요."
-    remainingMillis <= 0L -> "관광 시간 조건을 채웠습니다. 현재 위치·안전 상태를 다시 확인합니다."
+    remainingMillis <= 0L -> "관광 시간 조건을 채웠습니다. 안전한 정차 상태를 확인해 주세요."
     else -> "최소 15분 관광까지 약 ${(remainingMillis + 59_999L) / 60_000L}분 남았습니다."
 }
 
 fun tourGateMessage(gate: TourGate): String = when (gate) {
     TourGate.READY -> "이용 조건을 확인했습니다."
-    TourGate.BACKGROUND -> "앱으로 돌아온 뒤 안전 상태와 위치를 다시 확인해 주세요."
+    TourGate.BACKGROUND -> "앱으로 돌아온 뒤 이용 조건을 다시 확인해 주세요."
     TourGate.NOT_PARKED -> "P 상태 확인이 필요합니다."
     TourGate.NOT_STATIONARY -> "차량이 완전히 멈춘 상태를 확인해 주세요."
     TourGate.CAR_UX_RESTRICTED -> "CarUx의 게임 이용 허용 상태를 확인해야 합니다."

@@ -161,7 +161,7 @@ fun StoryPuzzleContent(
             Text(place, style = Esc.noto(19, Esc.gold))
             Text(tourRemainingMessage(remainingMillis), Modifier.testTag("story-puzzle-time"), style = Esc.noto(18))
             Text(tourGateMessage(gate), Modifier.testTag("story-puzzle-gate"), style = Esc.noto(17, Esc.creamMuted), textAlign = TextAlign.Center)
-            Text("관광 시간과 최신 위치·안전 상태가 확인되면 문제를 다시 엽니다.", style = Esc.noto(15, Esc.creamSoft), textAlign = TextAlign.Center)
+            Text("관광 시간과 안전한 정차 상태가 확인되면 문제를 다시 엽니다.", style = Esc.noto(15, Esc.creamSoft), textAlign = TextAlign.Center)
             OutlineButton("로비로", onBack, minWidth = 180.dp)
         }
         return

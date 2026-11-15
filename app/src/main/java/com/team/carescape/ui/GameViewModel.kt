@@ -233,9 +233,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val target = currentWaypoint ?: return TourGate.COORDINATES_NOT_CONFIGURED
         val departureAt = if (isMock && !mockVehiclePuzzleSdk) clock.elapsedRealtimeMillis.takeIf { mockParked == false }
             else runtime.lastDepartureElapsedMillis
+        // Continue tracking post-departure fixes for the initial arrival/start gate only.
         tourVisit.observe(record(), mode, target, rawLocation(), safety(), clock, departureAt)
-        return liveTourTestSession?.unlockGate(record(), mode, target, location(), safety(), clock, tourVisit.confirmation)
-            ?: TourPolicy.unlockGate(record(), mode, target, location(), safety(), clock, tourVisit.confirmation)
+        return liveTourTestSession?.unlockGate(record(), mode, target, safety(), clock)
+            ?: TourPolicy.unlockGate(record(), mode, target, safety(), clock)
     }
     private fun startTourGate(clock: TourClock = now()): TourGate {
         val target = currentWaypoint ?: return TourGate.COORDINATES_NOT_CONFIGURED

@@ -3,7 +3,6 @@ package com.team.carescape.ui
 import android.content.Context
 import com.team.carescape.data.TripProgressStore
 import com.team.carescape.game.TourGate
-import com.team.carescape.game.TourLocationConfirmation
 import com.team.carescape.game.TourPolicy
 import com.team.carescape.model.TourClock
 import com.team.carescape.model.TourLocation
@@ -28,11 +27,9 @@ internal class LiveTourTestSession private constructor(val id: String) {
         record: TourStartRecord?,
         mode: TourMode,
         target: WaypointConfig,
-        location: TourLocation?,
         safety: TourSafety,
         now: TourClock,
-        confirmation: TourLocationConfirmation?,
-    ): TourGate = TourPolicy.unlockGate(record, mode, target, location, safety, now, confirmation)
+    ): TourGate = TourPolicy.unlockGate(record, mode, target, safety, now)
 
     companion object {
         const val INTENT_EXTRA = "com.team.carescape.LIVE_SDK_TEST_SESSION"

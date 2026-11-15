@@ -7,9 +7,7 @@ import com.team.carescape.data.TripProgressStore
 import com.team.carescape.data.TripStateSerializer
 import com.team.carescape.data.TripStoreState
 import com.team.carescape.game.TourGate
-import com.team.carescape.game.TourLocationConfirmation
 import com.team.carescape.game.TourPolicy
-import com.team.carescape.game.TourTimeResult
 import com.team.carescape.model.TourClock
 import com.team.carescape.model.TourLocation
 import com.team.carescape.model.TourMode
@@ -53,25 +51,12 @@ internal class LiveTourTestSession private constructor(val id: String) {
         record: TourStartRecord?,
         mode: TourMode,
         target: WaypointConfig,
-        location: TourLocation?,
         safety: TourSafety,
         now: TourClock,
-        confirmation: TourLocationConfirmation?,
     ): TourGate {
-        if (mode != TourMode.LIVE) {
-            return TourPolicy.unlockGate(record, mode, target, location, safety, now, confirmation)
-        }
-        val gate = startGate(mode, target, location, safety, now)
-        if (gate != TourGate.READY) return gate
-        if (record == null) return TourGate.TOUR_NOT_STARTED
-        if (record.mode != mode) return TourGate.MODE_MISMATCH
-        if (record.checkpointId != target.id || record.sessionId.isBlank()) return TourGate.RECORD_MISMATCH
-        if (record.debugTimeBypass) return TourGate.MODE_MISMATCH
-        // Keep genuine clocks and record validation; omit only the fifteen-minute threshold.
-        return when (val elapsed = TourPolicy.elapsed(record, now)) {
-            is TourTimeResult.Pending -> elapsed.reason
-            is TourTimeResult.Valid -> TourGate.READY
-        }
+        val gate = TourPolicy.unlockGate(record, mode, target, safety, now)
+        // The isolated LIVE exercise excludes only the wait; all other return checks remain shared.
+        return if (mode == TourMode.LIVE && gate == TourGate.TOUR_TIME_REMAINING) TourGate.READY else gate
     }
 
     companion object {

@@ -22,18 +22,22 @@ class TourVisitConfirmationTest {
                         departureAt: Long? = null, r: TourStartRecord = record) {
         t.observe(r, r.mode, place, location, safety, clock, departureAt)
     }
-    private fun gate(t: TourVisitConfirmation, location: TourLocation?, clock: TourClock) =
-        TourPolicy.unlockGate(record, record.mode, place, t.locationForGate(location), safe, clock, t.confirmation)
+    private fun startGate(t: TourVisitConfirmation, location: TourLocation?, clock: TourClock) =
+        TourPolicy.startGate(record.mode, place, t.locationForGate(location), safe, clock)
 
-    @Test fun aConfirmedArrivalSurvivesOnlyAgeExpiryAfterFifteenMinutes() {
+    @Test fun expiredArrivalProofCannotQualifyAStartButReturnUsesTheSavedTime() {
         val tracker = TourVisitConfirmation()
         val location = fix()
         observe(tracker, location, start)
         assertNotNull(tracker.confirmation)
         val done = later(TourPolicy.MIN_TOUR_MILLIS)
         observe(tracker, location.copy(error = "LOCATION_STALE"), done)
-        assertEquals(TourGate.READY, gate(tracker, location.copy(error = "LOCATION_STALE"), done))
-        assertEquals(TourGate.LOCATION_STALE, gate(tracker, location, later(899_999)))
+        assertNotNull(tracker.confirmation)
+        assertEquals(TourGate.LOCATION_ERROR, startGate(tracker, location.copy(error = "LOCATION_STALE"), done))
+        assertEquals(TourGate.LOCATION_STALE, startGate(tracker, location, done))
+        assertEquals(TourGate.READY, TourPolicy.unlockGate(record, record.mode, place, safe, done))
+        assertEquals(TourGate.TOUR_TIME_REMAINING,
+            TourPolicy.unlockGate(record, record.mode, place, safe, later(899_999)))
     }
 
     @Test fun departureRejectsTheOldFixEvenIfItIsStillFreshAndParkingReturns() {
@@ -45,11 +49,12 @@ class TourVisitConfirmationTest {
         observe(tracker, location, departed, safe.copy(parked = false), departed.elapsedRealtimeMillis)
         assertNull(tracker.confirmation)
         observe(tracker, location, departed)
-        assertEquals(TourGate.LOCATION_NOT_UPDATED, gate(tracker, location, departed))
+        assertEquals(TourGate.LOCATION_NOT_UPDATED, startGate(tracker, location, departed))
+        assertEquals(TourGate.READY, TourPolicy.unlockGate(record, record.mode, place, safe, departed))
         val returned = later(TourPolicy.MIN_TOUR_MILLIS + 101)
         val newLocation = fix(returned)
         observe(tracker, newLocation, returned)
-        assertEquals(TourGate.READY, gate(tracker, newLocation, returned))
+        assertEquals(TourGate.READY, startGate(tracker, newLocation, returned))
     }
 
     @Test fun aNewCallbackInTheSameMillisecondCanReconfirmButTheSameObjectCannot() {
@@ -59,10 +64,10 @@ class TourVisitConfirmationTest {
         observe(tracker, location, done)
         observe(tracker, location, done, safe.copy(parked = false), done.elapsedRealtimeMillis)
         observe(tracker, location, done)
-        assertEquals(TourGate.LOCATION_NOT_UPDATED, gate(tracker, location, done))
+        assertEquals(TourGate.LOCATION_NOT_UPDATED, startGate(tracker, location, done))
         val newObservation = location.copy()
         observe(tracker, newObservation, done)
-        assertEquals(TourGate.READY, gate(tracker, newObservation, done))
+        assertEquals(TourGate.READY, startGate(tracker, newObservation, done))
     }
 
     @Test fun outsideOrInvalidObservationsRevokeProofRatherThanPreserveAnOldSuccess() {
@@ -98,7 +103,9 @@ class TourVisitConfirmationTest {
         val oldFix = later(30_001)
         tracker.observe(bypassed, r.mode, place, location, safe, oldFix)
         assertNotNull(tracker.confirmation)
-        assertEquals(TourGate.READY, TourPolicy.unlockGate(bypassed, r.mode, place, location, safe, oldFix, tracker.confirmation))
+        assertEquals(TourGate.LOCATION_STALE,
+            TourPolicy.startGate(r.mode, place, tracker.locationForGate(location), safe, oldFix))
+        assertEquals(TourGate.READY, TourPolicy.unlockGate(bypassed, r.mode, place, safe, oldFix))
     }
 
     @Test fun departureWatermarkSurvivesAChapterOrRecordChange() {

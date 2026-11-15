@@ -80,6 +80,6 @@ adb -s emulator-5554 shell am start --user 10 -n com.team.carescape/.MainActivit
 ```
 
 3. **LIVE SDK 테스트** 안내가 없어졌는지와 원본 여행 파일이 보존됐는지 확인한다. 일반 debug 실행은 기존 기본 모드인 MOCK으로 시작하므로 실제 LIVE로 확인하려면 로비의 개발 패널에서 **실제 SDK**를 선택한다. Release의 기본 모드는 LIVE다.
-4. 일반 LIVE에서는 원래 위치 인증과 최소 15분 관광 정책이 다시 적용된다. 정확도 미확정으로 도착이 보류되는 기존 동작도 유지된다. 검증 세션의 예외를 일반 LIVE의 영구 설정으로 설명하지 않는다.
+4. 일반 LIVE에서는 최초 도착·관광 시작의 위치 인증과 최소 15분 관광 정책이 적용된다. 2026-11-15 후속 [관광 복귀 정책](tour-return-policy.md)에 따라 저장된 관광의 복귀·문제 열기·답안 제출에는 위치를 다시 요구하지 않는다. 정확도 미확정으로 최초 도착이 보류되는 기존 동작도 유지된다. 검증 세션의 최초 위치·15분 예외를 일반 LIVE의 설정으로 설명하지 않는다.
 
 관련 구현: debug/release의 `ui/LiveTourTestSession.kt`, `MainActivity`, `GameViewModel`, `SdkDevPanel`. 기존 정책 본체인 `TourPolicy`와 원본 저장 검증 규칙은 변경하지 않는다.

@@ -63,23 +63,16 @@ object TourPolicy {
         return locationGate(mode, target, location, now)
     }
 
+    /** Return/submission checks use the saved tour start, time and current safety, not location. */
     fun unlockGate(
         record: TourStartRecord?,
         mode: TourMode,
         target: WaypointConfig,
-        location: TourLocation?,
         safety: TourSafety,
         now: TourClock,
-        confirmation: TourLocationConfirmation? = null,
     ): TourGate {
-        val initialGate = startGate(mode, target, location, safety, now)
-        val staleOnly = initialGate == TourGate.LOCATION_STALE ||
-            initialGate == TourGate.LOCATION_ERROR && location?.error == "LOCATION_STALE"
-        val gate = if (staleOnly && mayReuseConfirmedLocation(record, mode, target, now, confirmation)) {
-            // Recheck every property except age; a stale label is not proof of valid coordinates.
-            locationGate(mode, target, location, now, allowStale = true)
-        } else initialGate
-        if (gate != TourGate.READY) return gate
+        safetyGate(safety)?.let { return it }
+        if (!validClock(now)) return TourGate.CLOCK_INVALID
         if (record == null) return TourGate.TOUR_NOT_STARTED
         if (record.mode != mode) return TourGate.MODE_MISMATCH
         if (record.checkpointId != target.id || record.sessionId.isBlank()) return TourGate.RECORD_MISMATCH
@@ -106,26 +99,6 @@ object TourPolicy {
         if (record.debugTimeBypass && mode != TourMode.MOCK) return null
         if (elapsed(record, now) !is TourTimeResult.Valid) return null
         return TourLocationConfirmation(record.key, record.startedAt, target, now)
-    }
-
-    private fun mayReuseConfirmedLocation(
-        record: TourStartRecord?,
-        mode: TourMode,
-        target: WaypointConfig,
-        now: TourClock,
-        confirmation: TourLocationConfirmation?,
-    ): Boolean {
-        if (record == null || confirmation == null) return false
-        if (record.mode != mode || record.checkpointId != target.id || record.sessionId.isBlank()) return false
-        if (record.debugTimeBypass && mode != TourMode.MOCK) return false
-        if (confirmation.recordKey != record.key || confirmation.startedAt != record.startedAt ||
-            confirmation.target != target || confirmation.confirmedAt.bootId != now.bootId
-        ) return false
-        if (elapsed(record, confirmation.confirmedAt) !is TourTimeResult.Valid) return false
-        // The confirmation itself must not be future-dated or survive a suspicious clock change.
-        if (elapsed(record.copy(startedAt = confirmation.confirmedAt, debugTimeBypass = false), now) !is TourTimeResult.Valid) return false
-        val time = elapsed(record, now) as? TourTimeResult.Valid ?: return false
-        return time.elapsedMillis >= MIN_TOUR_MILLIS || record.debugTimeBypass && mode == TourMode.MOCK
     }
 
     fun elapsed(record: TourStartRecord, now: TourClock): TourTimeResult {

@@ -49,7 +49,6 @@ import com.team.carescape.game.StoryPhase
 import com.team.carescape.game.StoryPuzzleInput
 import com.team.carescape.game.TourCatalog
 import com.team.carescape.game.TourGate
-import com.team.carescape.game.TourPolicy
 import com.team.carescape.model.TourMode
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -407,16 +406,9 @@ class StoryIntegrationTest {
         assertEquals(attempted, storedMock())
         openDevPanel()
         clickTag("sdk-sim-parked")
-        awaitState { it.parked && it.tourGate == TourGate.LOCATION_MISSING }
-        awaitTag("story-puzzle-waiting")
-        rule.onNodeWithTag("story-puzzle-prompt").assertDoesNotExist()
-        rule.runOnUiThread {
-            vm.submitStoryPuzzle(StoryPuzzleInput.Choice(vm.storyPuzzleDraft.choice ?: ""))
-        }
-        assertEquals("Fresh P alone must not unlock the question", attempted, storedMock())
-
-        clickTag("sdk-sim-location")
-        awaitState { it.tourGate == TourGate.READY && !it.saving }
+        awaitState { it.parked && it.tourGate == TourGate.READY && !it.saving }
+        assertEquals("A new tour would still require a location", TourGate.LOCATION_MISSING, vm.tourStartGate)
+        assertEquals("Restoring safety must not itself submit an answer", attempted, storedMock())
         closeDevPanel()
         awaitTag("story-puzzle")
         rule.onNodeWithTag("story-puzzle-hint-1").assertIsDisplayed()
@@ -460,16 +452,16 @@ class StoryIntegrationTest {
     }
 
     @Test
-    fun confirmedTourRemainsUsableAfterLocationExpiryButDepartureNeedsANewFix() {
+    fun completedTourAllowsPuzzleAfterDepartureWithoutNewLocation() {
         prepareFirstPuzzle()
-        val beforeExpiry = storedMock()
-        val observedAt = SystemClock.elapsedRealtime()
-        // Real elapsed time: Compose's animation clock does not age an SDK/location sample.
-        rule.waitUntil(45_000) {
-            SystemClock.elapsedRealtime() - observedAt > TourPolicy.MAX_LOCATION_AGE_MILLIS + 250
-        }
-        awaitState { it.tourGate == TourGate.READY && !it.saving }
-        assertEquals(beforeExpiry, storedMock())
+        val beforeDeparture = storedMock()
+        rule.runOnUiThread { vm.simSetParked(false) }
+        awaitTag("sdk-safety-paused")
+        assertEquals(beforeDeparture, storedMock())
+        rule.runOnUiThread { vm.simSetParked(true) }
+        awaitState { it.parked && it.tourGate == TourGate.READY && !it.saving }
+        assertEquals("Starting another tour still rejects the pre-departure fix", TourGate.LOCATION_NOT_UPDATED, vm.tourStartGate)
+        assertEquals(beforeDeparture, storedMock())
 
         rule.runOnUiThread { vm.openHotspotLock("x_plaque") }
         awaitTag("story-puzzle")
@@ -478,18 +470,15 @@ class StoryIntegrationTest {
         awaitState { !it.saving && it.story?.puzzleProgress?.single()?.solvedSteps?.contains("c1_plaque") == true }
         val afterSubmission = storedMock()
         assertTrue(afterSubmission.puzzleProgress.single().solvedSteps.contains("c1_plaque"))
-        assertEquals(beforeExpiry.tourRecords.single().startedAt, afterSubmission.tourRecords.single().startedAt)
+        assertEquals(beforeDeparture.tourRecords.single().startedAt, afterSubmission.tourRecords.single().startedAt)
 
-        rule.runOnUiThread { vm.simSetParked(false); vm.simSetParked(true) }
-        awaitState { it.parked && it.tourGate == TourGate.LOCATION_NOT_UPDATED }
-        assertEquals(afterSubmission, storedMock())
-        rule.runOnUiThread { vm.demoArrive() }
-        awaitState { it.parked && it.tourGate == TourGate.READY }
-        assertEquals(afterSubmission, storedMock())
+        rule.runOnUiThread { vm.goLobby(); vm.resumeStory() }
+        awaitState { it.screen == Screen.STORY && it.parked && it.tourGate == TourGate.READY }
+        assertEquals("Resume must preserve the completed lock without reacquiring a position", afterSubmission, storedMock())
     }
 
     @Test
-    fun puzzleRejectsDrivingBackgroundAndMissingFreshLocationWithoutChangingReceipts() {
+    fun puzzleRejectsDrivingAndBackgroundButAllowsSafeReturnWithoutLocation() {
         prepareFirstPuzzle()
         // 화성행궁은 탐색 장면이다. 현판 자물쇠를 연 상태에서 같은 안전 조건을 확인한다.
         rule.runOnUiThread { vm.openHotspotLock("x_plaque") }
@@ -525,21 +514,19 @@ class StoryIntegrationTest {
         awaitTag("sdk-safety-paused")
         openDevPanel()
         clickTag("sdk-sim-parked")
-        awaitState { it.parked && it.tourGate == TourGate.LOCATION_MISSING }
-        awaitTag("story-puzzle-waiting")
-        rule.onNodeWithTag("story-puzzle").assertDoesNotExist()
-        rule.onNodeWithTag("choice-shou").assertDoesNotExist()
-        rule.runOnUiThread {
-            vm.changeStoryChoice("shou")
-            vm.showStoryPuzzleHint()
-            vm.submitStoryPuzzle(StoryPuzzleInput.Choice(vm.storyPuzzleDraft.choice ?: ""))
-        }
-        assertEquals("A foreground return requires a fresh position before any puzzle command", before, storedMock())
-        clickTag("sdk-sim-location")
-        awaitState { it.tourGate == TourGate.READY }
+        awaitState { it.parked && it.tourGate == TourGate.READY }
+        assertEquals(TourGate.LOCATION_MISSING, vm.tourStartGate)
         closeDevPanel()
         awaitTag("story-puzzle")
-        assertEquals(before, storedMock())
+        rule.onNodeWithTag("choice-shou").assertIsEnabled()
+        assertEquals("Restoring safety without location must not change receipts", before, storedMock())
+        clickTag("choice-shou")
+        assertEquals("Selecting remains a draft operation", before, storedMock())
+        clickSubmit()
+        awaitState { !it.saving && it.story?.puzzleProgress?.single()?.solvedSteps?.contains("c1_plaque") == true }
+        val submitted = storedMock()
+        assertEquals(before.tourRecords, submitted.tourRecords)
+        assertTrue(submitted.clues.isEmpty())
     }
 
     @Test

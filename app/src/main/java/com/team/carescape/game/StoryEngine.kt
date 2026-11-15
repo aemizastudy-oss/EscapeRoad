@@ -157,7 +157,7 @@ object TruthRetry {
     }
 }
 
-/** 순수 진행 로직. 호출자는 관광 시간·현재 위치·안전 조건과 저장 성공을 확인한다. */
+/** 순수 진행 로직. 호출자는 시작 위치·관광 시간·단계별 안전 조건과 저장 성공을 확인한다. */
 object StoryEngine {
 
     fun start(episode: StoryEpisode, flowVersion: Int = 1): StoryState =
@@ -191,7 +191,7 @@ object StoryEngine {
         return state.copy(phase = StoryPhase.EXPLORING)
     }
 
-    /** 호출자가 관광 시간·최신 위치·안전 조건을 검증한 뒤 호출한다. */
+    /** 호출자가 관광 시작 기록·시간·안전 조건을 검증한 뒤 호출한다. 복귀 위치는 요구하지 않는다. */
     fun returnToCar(state: StoryState): StoryState {
         if (state.phase != StoryPhase.EXPLORING) return state
         if (StoryCatalog.usesPuzzles(state.flowVersion)) {

@@ -525,3 +525,15 @@ SDK 어댑터는 기존 `main`의 검증된 API 경계를 현재 패키지로 �
 - 관리형 gradle-run workflow `acbb3525bfbfca819387fa07ae7bb448`, 질문 “원격 병합본의 단위 테스트와 Debug·Release·기기 테스트 APK 빌드가 통과하는가?”에 대해 `:app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest` 모두 성공했다. 단위 테스트 203개, 실패·오류·skip 0. 콜백 인자 이름 관련 Kotlin 경고 2종은 빌드를 막지 않았다. workflow finish로 래퍼 소유 임시 빌드 로그만 정리했다.
 - 앞 절의 23개 자물쇠 LIVE UI 완주 증거는 BGM/캐러셀을 병합하기 전 코드의 결과다. 이번 병합본은 빌드·단위 검증이며 새 기기 테스트 APK를 실제 실행하거나 BGM/대사의 음질·음량 균형을 다시 청취하지 않았다. 기기 테스트 APK 빌드 성공을 기기 테스트 실행 성공으로 표시하지 않는다.
 - 인증 설정·원시 위치/차량 로그·진행/설정 백업·빌드 APK는 커밋 대상에서 제외했다. 실제 원격 공유 커밋은 GitHub 브랜치 ref와 푸시 결과로 확인한다.
+
+
+## 2026-11-15 — 관광 복귀·문제 풀이의 위치 재확인 제거
+
+- 사용자 후속 요청에 따라 복귀 후 문제를 열 때의 ‘유효한 목적지 위치 확인’ 조건만 제거했다. [현행 관광 정책](tour-return-policy.md)이 앞선 오래된 위치 재사용/재인증 이력보다 우선한다. 관광 시작 전의 500m·최신 위치·정확도·P·정지·CarUx·foreground 검사는 유지한다.
+- `TourPolicy.unlockGate`에서 위치/확인 증거 인자를 없애고 관광 시작 기록·현재 모드·챕터·빈 세션 방지·15분·시계·현재 P/정지/CarUx/foreground만 확인한다. GPS 단절·정확도 불명·반경 밖·앱 재시작이 관광 후 복귀나 정답 제출을 막지 않는다. 시간은 기존 저장 시작 시각으로 계산하고 반경 밖에서도 흐른다. 시작 기록이 없거나 15분 전이면 여전히 진행할 수 없다.
+- VM의 복귀·탐색·힌트·문제 제출 저장 경계가 모두 같은 정책을 사용한다. 최초 도착의 출발 후 새 표본 검사와 `startGate`는 유지했다. 관광 시작·문제 대기·남은 시간 문구와 README/현행 안내도 새 조건으로 맞췄다. 저장 형식·과거 단서/시각·SDK 차량 답안·명시 제출·중복 지급 방지는 변경하지 않았다. Debug 격리 LIVE 세션은 공통 검사 결과에서 대기 시간만 제외하고, Release에서는 격리 세션이 비활성이다.
+- 관리형 gradle-run workflow `76743f5d4e67c7a46a30a93aed8516f7`, 질문 “복귀 정책 회귀·APK 빌드가 통과하는가?”에 대해 `:app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest` 성공. 단위 203개, 실패·오류·skip 0. 일반 LIVE/MOCK의 899999/900000/900001ms 경계, 기록/모드/챕터/시계·4가지 안전 차단, 최초 위치 검증 유지와 복귀의 위치 독립성을 검증했다. 위치 확인 증거를 이용하던 이전 테스트는 새 계약으로 정리했다. finish로 래퍼 소유 임시 빌드 로그만 정리했다.
+- Pleos Connect v2.1.0/API 34, emulator-5554/사용자 10에 최종 Debug APK와 테스트 APK를 데이터 보존 설치했다. `TourLifecycleTest#tourismStartSurvivesRecreationAndMockTimeBypassAllowsReturnWithoutNewLocation`, `StoryIntegrationTest#puzzleRejectsDrivingAndBackgroundButAllowsSafeReturnWithoutLocation` 두 테스트를 AndroidJUnitRunner로 실행해 `OK (2 tests)`를 확인했다. 초기 도착에서 GPS 없음 차단 → 관광 시작 저장 → 재생성 뒤 GPS 없음·15분 전 차단 → 명시 시간 우회 뒤 복귀 → UI 현판 선택·제출·저장 → 재생성 복구, D/백그라운드 입력 차단과 P 복귀 후 GPS 없는 풀이를 확인했다.
+- 위 기기 테스트는 **MOCK 위치/안전 fixture와 명시적 시간 우회**를 사용한다. 일반 LIVE 15분 조건은 순수 정책 테스트로 확인했으며 실제 15분을 기다리거나 실차·실제 LIVE 관광 시작을 인증한 결과가 아니다. 최초 FusedLocation accuracyMeters=null 문제는 이번 변경으로 해결하지 않았다. 전체 Lint·실차 검증은 실행하지 않았다.
+- 실행 전 현재 여행·설정을 로컬 백업했고 fixture가 원래 LIVE/MOCK·archive/schema 내용을 복원한 것을 확인했다. 원본 여행 파일도 복원 후 바이트 단위로 일치한다. 첫 ADB 백업 복원 전송이 종료되지 않아 시간 초과됐으나, 내용이 보존된 상태를 확인하고 표준 입력을 지원하는 전송으로 복원했다. 앱을 다시 열기 전에 복원 성공을 확인했다. 테스트 APK/백업/원시 로그는 커밋하지 않고 Git 제외 로컬 `C:/my-car-buddy/.gradle/car-escape-return-policy-20261115/`에 보관했다.
+- 상태: **구현 완료 / Debug·Release 빌드 확인 / MOCK 기기 화면 회귀 2개 확인 / 최초 LIVE 위치·실차 검증 제외.** 현재 로컬 release/v0.4.0 변경이며 이번 요청에서는 commit/push를 수행하지 않았다.

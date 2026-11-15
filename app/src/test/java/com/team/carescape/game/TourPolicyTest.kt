@@ -19,26 +19,36 @@ class TourPolicyTest {
     private val record = TourStartRecord("session-a", target.id, TourMode.LIVE, start)
     private fun later(millis: Long) = start.copy(wallTimeMillis = start.wallTimeMillis + millis, elapsedRealtimeMillis = start.elapsedRealtimeMillis + millis)
     private fun fresh(now: TourClock, mode: TourMode = TourMode.LIVE) = TourLocation(mode, 0.0, 0.0, 10.0, now.wallTimeMillis, now.elapsedRealtimeMillis, fromLiveUpdate = true)
-    private fun unlock(now: TourClock, location: TourLocation? = fresh(now), safety: TourSafety = safe) =
-        TourPolicy.unlockGate(record, TourMode.LIVE, target, location, safety, now)
-    private fun confirmation() = requireNotNull(TourPolicy.confirmLocation(record, TourMode.LIVE, target, fresh(start), safe, start))
+    private fun unlock(now: TourClock, safety: TourSafety = safe) =
+        TourPolicy.unlockGate(record, TourMode.LIVE, target, safety, now)
 
     @Test
-    fun fifteenMinuteBoundaryIsExactAndRequiresANewReturnLocation() {
+    fun fifteenMinuteBoundaryUsesSavedTimeWithoutAReturnLocation() {
         assertEquals(TourGate.TOUR_TIME_REMAINING, unlock(later(899_999)))
         assertEquals(TourGate.READY, unlock(later(900_000)))
         assertEquals(TourGate.READY, unlock(later(900_001)))
-        assertEquals(TourGate.LOCATION_STALE, unlock(later(900_000), fresh(start)))
-        assertEquals(TourGate.OUTSIDE_RADIUS, unlock(later(900_000), fresh(later(900_000)).copy(longitude = 0.01)))
+        // Starting still requires a current position; returning has no location input.
+        assertEquals(TourGate.LOCATION_STALE,
+            TourPolicy.startGate(TourMode.LIVE, target, fresh(start), safe, later(900_000)))
+        assertEquals(TourGate.OUTSIDE_RADIUS,
+            TourPolicy.startGate(TourMode.LIVE, target, fresh(later(900_000)).copy(longitude = 0.01), safe, later(900_000)))
     }
 
     @Test
     fun physicalParkingDoesNotReplaceForegroundStationaryAndCarUxPermission() {
         val now = later(900_000)
-        assertEquals(TourGate.BACKGROUND, unlock(now, safety = safe.copy(foreground = false)))
-        assertEquals(TourGate.NOT_PARKED, unlock(now, safety = safe.copy(parked = false)))
-        assertEquals(TourGate.NOT_STATIONARY, unlock(now, safety = safe.copy(stationary = false)))
-        assertEquals(TourGate.CAR_UX_RESTRICTED, unlock(now, safety = safe.copy(carUxAllowed = false)))
+        val blocked = listOf(
+            safe.copy(foreground = false) to TourGate.BACKGROUND,
+            safe.copy(parked = false) to TourGate.NOT_PARKED,
+            safe.copy(stationary = false) to TourGate.NOT_STATIONARY,
+            safe.copy(carUxAllowed = false) to TourGate.CAR_UX_RESTRICTED,
+        )
+        for (mode in TourMode.entries) {
+            for ((safety, expected) in blocked) {
+                assertEquals(mode.name, expected,
+                    TourPolicy.unlockGate(record.copy(mode = mode), mode, target, safety, now))
+            }
+        }
     }
 
     @Test
@@ -71,11 +81,12 @@ class TourPolicyTest {
     }
 
     @Test
-    fun wrongChapterOrModeRecordCannotUnlockTheCurrentChapter() {
+    fun wrongChapterModeOrEmptySessionRecordCannotUnlockTheCurrentChapter() {
         val now = later(900_000)
-        assertEquals(TourGate.TOUR_NOT_STARTED, TourPolicy.unlockGate(null, TourMode.LIVE, target, fresh(now), safe, now))
-        assertEquals(TourGate.RECORD_MISMATCH, TourPolicy.unlockGate(record.copy(checkpointId = "other"), TourMode.LIVE, target, fresh(now), safe, now))
-        assertEquals(TourGate.MODE_MISMATCH, TourPolicy.unlockGate(record.copy(mode = TourMode.MOCK), TourMode.LIVE, target, fresh(now), safe, now))
+        assertEquals(TourGate.TOUR_NOT_STARTED, TourPolicy.unlockGate(null, TourMode.LIVE, target, safe, now))
+        assertEquals(TourGate.RECORD_MISMATCH, TourPolicy.unlockGate(record.copy(checkpointId = "other"), TourMode.LIVE, target, safe, now))
+        assertEquals(TourGate.RECORD_MISMATCH, TourPolicy.unlockGate(record.copy(sessionId = " "), TourMode.LIVE, target, safe, now))
+        assertEquals(TourGate.MODE_MISMATCH, TourPolicy.unlockGate(record.copy(mode = TourMode.MOCK), TourMode.LIVE, target, safe, now))
     }
 
     @Test
@@ -92,16 +103,19 @@ class TourPolicyTest {
         assertEquals(TourGate.TOUR_TIME_REMAINING, unlock(fastWallClock))
         val restarted = later(900_000).copy(bootId = "boot-b", elapsedRealtimeMillis = 30_000)
         assertEquals(TourTimeResult.Valid(900_000), TourPolicy.elapsed(record, restarted))
-        assertEquals(TourGate.READY, unlock(restarted, fresh(restarted)))
+        assertEquals(TourGate.READY, unlock(restarted))
     }
 
     @Test
-    fun bypassIsOnlyForMockAndDoesNotOverrideLocationOrSafety() {
+    fun timeBypassIsOnlyForMockAndDoesNotOverrideSafetyOrRecordMode() {
         val mock = record.copy(mode = TourMode.MOCK, debugTimeBypass = true)
-        assertEquals(TourGate.READY, TourPolicy.unlockGate(mock, TourMode.MOCK, target, fresh(start, TourMode.MOCK), safe, start))
-        assertEquals(TourGate.CAR_UX_RESTRICTED, TourPolicy.unlockGate(mock, TourMode.MOCK, target, fresh(start, TourMode.MOCK), safe.copy(carUxAllowed = false), start))
-        assertEquals(TourGate.OUTSIDE_RADIUS, TourPolicy.unlockGate(mock, TourMode.MOCK, target, fresh(start, TourMode.MOCK).copy(longitude = 0.01), safe, start))
-        assertEquals(TourGate.MODE_MISMATCH, TourPolicy.unlockGate(record.copy(debugTimeBypass = true), TourMode.LIVE, target, fresh(start), safe, start))
+        assertEquals(TourGate.READY, TourPolicy.unlockGate(mock, TourMode.MOCK, target, safe, start))
+        assertEquals(TourGate.CAR_UX_RESTRICTED, TourPolicy.unlockGate(mock, TourMode.MOCK, target, safe.copy(carUxAllowed = false), start))
+        assertEquals(TourGate.TOUR_TIME_REMAINING, TourPolicy.unlockGate(mock.copy(debugTimeBypass = false), TourMode.MOCK, target, safe, start))
+        assertEquals(TourGate.MODE_MISMATCH, TourPolicy.unlockGate(record.copy(debugTimeBypass = true), TourMode.LIVE, target, safe, start))
+        assertEquals(TourGate.MODE_MISMATCH, TourPolicy.unlockGate(record, TourMode.MOCK, target, safe, start))
+        assertEquals(TourGate.OUTSIDE_RADIUS,
+            TourPolicy.startGate(TourMode.MOCK, target, fresh(start, TourMode.MOCK).copy(longitude = 0.01), safe, start))
     }
 
     @Test
@@ -118,108 +132,39 @@ class TourPolicyTest {
             val started = TourStartRecord("trip", waypoint.id, TourMode.LIVE, start)
             listOf(899_999L to TourGate.TOUR_TIME_REMAINING, 900_000L to TourGate.READY).forEach { (delta, expected) ->
                 val now = later(delta)
-                val position = fresh(now).copy(latitude = waypoint.latitude, longitude = waypoint.longitude)
-                assertEquals(waypoint.name, expected, TourPolicy.unlockGate(started, TourMode.LIVE, waypoint, position, safe, now))
+                assertEquals(waypoint.name, expected, TourPolicy.unlockGate(started, TourMode.LIVE, waypoint, safe, now))
             }
         }
     }
 
     @Test
-    fun confirmedArrivalExcusesOnlyAgeExpiryAfterTheFullTourTime() {
-        val proof = confirmation()
-        val stale = fresh(start)
-        val readyAt = later(TourPolicy.MIN_TOUR_MILLIS)
-        assertEquals(TourGate.LOCATION_STALE,
-            TourPolicy.unlockGate(record, TourMode.LIVE, target, stale, safe, later(899_999), proof))
-        assertEquals(TourGate.READY,
-            TourPolicy.unlockGate(record, TourMode.LIVE, target, stale, safe, readyAt, proof))
-        assertEquals(TourGate.READY,
-            TourPolicy.unlockGate(record, TourMode.LIVE, target, stale.copy(error = "LOCATION_STALE"), safe, readyAt, proof))
-        assertEquals(TourGate.LOCATION_STALE, unlock(readyAt, stale))
-        assertEquals(TourGate.LOCATION_ERROR, unlock(readyAt, stale.copy(error = "LOCATION_STALE")))
-    }
-
-    @Test
-    fun confirmedTourAcceptsTheAdaptersEarlierExpiryAfterANewFix() {
-        val proof = confirmation()
-        val completedAt = later(TourPolicy.MIN_TOUR_MILLIS)
-        val updatedPosition = fresh(completedAt)
-        assertEquals(TourGate.READY,
-            TourPolicy.unlockGate(record, TourMode.LIVE, target, updatedPosition, safe, completedAt, proof))
-        val expired = updatedPosition.copy(error = "LOCATION_STALE")
-        val boundary = later(TourPolicy.MIN_TOUR_MILLIS + TourPolicy.SDK_LOCATION_EXPIRY_MILLIS)
-        val afterExpiry = later(TourPolicy.MIN_TOUR_MILLIS + TourPolicy.SDK_LOCATION_EXPIRY_MILLIS + 1)
-        assertEquals(TourGate.LOCATION_ERROR,
-            TourPolicy.unlockGate(record, TourMode.LIVE, target, expired, safe, boundary, proof))
-        assertEquals(TourGate.READY,
-            TourPolicy.unlockGate(record, TourMode.LIVE, target, expired, safe, afterExpiry, proof))
-        assertEquals(TourGate.LOCATION_ERROR,
-            TourPolicy.unlockGate(record, TourMode.LIVE, target, expired, safe, afterExpiry))
-        assertEquals(TourGate.LOCATION_ERROR,
-            TourPolicy.unlockGate(record, TourMode.LIVE, target, fresh(afterExpiry).copy(error = "LOCATION_STALE"), safe, afterExpiry, proof))
-    }
-
-    @Test
-    fun confirmedArrivalDoesNotOverrideCurrentSafetyOrLocationSource() {
-        val proof = confirmation()
+    fun aSavedTourMayReturnWithoutConfiguredCoordinatesOrArrivalConfirmation() {
+        val unconfigured = target.copy(latitude = null, longitude = null)
         val now = later(TourPolicy.MIN_TOUR_MILLIS)
-        val stale = fresh(start)
-        listOf(
-            safe.copy(foreground = false) to TourGate.BACKGROUND,
-            safe.copy(parked = false) to TourGate.NOT_PARKED,
-            safe.copy(stationary = false) to TourGate.NOT_STATIONARY,
-            safe.copy(carUxAllowed = false) to TourGate.CAR_UX_RESTRICTED,
-        ).forEach { (safety, expected) ->
-            assertEquals(expected, TourPolicy.unlockGate(record, TourMode.LIVE, target, stale, safety, now, proof))
-        }
-        assertEquals(TourGate.LOCATION_MISSING,
-            TourPolicy.unlockGate(record, TourMode.LIVE, target, null, safe, now, proof))
-        assertEquals(TourGate.LOCATION_NOT_UPDATED,
-            TourPolicy.unlockGate(record, TourMode.LIVE, target, stale.copy(fromLiveUpdate = false), safe, now, proof))
-        assertEquals(TourGate.MODE_MISMATCH,
-            TourPolicy.unlockGate(record, TourMode.LIVE, target, stale.copy(mode = TourMode.MOCK), safe, now, proof))
+        assertEquals(TourGate.COORDINATES_NOT_CONFIGURED,
+            TourPolicy.startGate(TourMode.LIVE, unconfigured, null, safe, now))
+        assertEquals(TourGate.READY,
+            TourPolicy.unlockGate(record, TourMode.LIVE, unconfigured, safe, now))
+        assertEquals(TourGate.TOUR_TIME_REMAINING,
+            TourPolicy.unlockGate(record, TourMode.LIVE, unconfigured, safe, later(899_999)))
     }
 
     @Test
-    fun staleConfirmationDoesNotHideBadAccuracyCoordinatesTimesOrSdkErrors() {
-        val proof = confirmation()
-        val now = later(TourPolicy.MIN_TOUR_MILLIS)
-        val stale = fresh(start)
-        listOf(
-            stale.copy(accuracyMeters = null) to TourGate.LOCATION_ACCURACY_UNKNOWN,
-            stale.copy(accuracyMeters = 200.0) to TourGate.LOCATION_INACCURATE,
-            stale.copy(latitude = Double.NaN) to TourGate.LOCATION_INVALID,
-            stale.copy(longitude = 181.0) to TourGate.LOCATION_INVALID,
-            stale.copy(longitude = 0.01) to TourGate.OUTSIDE_RADIUS,
-            stale.copy(timestampEpochMillis = now.wallTimeMillis + 5_001) to TourGate.LOCATION_TIMESTAMP_INVALID,
-            stale.copy(receivedElapsedRealtimeMillis = now.elapsedRealtimeMillis + 1) to TourGate.LOCATION_TIMESTAMP_INVALID,
-            stale.copy(error = "LOCATION_SDK_ERROR") to TourGate.LOCATION_ERROR,
-            stale.copy(error = "LOCATION_STALE_OR_INVALID") to TourGate.LOCATION_ERROR,
-            fresh(now).copy(error = "LOCATION_STALE") to TourGate.LOCATION_ERROR,
-        ).forEach { (location, expected) ->
-            assertEquals(expected, TourPolicy.unlockGate(record, TourMode.LIVE, target, location, safe, now, proof))
+    fun returnGatePreservesInvalidBackwardAndSuspiciousClockFailures() {
+        for (invalid in listOf(start.copy(wallTimeMillis = 0), start.copy(elapsedRealtimeMillis = -1), start.copy(bootId = ""))) {
+            assertEquals(TourGate.CLOCK_INVALID, TourPolicy.unlockGate(record, TourMode.LIVE, target, safe, invalid))
+            assertEquals(TourGate.CLOCK_INVALID, TourPolicy.unlockGate(record.copy(startedAt = invalid), TourMode.LIVE, target, safe, later(900_000)))
         }
-    }
-
-    @Test
-    fun confirmationIsBoundToTheExactRecordAndWaypointConfiguration() {
-        val proof = confirmation()
-        val now = later(TourPolicy.MIN_TOUR_MILLIS)
-        val stale = fresh(start)
-        listOf(
-            proof.copy(recordKey = proof.recordKey.copy(sessionId = "different-session")),
-            proof.copy(recordKey = proof.recordKey.copy(checkpointId = "different-place")),
-            proof.copy(recordKey = proof.recordKey.copy(mode = TourMode.MOCK)),
-            proof.copy(startedAt = start.copy(wallTimeMillis = start.wallTimeMillis + 1)),
-            proof.copy(target = target.copy(radiusMeters = 400.0)),
-            proof.copy(target = target.copy(latitude = 0.001)),
-            proof.copy(confirmedAt = later(TourPolicy.MIN_TOUR_MILLIS + 1)),
-            proof.copy(confirmedAt = start.copy(wallTimeMillis = start.wallTimeMillis - 1)),
-        ).forEach { invalid ->
-            assertTrue(TourPolicy.unlockGate(record, TourMode.LIVE, target, stale, safe, now, invalid) != TourGate.READY)
-        }
-        val changedRecord = record.copy(startedAt = start.copy(wallTimeMillis = start.wallTimeMillis + 1))
-        assertTrue(TourPolicy.unlockGate(changedRecord, TourMode.LIVE, target, stale, safe, now, proof) != TourGate.READY)
+        assertEquals(TourGate.CLOCK_BACKWARD,
+            TourPolicy.unlockGate(record, TourMode.LIVE, target, safe, start.copy(wallTimeMillis = start.wallTimeMillis - 1)))
+        assertEquals(TourGate.CLOCK_BACKWARD,
+            TourPolicy.unlockGate(record, TourMode.LIVE, target, safe, start.copy(elapsedRealtimeMillis = start.elapsedRealtimeMillis - 1)))
+        assertEquals(TourGate.CLOCK_SUSPICIOUS,
+            TourPolicy.unlockGate(record, TourMode.LIVE, target, safe, start.copy(wallTimeMillis = start.wallTimeMillis + 900_000,
+                elapsedRealtimeMillis = start.elapsedRealtimeMillis + 60_000)))
+        assertEquals(TourGate.CLOCK_SUSPICIOUS,
+            TourPolicy.unlockGate(record, TourMode.LIVE, target, safe,
+                later(TourPolicy.MAX_UNVERIFIED_REBOOT_GAP_MILLIS + 1).copy(bootId = "boot-b")))
     }
 
     @Test
@@ -237,28 +182,10 @@ class TourPolicyTest {
     }
 
     @Test
-    fun aRebootOrSuspiciousClockChangeCannotReuseAnOldConfirmation() {
-        val proof = confirmation()
-        val rebooted = later(TourPolicy.MIN_TOUR_MILLIS).copy(bootId = "boot-b")
-        assertTrue(TourPolicy.unlockGate(record, TourMode.LIVE, target, fresh(start), safe, rebooted, proof) != TourGate.READY)
-        val suspicious = later(TourPolicy.MIN_TOUR_MILLIS).copy(wallTimeMillis = start.wallTimeMillis + 1_300_000)
-        assertTrue(TourPolicy.unlockGate(record, TourMode.LIVE, target, fresh(start), safe, suspicious, proof) != TourGate.READY)
-        val newFix = fresh(rebooted)
-        val newProof = requireNotNull(TourPolicy.confirmLocation(record, TourMode.LIVE, target, newFix, safe, rebooted))
-        val laterOnNewBoot = rebooted.copy(wallTimeMillis = rebooted.wallTimeMillis + 30_001,
-            elapsedRealtimeMillis = rebooted.elapsedRealtimeMillis + 30_001)
-        assertEquals(TourGate.READY,
-            TourPolicy.unlockGate(record, TourMode.LIVE, target, newFix, safe, laterOnNewBoot, newProof))
-    }
-
-    @Test
-    fun explicitMockTimeBypassStillNeedsItsOwnValidArrivalConfirmation() {
-        val mockRecord = record.copy(mode = TourMode.MOCK, debugTimeBypass = true)
-        val position = fresh(start, TourMode.MOCK).copy(simulatedInsideRadius = true)
-        val proof = requireNotNull(TourPolicy.confirmLocation(mockRecord, TourMode.MOCK, target, position, safe, start))
-        val now = later(30_001)
-        assertEquals(TourGate.LOCATION_STALE, TourPolicy.unlockGate(mockRecord, TourMode.MOCK, target, position, safe, now))
-        assertEquals(TourGate.READY, TourPolicy.unlockGate(mockRecord, TourMode.MOCK, target, position, safe, now, proof))
-        assertEquals(TourGate.MODE_MISMATCH, TourPolicy.unlockGate(record, TourMode.LIVE, target, position, safe, now, proof))
+    fun aRealRebootMayReturnWithSavedTimeButStartingStillRequiresANewPosition() {
+        val rebooted = later(TourPolicy.MIN_TOUR_MILLIS).copy(bootId = "boot-b", elapsedRealtimeMillis = 30_000)
+        assertEquals(TourGate.READY, TourPolicy.unlockGate(record, TourMode.LIVE, target, safe, rebooted))
+        assertEquals(TourGate.LOCATION_TIMESTAMP_INVALID, TourPolicy.startGate(TourMode.LIVE, target, fresh(start), safe, rebooted))
+        assertEquals(TourGate.READY, TourPolicy.startGate(TourMode.LIVE, target, fresh(rebooted), safe, rebooted))
     }
 }
