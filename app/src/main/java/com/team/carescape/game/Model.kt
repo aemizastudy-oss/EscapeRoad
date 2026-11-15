@@ -16,6 +16,10 @@ data class VehicleState(
     val wiperOn: Boolean? = null,
     /** 구동 배터리 잔량(%). 기존 앱에서 에뮬레이터 읽기 확인된 값. */
     val batteryPercent: Int? = null,
+    /** 주행 가능 거리(km). 여행 도우미 이동 계획 표시 전용. */
+    val rangeKm: Int? = null,
+    /** 연료 잔량(%). 내연기관 차량. */
+    val fuelPercent: Int? = null,
 )
 
 /** 퍼즐이 실제 차량에서 읽어야 하는 값. 못 읽으면 [Puzzle.fallback]으로 진행한다. */

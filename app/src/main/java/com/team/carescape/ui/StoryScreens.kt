@@ -631,20 +631,30 @@ private fun ArrivalScreen(s: StoryState, vm: GameViewModel, onReplay: (() -> Uni
 
 @Composable
 private fun ExploringScreen(s: StoryState, vm: GameViewModel) {
-    GoldFrame(padTop = 40.dp, padH = 40.dp, padBottom = 40.dp, fill = Color(0xB81E0508)) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)) {
-            Text("Exploring · 둘러보는 중", style = Esc.cormorant(18, spacing = 0.3f))
-            ParkBadge("장소 ${s.chapterIndex + 1} / ${s.episode.chapters.size} · ${s.chapter.place}", boxed = true)
-            Text("${withObject(s.chapter.place)} 둘러보는 중", style = Esc.nanum(52, lineHeight = 1.2f))
-            Text(s.chapter.explore ?: "마지막 장소도 최소 15분 둘러본 뒤 차량으로 돌아와 주세요.", Modifier.widthIn(max = 900.dp), style = Esc.noto(22, Esc.creamMuted, lineHeight = 1.6f), textAlign = TextAlign.Center)
-            Text("차 문을 잠그고, 걸을 때는 주변을 살펴 주세요.", style = Esc.noto(16, Esc.creamSoft))
-            if (s.steps.isNotEmpty()) Text("차로 돌아와 관광 조건을 확인하면 자물쇠를 풉니다. 정답을 제출해야 단서가 열립니다.", style = Esc.noto(16, Esc.gold), textAlign = TextAlign.Center)
-            Text(tourRemainingMessage(vm.tourRemainingMillis), Modifier.testTag("tour-remaining"), style = Esc.noto(20, Esc.gold))
-            Text(tourGateMessage(vm.tourGate), Modifier.testTag("tour-unlock-reason"), style = Esc.noto(15, Esc.creamSoft))
-            ParchmentButton("차로 돌아왔어요", vm::returnToCar, Modifier.testTag("tour-return"),
-                enabled = !vm.loading && !vm.saving && vm.tourGate == TourGate.READY, minWidth = 260.dp)
-            MockTourTimeAction(vm)
-            Flourish("Take your time, Agent", 120.dp, Esc.pinyon(30))
+    val spot = com.team.carescape.game.TourCatalog.checkpoints.getOrNull(s.chapterIndex)?.let { com.team.carescape.travel.TourGuide.spot(it.id) }
+    GoldFrame(padTop = 32.dp, padH = 36.dp, padBottom = 28.dp, fill = Color(0xB81E0508)) {
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+            Column(
+                Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
+            ) {
+                Text("Exploring · 둘러보는 중", style = Esc.cormorant(18, spacing = 0.3f))
+                ParkBadge("장소 ${s.chapterIndex + 1} / ${s.episode.chapters.size} · ${s.chapter.place}", boxed = true)
+                Text("${withObject(s.chapter.place)} 둘러보는 중", style = Esc.nanum(if (spot == null) 52 else 40, lineHeight = 1.2f), textAlign = TextAlign.Center)
+                Text(s.chapter.explore ?: "마지막 장소도 최소 15분 둘러본 뒤 차량으로 돌아와 주세요.", Modifier.widthIn(max = 900.dp), style = Esc.noto(if (spot == null) 22 else 18, Esc.creamMuted, lineHeight = 1.6f), textAlign = TextAlign.Center)
+                Text("차 문을 잠그고, 걸을 때는 주변을 살펴 주세요.", style = Esc.noto(16, Esc.creamSoft))
+                if (s.steps.isNotEmpty()) Text("차로 돌아와 관광 조건을 확인하면 자물쇠를 풉니다. 정답을 제출해야 단서가 열립니다.", style = Esc.noto(15, Esc.gold), textAlign = TextAlign.Center)
+                Text(tourRemainingMessage(vm.tourRemainingMillis), Modifier.testTag("tour-remaining"), style = Esc.noto(20, Esc.gold))
+                Text(tourGateMessage(vm.tourGate), Modifier.testTag("tour-unlock-reason"), style = Esc.noto(15, Esc.creamSoft), textAlign = TextAlign.Center)
+                ParchmentButton("차로 돌아왔어요", vm::returnToCar, Modifier.testTag("tour-return"),
+                    enabled = !vm.loading && !vm.saving && vm.tourGate == TourGate.READY, minWidth = 260.dp)
+                MockTourTimeAction(vm)
+                if (spot == null) Flourish("Take your time, Agent", 120.dp, Esc.pinyon(30))
+            }
+            if (spot != null) TourChecklist(
+                spot, s.chapter.place, vm,
+                Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), large = true,
+            )
         }
     }
 }

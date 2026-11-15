@@ -92,6 +92,12 @@ fun SdkDevPanel(vm: GameViewModel, modifier: Modifier = Modifier) {
                     OutlineButton("30%", { vm.simSetBattery(30) }, enabled = mockControls, minHeight = 44.dp, fontSize = 12)
                     OutlineButton("80%", { vm.simSetBattery(80) }, enabled = mockControls, minHeight = 44.dp, fontSize = 12)
                 }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlineButton("주행가능 모름", { vm.simSetRange(null) }, enabled = mockControls, minHeight = 44.dp, fontSize = 12)
+                    OutlineButton("20km", { vm.simSetRange(20) }, enabled = mockControls, minHeight = 44.dp, fontSize = 12)
+                    OutlineButton("45km", { vm.simSetRange(45) }, enabled = mockControls, minHeight = 44.dp, fontSize = 12)
+                    OutlineButton("300km", { vm.simSetRange(300) }, enabled = mockControls, minHeight = 44.dp, fontSize = 12)
+                }
             } else {
                 Text("LIVE에서는 모의 입력을 제공하지 않습니다. 지원·권한은 SDK 상태에서 확인하세요.", style = Esc.noto(13, Esc.creamSoft))
             }

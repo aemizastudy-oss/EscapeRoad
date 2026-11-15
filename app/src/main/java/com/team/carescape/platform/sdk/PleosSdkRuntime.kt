@@ -135,6 +135,7 @@ class PleosSdkRuntime(context: Context) : AutoCloseable {
         vehicle = PleosVehicleAssist(context) { reading ->
             if (active && token == generation) mutableStatus.value = mutableStatus.value.copy(
                 vehicle = reading.status, brakePedal = reading.brakePedal, batteryPercent = reading.batteryPercent,
+                rangeKm = reading.rangeKm, fuelPercent = reading.fuelPercent,
                 vehicleReceivedElapsedMillis = reading.receivedElapsedMillis,
             )
         }.also { it.start() }

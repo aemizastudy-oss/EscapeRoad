@@ -35,7 +35,7 @@ class TripProfileStore(context: Context) {
     fun savePlan(p: TripPlan) { prefs.edit().putString("curated_plan_v1", json.encodeToString(TripPlan.serializer(), p)).apply() }
 }
 
-enum class GuideMode(val label: String) { SCHEDULE("일정"), EXPLORE("둘러보기"), SAVED("저장") }
+enum class GuideMode(val label: String) { SCHEDULE("일정"), EXPLORE("둘러보기"), TOUR("15분 가이드"), CAR("내 차"), SAVED("저장") }
 
 class TravelViewModel(application: Application) : AndroidViewModel(application) {
     private val store = TripProfileStore(application)

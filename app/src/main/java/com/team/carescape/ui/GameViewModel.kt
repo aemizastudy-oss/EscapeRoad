@@ -130,6 +130,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var vehicle by mutableStateOf(VehicleState())
         private set
+    private val tourCheckStore = com.team.carescape.travel.TourCheckStore(application)
+    /** 관광 15분 가이드에서 체크한 항목(장소#번호). 방탈출 진행과 별개다. */
+    var tourChecks by mutableStateOf(tourCheckStore.load())
+        private set
+    fun toggleTourCheck(key: String) {
+        tourChecks = if (key in tourChecks) tourChecks - key else tourChecks + key
+        tourCheckStore.save(tourChecks)
+    }
     var startedAtMs by mutableStateOf(0L)
         private set
     var story by mutableStateOf<StoryState?>(null)
@@ -341,6 +349,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
         vehicle = if (isMock) vehicle.copy(parked = safe) else VehicleState(
             parked = safe, batteryPercent = sdkStatus.batteryPercent,
+            rangeKm = sdkStatus.rangeKm, fuelPercent = sdkStatus.fuelPercent,
         )
         // Receiving the first live snapshot is a baseline, never a turn/lighting action.
         game = game?.copy(lastVehicle = vehicle)
@@ -835,6 +844,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun simToggleLowBeam() { if (isMock) updateMockVehicle(vehicle.copy(lowBeamOn = vehicle.lowBeamOn != true)) }
     fun simToggleWiper() { if (isMock) updateMockVehicle(vehicle.copy(wiperOn = vehicle.wiperOn != true)) }
     fun simSetBattery(percent: Int?) { if (isMock) updateMockVehicle(vehicle.copy(batteryPercent = percent)) }
+    fun simSetRange(km: Int?) { if (isMock) updateMockVehicle(vehicle.copy(rangeKm = km)) }
     fun simTurnSignal(side: TurnSide) {
         if (!isMock) return
         updateMockVehicle(vehicle.copy(turnSignal = side)); updateMockVehicle(vehicle.copy(turnSignal = null))

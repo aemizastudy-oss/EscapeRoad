@@ -46,6 +46,7 @@ import com.team.carescape.game.StoryPhase
 import com.team.carescape.travel.TravelParty
 import com.team.carescape.travel.DayPlan
 import com.team.carescape.travel.GuideStops
+import com.team.carescape.travel.TourGuide
 import com.team.carescape.travel.GuideStop
 import com.team.carescape.travel.Interest
 import com.team.carescape.travel.Itinerary
@@ -187,6 +188,8 @@ private fun GuideBody(vm: TravelViewModel, game: GameViewModel, profile: TripPro
                 GuideMode.SCHEDULE -> SchedulePanel(vm, game, profile, days)
                 GuideMode.EXPLORE -> ExplorePanel(vm, game, profile)
                 GuideMode.SAVED -> SavedPanel(vm, game, days)
+                GuideMode.TOUR -> TourGuidePanel(vm, game)
+                GuideMode.CAR -> CarPlanPanel(game, GuideStops.all, vm::isLocked, Modifier.weight(1f))
             }
         }
     }
@@ -396,6 +399,24 @@ private fun androidx.compose.foundation.layout.ColumnScope.ExplorePanel(vm: Trav
     }
     CategoryChips(vm, profile)
     ResultCards(vm, game, Modifier.weight(1f))
+}
+
+// ───────── 관광 15분 가이드: 장소를 골라 꼭 볼 것을 체크 ─────────
+
+@Composable
+private fun androidx.compose.foundation.layout.ColumnScope.TourGuidePanel(vm: TravelViewModel, game: GameViewModel) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        GuideStops.all.forEach { s ->
+            ModeChip(if (vm.isLocked(s.index)) "${s.index + 1} ???" else "${s.index + 1} ${s.name.take(5)}", vm.selectedStop == s.index, "travel-tour-stop-${s.index}") { vm.select(s.index) }
+        }
+    }
+    val stop = GuideStops.all.getOrNull(vm.selectedStop)
+    val spot = stop?.let { TourGuide.spot(it.checkpointId) }
+    when {
+        stop == null || spot == null -> Center("이 장소의 가이드는 준비 중이에요.")
+        vm.isLocked(stop.index) -> Center("마지막 장소는 사건에서 공개된 뒤에 볼 수 있어요.")
+        else -> TourChecklist(spot, stop.name, game, Modifier.weight(1f).verticalScroll(rememberScrollState()))
+    }
 }
 
 // ───────── 저장 ─────────

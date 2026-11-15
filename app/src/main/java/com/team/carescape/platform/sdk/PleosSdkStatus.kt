@@ -23,6 +23,8 @@ data class PleosSdkStatus(
     val locationAccuracyVerified: Boolean = false,
     val brakePedal: Boolean? = null,
     val batteryPercent: Int? = null,
+    val rangeKm: Int? = null,
+    val fuelPercent: Int? = null,
     val vehicleReceivedElapsedMillis: Long? = null,
     val speaking: Boolean = false,
     val listening: Boolean = false,

@@ -474,3 +474,11 @@ SDK 어댑터는 기존 `main`의 검증된 API 경계를 현재 패키지로 �
 - 녹음 대사 증폭 9 dB → 15 dB, 대사 중 배경음악 6% → 4%.
 - 확인: 단위 테스트 통과, `BgmFilesTest`(20곡 포함·재생 준비)를 Pleos Connect v2.1.0 에뮬레이터에서 통과. 실제로 귀로 들어 본 곡 간 음량 균형·루프 이음새는 미확인.
 - 음원 생성 서비스의 이용 조건은 팀이 확인한다(상업 이용 가능한 유료 플랜에서 생성·다운로드했는지).
+
+## 2026-11-15 여행 도우미: 15분 가이드·내 차 이동 계획
+
+- 추가: `travel/TourGuide.kt`, `travel/CarTripPlanner.kt`, `ui/TravelExtras.kt`. 여행 도우미에 `15분 가이드`·`내 차` 탭, 방탈출 둘러보는 중 화면에 체크리스트.
+- 차량 신호: `PleosVehicleAssist`가 주행 가능 거리·연료를 3초마다 읽는다(9초 넘은 값 폐기, 실패는 값 없음). 퍼즐·안전 판정에는 쓰지 않는다.
+- 에뮬레이터(Pleos Connect v2.1.0, 사용자 10) 일회성 측정: `getRangeRemainingDistance` = 500000.0(미터로 판단, 500km), `getEvBatteryStateOfCharge` = 100, `getFuelPercent` = 미지원(IllegalArgumentException, 전기차 설정). 측정용 테스트는 저장소에 남기지 않았다.
+- 확인: 단위 테스트(`CarTripPlannerTest` 포함) 통과. MOCK에서 내 차 탭(배터리 30%·주행가능 20km → 빠듯, 화홍문부터 남은 3구간 약 12km)과 15분 가이드 탭·둘러보는 중 화면 체크 표시를 에뮬레이터 화면으로 확인했다. LIVE 화면은 P·정지·CarUx 권한이 허용되지 않아 화면으로는 확인하지 못했다(값 읽기만 위 측정으로 확인). 실차 미확인.
+
