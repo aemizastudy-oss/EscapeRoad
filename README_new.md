@@ -29,7 +29,7 @@
 6. [검증 상태](#6-검증-상태)
 7. [빌드와 실행](#7-빌드와-실행)
 8. [프로젝트 구조](#8-프로젝트-구조)
-9. [로드맵](#9-로드맵)
+9. [발전 방향](#9-발전-방향-pleos-sdk로-넓히는-퍼즐)
 10. [문서·라이선스](#10-문서라이선스)
 
 ---
@@ -79,29 +79,26 @@ flowchart LR
 
 ### 🚗 P단 플레이 원칙
 
-- 앱이 **기어·정지 상태**를 직접 읽습니다. 탐색·자물쇠·여행 도우미는 `P단 + 정지 + CarUx 허용 + 앱 화면 표시` 조건을 모두 만족할 때만 열립니다.
+- 앱이 **기어·속도·운전 중 화면 제한(CarUx) 상태**를 직접 읽습니다. 탐색·자물쇠·여행 도우미는 `P단 + 정지 + CarUx 허용 + 앱 화면 표시` 조건을 모두 만족할 때만 열립니다.
 - 풀이 도중 D단이 들어오면 즉시 차단 화면으로 바뀌고, 입력하던 답안은 초기화됩니다.
 - 도착해도 앱 화면을 강제로 띄우지 않습니다. 중요도가 낮은 알림만 띄우고, 이용자가 정차한 뒤 눌러서 돌아옵니다.
-
 ### 🎧 이동 챕터
 
 - **출발하기**를 누르면 NaviHelper로 다음 장소가 내비게이션 목적지로 설정됩니다.
 - D단으로 출발하면 포그라운드 서비스가 **장소별 BGM**(20곡)과 **진행자 음성**(출발할 때 1회, 도착 약 900m 전 1회)을 재생합니다.
 - 내비 안내·통화·차량 음성이 나오면 앱 소리를 잠시 멈췄다가 이어서 재생합니다. 오른쪽 위 버튼으로 음성을 끌 수 있습니다.
-
 ### 🏯 도착 · 관광 · 탐색
 
 - 장소마다 시간대가 다른 **사건 장면**과 **15분 관광 가이드**(꼭 볼 것 3가지·사진 명소)를 제공합니다.
 - 관광을 시작하고 15분이 지나야 탐색이 열립니다. 차 안에서만 문제를 푸는 것을 막는 장치입니다.
 - 탐색 장면에서 사물을 눌러 조사하고 자물쇠를 풉니다. 단서를 찾을수록 새로운 공간이 열립니다.
+### 🔐 차량 장치 퍼즐: 차 안에서만 풀 수 있는 문제
 
-### 🔐 차량 장치 퍼즐 — 차 안에서만 풀 수 있는 문제
-
-| 장소 | 퍼즐 | 차량 장치 |
+| 장소 | 퍼즐 | 차량 장치 (Vehicle SDK) |
 | --- | --- | --- |
-| 화홍문 | 일곱 칸 판문을 오른쪽(닫기)·왼쪽(열기) 깜빡이로 차례로 정하기. 모두 닫으면 함정 | 방향지시등 |
-| 수원광교박물관 | 앞·뒤 좌우 독서등을 켜서 봉화 올리기 | 독서등(4개 영역) |
-| 광교호수공원 | 운전석 창문을 내려 물소리 듣기 | 창문 |
+| 화홍문 | 일곱 칸 판문을 오른쪽(닫기)·왼쪽(열기) 깜빡이로 차례로 정하기. 모두 닫으면 함정 | 방향지시등 (TurnSignal) |
+| 수원광교박물관 | 앞·뒤 좌우 독서등을 켜서 봉화 올리기 | 독서등 4개 영역 (Light) |
+| 광교호수공원 | 운전석 창문을 내려 물소리 듣기 | 창문 (Window) |
 
 앱은 차량 상태를 **읽기만** 하고 차량을 제어하지 않습니다. 차량 장치 입력도 P단에서만 받습니다.
 
@@ -113,7 +110,6 @@ flowchart LR
 - **엔딩 분기:** 각성도와 진상 추리 결과에 따라 진 엔딩 「연이의 이름」, 일반 엔딩 「한 장이 비어 있다」, 배드 엔딩 「호숫가의 그림자」로 나뉩니다.
 - **저장 · 재개:** 진행·오답·힌트 기록을 기기에 저장합니다. 앱을 다시 켜면 **수사 재개**로 이어서 할 수 있습니다.
 - **사건 종결 보고서:** 수사 시간·힌트·오답·각성도·장소별 기록을 한 장으로 정리하고 사진으로 저장합니다.
-
 ### 🧭 여행 도우미
 
 | 탭 | 내용 |
@@ -121,24 +117,27 @@ flowchart LR
 | 일정 | 날짜·기간(당일치기~2박 3일)·관심사를 입력하면 사건 코스에 맞춘 일정 제공 |
 | 장소 카드 | 직접 확인해 준비한 카드 40개(주차·맛집·카페·체험·숙소·야경). 주소와 출처 표기 |
 | 15분 가이드 | 장소별 관람 체크리스트. 사건에 쓰이는 항목은 `사건 단서`로 표시하고 정답은 숨김 |
-| 내 차 | 배터리·연료·주행 가능 거리를 남은 코스와 비교해 충분/빠듯/충전 필요로 판정 |
+| 내 차 | Vehicle SDK로 읽은 배터리·연료·주행 가능 거리를 남은 코스와 비교해 충분/빠듯/충전 필요로 판정 |
 
 - 공개 전인 마지막 장소는 스포일러를 막기 위해 가립니다.
-- 길 안내는 **관광지 대표 지점까지** 요청합니다. 식당이나 주차장 입구까지 안내하지는 않습니다.
-- 외부 지도·검색 API는 사용하지 않습니다.
+- 길 안내는 **관광지 대표 지점까지** Pleos NaviHelper로 요청합니다. 식당이나 주차장 입구까지 안내하지는 않습니다.
+- **외부 지도·검색 API를 쓰지 않습니다.** 앱(main) 코드에는 외부 서버와 통신하는 코드도 `INTERNET` 권한도 없습니다. 장소 카드의 공식 사이트 주소는 출처를 밝히려고 도메인만 글자로 보여주며, 앱이 접속하지는 않습니다.
 
 ## 5. Pleos SDK 활용
 
 | SDK | 쓰는 곳 | 코드 |
 | --- | --- | --- |
-| **Vehicle** (2.3.2) | 기어·정지(P단 플레이, D단 출발 감지) | `platform/sdk/PleosCarSafety.kt`, `CarSafetyMonitor.kt` |
-|  | 방향지시등·창문 퍼즐 | `platform/sdk/PleosVehiclePuzzleReader.kt` |
-|  | 독서등 봉화 퍼즐 | `platform/sdk/PleosInteriorLightReader.kt` |
-|  | 배터리·연료·주행 가능 거리(여행 도우미 '내 차') | `platform/sdk/PleosVehicleAssist.kt` |
-| **NaviHelper** (3.0.5) | 다음 장소 목적지 설정, 남은 거리 기반 안내 시점 | `platform/sdk/PleosLocationNavigation.kt`, `drive/DriveSignals.kt` |
-| **FusedLocation** (1.1.3) | 장소 도착 판정, 주행 중 도착 감지 | `platform/sdk/PleosLocationNavigation.kt`, `game/TourPolicy.kt` |
-| **TextToSpeech** (3.3.1, ON_DEVICE) | 진행자 음성 (녹음 파일이 없을 때 사용) | `platform/sdk/PleosSpeechAdapter.kt`, `drive/DriveAudio.kt` |
+| **Vehicle** (2.3.2) | 주행 중 서비스의 기어 감지(D단 출발 → 이동 챕터 시작) | [DriveSignals.kt](app/src/main/java/com/team/carescape/drive/DriveSignals.kt) |
+|  | 방향지시등 · 창문 · 와이퍼 상태 | [PleosVehiclePuzzleReader.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosVehiclePuzzleReader.kt) |
+|  | 독서등(Light) 봉화 퍼즐 | [PleosInteriorLightReader.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosInteriorLightReader.kt) |
+|  | 배터리 · 연료 · 주행 가능 거리 · 브레이크 | [PleosVehicleAssist.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosVehicleAssist.kt) |
+| **NaviHelper** (3.0.5) | 다음 장소 목적지 설정, 남은 거리 기반 안내 시점, 내비 화면 전환 | [PleosLocationNavigation.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosLocationNavigation.kt) · [DriveSignals.kt](app/src/main/java/com/team/carescape/drive/DriveSignals.kt) |
+| **FusedLocation** (1.1.3) | 장소 도착 판정, 주행 중 도착 감지 | [PleosLocationNavigation.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosLocationNavigation.kt) · [DriveSignals.kt](app/src/main/java/com/team/carescape/drive/DriveSignals.kt) |
+| **TextToSpeech** (3.3.1, ON_DEVICE) | 진행자 음성 (녹음 파일이 없을 때 사용) | [PleosSpeechAdapter.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosSpeechAdapter.kt) · [DriveAudio.kt](app/src/main/java/com/team/carescape/drive/DriveAudio.kt) |
+| **SpeechToText** (3.3.1, ON_DEVICE) | 연결 어댑터만 준비. 현재 사건에는 음성 입력 화면 없음 | [PleosSpeechAdapter.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosSpeechAdapter.kt) |
+| Android Car API | 앱 화면의 P단 · 속도 · CarUx 안전 판정 | [PleosCarSafety.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosCarSafety.kt) |
 
+- 사용하는 의존성은 [app/build.gradle.kts](app/build.gradle.kts), 권한은 [AndroidManifest.xml](app/src/main/AndroidManifest.xml)에서 확인할 수 있습니다.
 - 음성은 기기 안에서만 처리합니다. 차량 마이크나 음성을 외부 서비스로 보내지 않습니다.
 - SDK 연결·권한·제약의 자세한 내용은 [SDK 연결 안내](docs/sdk-ui-integration.md)와 [차량 퍼즐 SDK](docs/vehicle-puzzle-sdk.md)에 있습니다.
 
@@ -189,22 +188,53 @@ chmod +x gradlew
 app/src/main/java/com/team/carescape/
 ├── game/          # 사건 진행 엔진 · 「시역」 콘텐츠 · 자물쇠/퍼즐 판정 · 관광 정책
 ├── drive/         # 주행 중 포그라운드 서비스 · BGM/음성 · 도착 감지
-├── platform/sdk/  # Pleos SDK 연결 (Vehicle · NaviHelper · FusedLocation · TTS)
+├── platform/sdk/  # Pleos SDK · Android Car API 연결 (5번 표 참고)
 ├── travel/        # 여행 도우미 · 장소 카드 · 15분 가이드 · 내 차 계획
 ├── data/          # 여행 진행 저장 (DataStore)
 └── ui/            # Compose 화면 · locks/ 재사용 자물쇠 컴포넌트
 ```
 
-## 9. 로드맵
+## 9. 발전 방향: Pleos SDK로 넓히는 퍼즐
 
-기획서에 있지만 아직 구현하지 않은 기능입니다. 모두 공개된 Pleos SDK로 구현할 수 있는 범위입니다.
+지금은 방향지시등·독서등·창문 3가지 장치로 퍼즐을 풉니다. [Pleos Connect SDK 문서](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/)에 공개된 기능을 쓰면 아래처럼 넓힐 수 있습니다. **모두 아직 구현하지 않은 계획**이며, 차량 입력은 지금처럼 P단 정차 중에만 받습니다.
 
-- **사건 추천 고도화:** 유형(추리형·스토리형·가족형)·필터·정렬, 현재 위치와 주행 가능 거리 기반 추천
+### 🔐 새로운 차량 장치 퍼즐
+
+| 아이디어 | 퍼즐 예시 | 쓸 SDK |
+| --- | --- | --- |
+| 비 내리는 장면 | 와이퍼를 켜야 유리창 너머 단서가 드러남. 와이퍼 신호 수신은 이미 에뮬레이터에서 확인함 | [Vehicle · Wiper](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/Vehicle/intro) |
+| 봉화 신호 | 전조등을 켜고 끄는 횟수로 신호 보내기 | Vehicle · Light |
+| 얼음 창고의 온도 | 단서에서 찾은 숫자로 에어컨 설정 온도를 맞추면 상자가 열림 | Vehicle · HVAC |
+| 의자의 각도 | 일지에 적힌 각도대로 좌석 등받이를 기울이기 | Vehicle · Seat |
+| 정답 연출 | 정답을 맞히면 실내 무드등 색이 사건 분위기에 맞게 바뀜 | Vehicle · Light(무드등) |
+| 돌아온 요원 | 관광 후 문이 열렸다 닫히면 "차로 돌아왔어요"를 자동 인식 | Vehicle · Door |
+
+### 🗺️ 위치 · 길 안내로 넓히는 퍼즐
+
+| 아이디어 | 퍼즐 예시 | 쓸 SDK |
+| --- | --- | --- |
+| 지나가는 길의 해설 | 사건과 관련된 장소 근처를 지나면 진행자가 해설. 예) "지금 정조의 능행차 길을 지나고 있습니다" | [FusedLocation](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/FusedLocation/intro) (지정 구역 진입 알림) |
+| 방위 퀴즈 | 차가 바라보는 방향(진행 방향)을 단서 속 방위에 맞춰 세우기 | FusedLocation (진행 방향 값) |
+| 숨은 경유지 | 단서를 풀면 다음 장소 전에 들를 비밀 경유지가 내비에 추가됨 | [NaviHelper](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/NaviHelper/intro) (경유지 설정) |
+| 달린 거리 봉투 | 사건을 시작하고 일정 거리를 달려야 열리는 봉인 편지. 보고서에 이동 거리 기록 | Vehicle · Odometer |
+| 충전하며 쉬어 가기 | 배터리가 부족하면 충전소에 머무는 시간을 차 안에서 푸는 쉬어 가는 챕터로 바꿈 | Vehicle · EvBattery |
+
+### 🎙️ 음성으로 함께 푸는 퍼즐
+
+| 아이디어 | 퍼즐 예시 | 쓸 SDK |
+| --- | --- | --- |
+| 동승자 암호 | 이동 중 진행자가 들려준 단서를 기억했다가, 정차 후 암호를 말로 외쳐 입력 | [SpeechToText](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/SpeechToText/intro) (ON_DEVICE). 어댑터는 이미 연결돼 있음 |
+| 음성 힌트 요청 | "힌트 줘", "사건 기록부 열어" 같은 음성 명령으로 앱 기능 실행 | [Gleo Interface (App Schema)](https://document.pleos.ai/docs/pleos-only/app-integration-guide/guide/app-capability) |
+| 경유지 해설 · 대사 | 위치와 날씨에 맞춰 진행자 대사를 바로 만들어 읽어 줌 | [TextToSpeech](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/TextToSpeech/intro) |
+
+> 참고: 공모전 [개발 범위 공지](https://appdevchallenge.auto-hmg.io/notice/c0a1a000-2026-4923-8000-000000000008) 기준으로 Vehicle·NaviHelper·TextToSpeech·SpeechToText·FusedLocation SDK와 Gleo Interface를 쓸 수 있습니다. Pleos LLM SDK는 공모전 기간에 제공되지 않습니다. 차량을 제어하는 기능(HVAC·Seat·무드등 등)은 Pleos App Market 권한 승인 범위 안에서만 쓸 수 있습니다.
+
+### 🧭 서비스 확장
+
+- **사건 추천:** 유형(추리형·스토리형·가족형)·난이도·장르 필터, 현재 위치와 주행 가능 거리 기반 추천
 - **차량 반응형 스토리:** 와이퍼·전조등 상태에 따라 대사가 바뀌고, 비가 오면 차 안에서 푸는 대체 문제로 진행
-- **차량 장치 확장:** 와이퍼·전조등 퍼즐, 문 열림으로 관광 후 차량 복귀를 자동 인식
-- **동승자 참여:** 이동 중 음성 단서, 좌석 착석 정보로 역할 나누기
-- **기록 · 리뷰:** 보고서에 이동 거리(Odometer) 추가, 익명 별점 리뷰
-- **확장:** 다른 지역 사건(경주, 공주·부여, 강릉 등), 데이터 파일만 추가하면 새 사건이 생기는 사건 패키지 구조
+- **기록 · 리뷰:** 사건 종료 후 익명 별점 리뷰
+- **지역 확장:** 경주, 공주·부여, 강릉 등. 데이터 파일만 추가하면 새 사건이 생기는 사건 패키지 구조
 
 ## 10. 문서·라이선스
 
