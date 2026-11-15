@@ -10,7 +10,7 @@
 
 현대자동차그룹 차량용 앱 개발 공모전 출품작 · 팀 D2E (Drive to Escape)
 
-[▶ 시연 영상](https://www.youtube.com/watch?v=8HCgqPB_IQw) · [📦 제출 APK 다운로드](https://github.com/aemizastudy-oss/EscapeRoad/releases/tag/v0.4.0-submission) · [실행 방법](#7-실행-방법)
+[▶ 시연 영상](https://www.youtube.com/watch?v=8HCgqPB_IQw) · [📦 제출 APK 다운로드](https://github.com/aemizastudy-oss/EscapeRoad/releases/tag/v0.4.0-submission-final) · [실행 방법](#7-실행-방법)
 
 </div>
 
@@ -19,7 +19,7 @@
 </p>
 
 > [!NOTE]
-> **현재 상태:** v0.4.0 · `release/v0.4.0` 브랜치 · 제출용 서명 Release APK `D2E_EscapeRoad_release.apk` · Pleos Connect 에뮬레이터(v2.1.0, API 34, 2560×1440)에서 확인했습니다. **실차에서는 아직 확인하지 않았습니다.** 확인한 범위와 확인하지 않은 범위는 [검증 상태](#6-검증-상태)에 나눠 적었습니다.
+> **현재 상태:** v0.4.0 · `main` 브랜치 · 제출용 서명 Release APK `D2E_EscapeRoad_release.apk` · Pleos Connect 에뮬레이터(v2.1.0, API 34, 2560×1440)에서 확인했습니다. **실차에서는 아직 확인하지 않았습니다.** 확인한 범위와 확인하지 않은 범위는 [검증 상태](#6-검증-상태)에 나눠 적었습니다.
 
 ## 🎬 시연 영상
 
@@ -167,6 +167,15 @@ flowchart LR
 
 ## 6. 검증 상태
 
+### 최종 제출 갱신
+
+- 로비 **자동 시연**과 소지품 **쓰기** 버튼 배치 변경을 반영한 `main`의 서명 Release APK로 갱신했습니다.
+- 같은 D2E 인증서로 서명했고 `debuggable=false`를 확인했습니다. 최신 서명 Release를 보존된 Pleos 전용 에뮬레이터에 업데이트·실행하고 로비 자동 시연이 수동 다음·건너뛰기 없이 Prologue 1/4에서 3/4로 자동 진행하는 것을 확인했습니다. 일시정지 후 계속 버튼 표시와 5초간 3/4 유지, 종료 후 로비·자동 시연 버튼·기존 화성행궁 수사 재개 카드 복귀를 확인했습니다.
+- 자동 시연 전체 구간·엔딩, 전체 코스, 실제 15분 관광 및 차량 SDK 신호 재조작은 이번 최소 스모크에서 재검증하지 않았습니다. 소지품 문제로 이동하거나 진행을 바꾸지 않아 다량 소지품의 쓰기 버튼 가시성·아이템 문제 풀이는 기기 미검증이며, 원시 저장 파일 비교·주입 및 실차 검증도 하지 않았습니다.
+
+아래 표의 단위 테스트 215개·UI 테스트 2개·관광 복귀 결과는 **이전 제출본의 검증 이력**입니다. 이번 변경에서 도메인·차량 SDK·관광 정책·해당 테스트는 바뀌지 않았으며, 최종 갱신에서는 Release 빌드와 추가 화면 확인을 수행했습니다.
+
+
 **제출 Release 기준 (최신)**
 
 | 구분 | 결과 |
@@ -194,14 +203,14 @@ flowchart LR
 
 | 구분 | 위치 |
 | --- | --- |
-| **제출 APK (서명 Release)** | **[GitHub Release v0.4.0-submission](https://github.com/aemizastudy-oss/EscapeRoad/releases/tag/v0.4.0-submission)** › [`D2E_EscapeRoad_release.apk`](https://github.com/aemizastudy-oss/EscapeRoad/releases/download/v0.4.0-submission/D2E_EscapeRoad_release.apk) (119,252,036바이트) |
+| **제출 APK (서명 Release)** | **[GitHub Release v0.4.0-submission-final](https://github.com/aemizastudy-oss/EscapeRoad/releases/tag/v0.4.0-submission-final)** › [`D2E_EscapeRoad_release.apk`](https://github.com/aemizastudy-oss/EscapeRoad/releases/download/v0.4.0-submission-final/D2E_EscapeRoad_release.apk) (119,284,804바이트) |
 | APK 안내 · 체크섬 | [apk/README.md](apk/README.md) · [SHA256SUMS.txt](apk/SHA256SUMS.txt) |
 | 직접 빌드 | Debug `app/build/outputs/apk/debug/app-debug.apk` · Release `app/build/outputs/apk/release/app-release.apk` |
 
-- APK SHA-256: `0e5f93dc6eb564a5687ecc586607920d92ded88edd3258237267cccba23cbf8b`
+- APK SHA-256: `6655ae53339cb1a7fdfe1603dd5b5dde248c3c53ffe33ada5204242058b2eed9`
 - 서명 인증서 SHA-256: `303cea1b55209e766b3e78d2a294dfe7bf1aa91ee399080670b437c722873065`
 
-> APK가 GitHub 저장소 파일 크기 제한(100MB)을 넘어서 저장소가 아닌 **GitHub Releases** 첨부 파일로 제공합니다.
+> APK가 GitHub 저장소 파일 크기 제한(100MiB)을 넘어서 저장소가 아닌 **GitHub Releases** 첨부 파일로 제공합니다.
 
 ### 🖥️ 개발·테스트 환경
 
@@ -226,6 +235,10 @@ flowchart LR
 5. Release 서명이 필요하면 [keystore.properties.example](keystore.properties.example)을 참고해 로컬에 `keystore.properties`를 만듭니다. 키와 비밀번호는 저장소에 올리지 않습니다. 자세한 절차는 [제출용 Release 안내](docs/submission-release.md)에 있습니다.
 6. Pleos Connect 에뮬레이터(v2.1.0)를 실행하고, 앱의 **SDK 상태 → 권한 확인**에서 플랫폼 권한을 허용합니다. 앱이 쓰는 권한은 [AndroidManifest.xml](app/src/main/AndroidManifest.xml)에 선언돼 있습니다.
 
+### 🎞️ 로비 자동 시연
+
+안전한 정차 상태에서 로비의 **자동 시연**을 누르면 장면 소개를 자동 재생하며 일시정지·건너뛰기·종료가 가능합니다. 저장된 여행·답안·관광 시작 시각은 바꾸지 않으며, 실제 플레이의 위치 검사나 15분 조건을 대신하지 않습니다. 실제 플레이는 **사건 고르기**에서 시작합니다.
+
 ### ▶️ 제출 APK 설치 · 실행
 
 ```powershell
@@ -246,7 +259,7 @@ adb -s emulator-5554 shell am start --user 10 -n com.team.carescape/.MainActivit
 | MOCK | Debug 빌드 전용 개발·시연용 모의 입력 |
 
 - REVIEW 진행 기록은 LIVE·MOCK와 따로 저장합니다. 시연 위치 입력은 실제 GPS 방문 인증이 아닙니다.
-- 기존 Debug 앱이 설치돼 있으면 서명이 달라 업데이트 설치가 거부될 수 있습니다. 이때는 기존 앱을 지우고 설치합니다.
+- 기존 Debug 앱이 설치돼 있으면 서명이 달라 업데이트 설치가 거부될 수 있습니다. 기존 여행 기록을 보존하려면 백업을 확인하거나 별도의 Pleos AVD에서 설치해 주세요.
 - 관광 시작·복귀 조건은 [관광 시작과 복귀 정책](docs/tour-return-policy.md)에 있습니다.
 
 ### 🛠️ 소스에서 빌드
@@ -270,7 +283,7 @@ chmod +x gradlew
 
 ### 🎮 Debug 빌드 시연 방법
 
-실제로 이동하지 않고 전체 흐름을 빠르게 볼 수 있습니다. **Debug 빌드 전용**이며 제출 Release APK에는 없습니다.
+실제로 이동하지 않고 전체 흐름을 빠르게 볼 수 있습니다. 아래 **SIM 패널은 Debug 빌드 전용**이며, Release에도 제공되는 로비 자동 시연과는 별개입니다.
 
 1. 오른쪽 위 **시연 · SIM** 패널에서 **MOCK**과 **P 정차**를 선택합니다.
 2. 사건 고르기 → 「시역」 → 프롤로그 → **출발하기**를 누르면 약 1분짜리 **시연 자동 주행**이 진행됩니다.

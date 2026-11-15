@@ -2,14 +2,16 @@
 
 팀 **D2E**, 앱 **EscapeRoad**, 제출 APK 파일명은 **`D2E_EscapeRoad_release.apk`**다. 이 문서는 제출용 README와 서명·기기 검증·배포를 준비하기 위한 작업 기준이다.
 
+> 아래 REVIEW 관광 기기 결과와 단위 215개·UI 2개는 이전 제출본의 검증 이력입니다. 이번 최종 main 갱신 결과는 문서 끝의 최종 갱신 절과 README 검증 상태를 참고합니다.
+
 **현재 상태: REVIEW 구현 / Debug·서명 Release·기기 테스트 APK 빌드 확인 / 단위 215개·신규 UI 2개 통과 / 서명 유효·debuggable=false.** 최종 서명 Release를 새 Pleos 에뮬레이터에 설치·실행하고 실제 SDK의 P·정지·UX 허용 상태에서 관광 위치 시연을 선택해 화성행궁 반경 밖 입력 차단, 수동 관광 시작, 실제 15분 카운트와 조기 복귀 차단을 확인했습니다. 앱 강제종료·재실행 후 수사 재개로 같은 관광 단계와 남은 시간(약 15분에서 약 13분)이 이어졌습니다. 실제 15분 경과 후 복귀·문제 해제, 차량 퍼즐 전체 입력·제출, 전체 스토리 완주, 실차 주행·실제 GPS 도착 인증·실제 관광지 방문은 이번 기기 검증에서 확인하지 않았습니다. 시연 좌표를 UI로 입력했으며 시간 우회·앱 상태 파일 주입·가짜 SDK 안전 신호는 사용하지 않았습니다. unsigned APK나 기존 Debug 테스트 결과를 최종 서명 APK 완주로 표시하지 않는다.
 
 ## 제출물 구성
 
 | 항목 | 제출 위치·방법 |
 | --- | --- |
-| 소스 | 기존 [EscapeRoad 저장소](https://github.com/aemizastudy-oss/EscapeRoad), `release/v0.4.0` |
-| APK | 파일 용량을 고려해 [GitHub Release](https://github.com/aemizastudy-oss/EscapeRoad/releases/tag/v0.4.0-submission)의 asset으로 제공 |
+| 소스 | 기존 [EscapeRoad 저장소](https://github.com/aemizastudy-oss/EscapeRoad), `main` |
+| APK | 파일 용량을 고려해 [GitHub Release](https://github.com/aemizastudy-oss/EscapeRoad/releases/tag/v0.4.0-submission-final)의 asset으로 제공 |
 | 저장소 내 안내 | `apk/README.md`에서 확정한 GitHub Release 페이지와 APK 파일을 안내 |
 | README | 앱 소개, 설치·실행 방법, 테스트 환경·설정, Pleos 버전·화면 규격, APK 링크 |
 | 접수 페이지 | 저장소 주소와 APK가 첨부된 최종 Release 페이지 주소 |
@@ -116,7 +118,7 @@ chmod +x gradlew
 6. 최종 커밋을 가리키는 GitHub Release에 같은 APK를 첨부하고, 본문에 소스 커밋·APK 해시·서명 인증서 지문·실행 환경·검증 및 한계를 기록한다. 최종 소스 커밋을 README 자신의 해시로 반복 수정하지 않는다.
 7. 공개한 Release의 APK를 다시 내려받아 로컬 최종 APK와 SHA-256이 같은지 확인한 뒤, 저장소 주소·Release 페이지·최종 커밋 번호를 제출 정보로 사용한다.
 
-최종 파일은 D2E_EscapeRoad_release.apk이며, APK SHA-256은 `0e5f93dc6eb564a5687ecc586607920d92ded88edd3258237267cccba23cbf8b`, 서명 인증서 SHA-256은 `303cea1b55209e766b3e78d2a294dfe7bf1aa91ee399080670b437c722873065`이다. 내려받기 주소는 [apk/README.md](../apk/README.md)에 있다. 접수 페이지·메일 발송은 별도다.
+최종 파일은 D2E_EscapeRoad_release.apk이며, APK SHA-256은 `6655ae53339cb1a7fdfe1603dd5b5dde248c3c53ffe33ada5204242058b2eed9`, 서명 인증서 SHA-256은 `303cea1b55209e766b3e78d2a294dfe7bf1aa91ee399080670b437c722873065`이다. 내려받기 주소는 [apk/README.md](../apk/README.md)에 있다. 접수 페이지·메일 발송은 별도다.
 
 ## 검증 기록에 남길 항목
 
@@ -125,3 +127,9 @@ chmod +x gradlew
 ## 저장소 공개 기한
 
 제출 안내에 따라 Private 저장소는 **2026년 11월 16일까지 Public으로 전환하고 11월 23일까지 공개 상태를 유지**해야 한다. 이번 작업의 저장소 공개 여부와 실제 접수 완료 여부는 별도로 확인한다.
+
+## 최종 갱신 — main
+
+최신 서명 Release를 보존된 Pleos 전용 에뮬레이터에 업데이트·실행하고 로비 자동 시연이 수동 다음·건너뛰기 없이 Prologue 1/4에서 3/4로 자동 진행하는 것을 확인했습니다. 일시정지 후 계속 버튼 표시와 5초간 3/4 유지, 종료 후 로비·자동 시연 버튼·기존 화성행궁 수사 재개 카드 복귀를 확인했습니다. 자동 시연 전체 구간·엔딩, 전체 코스, 실제 15분 관광 및 차량 SDK 신호 재조작은 이번 최소 스모크에서 재검증하지 않았습니다. 소지품 문제로 이동하거나 진행을 바꾸지 않아 다량 소지품의 쓰기 버튼 가시성·아이템 문제 풀이는 기기 미검증이며, 원시 저장 파일 비교·주입 및 실차 검증도 하지 않았습니다.
+
+로비 자동 시연은 장면 소개이며 관광·퍼즐 진행 및 실제 15분 정책을 대신하지 않는다. 이전 Release는 보존하고 최종 제출본은 `v0.4.0-submission-final` 태그로 구분한다.
