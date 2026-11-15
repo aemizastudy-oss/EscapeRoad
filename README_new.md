@@ -21,10 +21,12 @@
 
 ## 🎬 시연 영상
 
-<!-- 유튜브에 영상을 올린 뒤 아래 링크의 VIDEO_ID 한 곳을 영상 주소의 v= 뒤 값(예: dQw4w9WgXcQ)으로 바꾸세요. -->
-
 <p align="center">
-  <b>▶ <a href="https://www.youtube.com/watch?v=VIDEO_ID">YouTube에서 시연 영상 보기</a></b>
+  <a href="https://www.youtube.com/watch?v=8HCgqPB_IQw">
+    <img src="https://img.youtube.com/vi/8HCgqPB_IQw/maxresdefault.jpg" width="720" alt="Escape Road 시연 영상">
+  </a>
+  <br>
+  <b>▶ <a href="https://www.youtube.com/watch?v=8HCgqPB_IQw">YouTube에서 시연 영상 보기</a></b>
 </p>
 
 ## 목차
@@ -82,6 +84,8 @@ flowchart LR
 | <img src="docs/img/screenshots/readme/02-case-select.png" width="300" /> | <img src="docs/img/screenshots/readme/casebook.png" width="300" /> | <img src="docs/img/screenshots/case-flow/33-case-report.png" width="300" /> |
 
 > Pleos Connect 에뮬레이터 Debug 빌드에서 찍은 화면입니다. 오른쪽 위 `시연 · SIM` 버튼은 Debug 전용이며 Release에는 없습니다.
+
+📖 사건 「시역(屍疫)」의 전체 이야기와 장면 구성은 [**시역 스토리보드 (PDF)**](docs/story/siyeok-storyboard.pdf)에서 볼 수 있습니다.
 
 ## 4. 핵심 기능
 
@@ -274,6 +278,7 @@ app/src/main/java/com/team/carescape/
 
 | 문서 | 내용 |
 | --- | --- |
+| [시역 스토리보드 (PDF)](docs/story/siyeok-storyboard.pdf) | 사건 전체 줄거리와 장면 구성 |
 | [시역 퍼즐판](docs/story-puzzles.md) | 장소별 단계·정답·근거 |
 | [주행 챕터](docs/drive-chapter.md) | 이동 중 BGM·음성 동작 규칙 |
 | [여행 도우미](docs/travel-guide.md) | 장소 카드 사용법 |
