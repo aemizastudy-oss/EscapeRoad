@@ -12,3 +12,6 @@ nearby.properties.env
 nearby.properies.env
 .env
 .env.*
+
+# APK exceeds 100MB; distributed via GitHub Release
+release/*.apk
