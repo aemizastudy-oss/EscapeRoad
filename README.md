@@ -1,88 +1,323 @@
-# Escape Road
+<div align="center">
 
-Pleos Connect용 차량 여행 미스터리 앱입니다. v0.2의 SDK·안전 제한·저장·자물쇠를 기반으로 v0.3의 「시역(屍疫)」 스토리와 임시 연동 문제를 통합했습니다. 관광 → 자물쇠 → 제출 → 단서 → 저장·재개를 수원 5개 장소에 적용합니다. **Debug·Release 빌드, 단위 테스트 71개, 화성행궁 우선 기기 테스트 1개와 전체 코스·회귀 7개, Lint 오류 0개를 확인했습니다.** 최종 결과와 이전 검증 이력은 [검증 로그](docs/verification-log.md)에 구분해 기록합니다. 실제 관광 방문·길 안내 완료·가청 음성 성공과는 구분합니다.
+<img src="docs/img/brand/app-icon-key-512.png" width="96" alt="Escape Road 아이콘" />
 
-앱 표시명은 `Escape Road`이고, 런처 아이콘은 금색 열쇠 그림(`res/mipmap-*/ic_launcher.png`, 원본 축소본 `docs/img/brand/app-icon-key-512.png`)입니다.
+# Escape Road · 이스케이프 로드
 
-- 앱 ID: `com.team.carescape`
-- 앱 버전: `0.4.0` (`versionCode=4`), 공유 브랜치: `release/v0.4.0`
-- 도구 설정: AGP 9.0.1, Kotlin 2.2.21, Gradle 9.1.0, compileSdk 36 / targetSdk 34 / minSdk 28
-- 현재 LIVE의 최초 도착·관광 시작 인증은 위치 정확도의 미터 단위 근거가 없어 보류합니다. 저장된 관광을 마친 뒤의 복귀·문제 열기에는 위치를 다시 요구하지 않습니다. SDK 준비 상태를 실제 방문·길 안내·발화 성공으로 표시하지 않습니다.
-- 자세한 구현 범위·권한·제약은 [SDK 연결 안내](docs/sdk-ui-integration.md), 제품 요구는 [ROAD_ESCAPE_sdk.md](docs/ROAD_ESCAPE_sdk.md), 이전 시연 이력은 [검증 로그](docs/verification-log.md)를 참고하세요.
+**Escape Room에서 Escape Road로, 도시 전체를 무대로 달리는 스토리 방탈출 여행 패키지**
 
+`Pleos Connect` · `Android Automotive (API 34)` · `Kotlin` · `Jetpack Compose`
 
-## 2026-11-15 공모전용 구성
+현대자동차그룹 차량용 앱 개발 공모전 출품작 · 팀 D2E (Drive to Escape)
 
-여행 도우미를 **직접 준비한 주차장·식당 카드 + Pleos 길 안내**로 전환했다. 네이버 지도·지역 검색·TourAPI 호출과 인증값 주입을 제거했다. 입구 좌표 미확인 장소는 주소를 제공하고 `주변 관광지로 안내`로 관광지 대표점만 요청한다. 외부 API 검색으로 저장한 옛 목록은 새 목록으로 재사용하지 않는다. [사용법](docs/travel-guide.md), [장소 출처](docs/curated-places.md), [공모전 점검과 남은 확인](docs/contest-compliance-review.md)을 참고한다.
+[▶ 시연 영상](https://www.youtube.com/watch?v=8HCgqPB_IQw) · [📦 APK 다운로드](https://github.com/aemizastudy-oss/EscapeRoad/releases/tag/v0.4.0) · [실행 방법](#7-실행-방법)
 
-아래 이전 검증 숫자는 당시 이력이며 이번 변경의 결과는 [검증 로그](docs/verification-log.md) 최신 항목을 따른다. Release 서명·원격 업로드·최종 제출은 별도다.
+</div>
 
-## 통합 스토리 진행
+<p align="center">
+  <img src="docs/img/screenshots/readme/01-lobby.png" width="80%" alt="Escape Road 첫 화면" />
+</p>
 
-안전한 정차가 확인되면 **사건 고르기 → 시역 → 여행 시작**으로 진행합니다. 각 장소의 최초 도착과 **관광 시작**에는 새 위치·목적지 500m 반경·P·정지·CarUx를 확인하고 시작 시각을 저장합니다. 사용자 후속 결정에 따라 **복귀·문제 열기·답안 제출에서는 위치·정확도·최신성·반경을 다시 검사하지 않습니다.** 저장된 현재 여행 모드·챕터의 시작 기록과 정상 시계 기준 최소 15분, P·정지·CarUx·앱 foreground를 확인합니다. 반경 밖이나 GPS가 끊긴 동안의 시간도 경과 시간에 포함되며 연속 15분 체류의 위치 증명은 아닙니다. **차로 돌아왔어요**는 사용자가 직접 누릅니다. 관광 조건만 채워서는 단서·재료를 지급하지 않고, 화면의 **제출**로 정답을 확인한 뒤 결과와 단서를 함께 저장합니다. [관광 시작과 복귀 정책](docs/tour-return-policy.md)이 이전 위치 재확인 안내보다 우선합니다.
+> [!NOTE]
+> **현재 상태:** v0.4.0 · `release/v0.4.0` 브랜치 · Pleos Connect 에뮬레이터(v2.1.0, API 34, 2560×1440)에서 확인했습니다. **실차에서는 아직 확인하지 않았습니다.** 확인한 범위와 확인하지 않은 범위는 [검증 상태](#6-검증-상태)에 나눠 적었습니다.
 
-새 여행은 **탐색형 퍼즐판(flow 5)**으로 시작합니다. 장소마다 오디오 증언 → 현장 관찰 → 차량 조작 → 앱 안 추리 단계를 차례로 풀고, 인물 일지를 모은 **사건 기록부**를 단서로 씁니다. 힌트 2·3단계와 함정은 시귀 각성도를 올리고, 각성도와 진상 추리 결과에 따라 진·일반·배드 엔딩으로 나뉩니다. 단계·정답·근거는 [시역 정식 퍼즐판](docs/story-puzzles.md)에 정리했습니다. 현재 차량 문제는 좌우 깜빡이·창문·좌석별 독서등 SDK 입력을 받으며 일반 MOCK에서는 화면 버튼을 사용합니다. [실제 SDK 연결·콘솔 검증](docs/vehicle-puzzle-sdk.md)을 참고하세요.
+## 🎬 시연 영상
 
-v0.4.0의 **연동 검증용 임시 문제**(화성행궁 `0427`, 화홍문 `↑ → ↓ ←`, 만석거 가상 장치 `3·2`, 박물관 `1500`, 호수공원 `← ↑ → ↓`)로 시작한 여행은 그대로 이어서 할 수 있습니다.
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=8HCgqPB_IQw">
+    <img src="https://img.youtube.com/vi/8HCgqPB_IQw/maxresdefault.jpg" width="720" alt="Escape Road 시연 영상">
+  </a>
+  <br>
+  <b>▶ <a href="https://www.youtube.com/watch?v=8HCgqPB_IQw">YouTube에서 시연 영상 보기</a></b>
+</p>
 
-오답 횟수·열어 본 힌트·해결 기록은 여행과 함께 저장합니다. 재실행 뒤에도 현재 챕터의 관광 시작 기록과 경과 시간을 복구하고 새 P·정지·CarUx 상태를 확인합니다. 복귀에는 위치를 요구하지 않으며 다음 장소의 관광을 시작할 때 다시 위치를 확인합니다. 같은 정답을 다시 제출해도 단서·재료를 중복 지급하지 않습니다. 마지막 장소도 관광과 자물쇠를 마친 뒤 엔딩으로 갑니다.
+## 목차
 
-**기존 v0.2 여행:** 완료한 장소·단서·재료는 유지합니다. 사용자 결정에 따라 현재 미완료 장소의 관광은 다시 시작합니다. 이전 시작 기록을 덮어쓰지 않고 `archivedTrips`에 원본을 보관한 뒤 새 통합 세션에서 이어갑니다. 완료한 여행은 완료 상태로 보존하며, 읽기만 할 때는 원본 파일을 쓰지 않고 다음 정상 저장에 schema 2로 기록합니다.
+1. [한눈에 보기](#1-한눈에-보기)
+2. [왜 만들었나](#2-왜-만들었나)
+3. [플레이 흐름](#3-플레이-흐름)
+4. [핵심 기능](#4-핵심-기능)
+5. [Pleos SDK 활용](#5-pleos-sdk-활용)
+6. [검증 상태](#6-검증-상태)
+7. [실행 방법](#7-실행-방법) (APK · 테스트 환경 · 설정)
+8. [프로젝트 구조](#8-프로젝트-구조)
+9. [발전 방향](#9-발전-방향-pleos-sdk로-넓히는-퍼즐)
+10. [출처·라이선스](#10-출처라이선스)
 
-스토리 원문 출처는 [v0.3의 수원 코스 JSON](https://github.com/aemizastudy-oss/EscapeRoad/blob/b003204dd5810be00627cb491627eec26afd9e1a/app/src/main/assets/suwon_tour_package.json)입니다. 통합 본문은 `game/IntegratedSiyeok.kt`, 판정은 `game/StoryPuzzles.kt`, 진행은 `game/StoryEngine.kt`에서 관리합니다. 앱 ID와 SDK 연결은 v0.2를 유지하므로 별도 앱이 생성되지 않습니다.
+---
 
-## 시연 바로가기 (debug)
+## 1. 한눈에 보기
 
-debug 빌드의 오른쪽 위 **시연 · SIM** 패널에서 MOCK과 P 정차를 고른 뒤 「시연 바로가기」로 원하는 지점(도착 1~5 · 장면 1~5 · 마지막 공개 · 진/일반/배드 엔딩)에 바로 갈 수 있다. 앞부분을 정답으로 자동 진행한 새 시연 여행으로 바뀐다. 관광 시작 기록이 있는 현재 챕터의 복귀·문제 열기에는 위치 표본을 다시 요구하지 않는다. 새 장소의 관광을 시작하려면 「현재 장소 위치 시연」과 정차 조건을 확인한다.
-
-## 자물쇠 체험
-
-로비의 자물쇠 체험 버튼은 제거했습니다. 내부 체험 화면과 회귀 테스트는 남아 있으며, 네 종류 입력 컴포넌트는 이야기의 문제에서 사용합니다. 이번 화면은 입력 연습이며 기존 시역의 정답·챕터·관광 기록을 바꾸지 않습니다. 화면의 **제출**을 누를 때만 현재 전체 답안을 읽어 표시하며 자동 정답 판정은 하지 않습니다.
-
-| 종류 | 조작 |
+| 항목 | 내용 |
 | --- | --- |
-| 색상 | 4개 다이얼을 위아래로 밀거나 눌러 변경. 각 칸은 빨강 → 노랑 → 초록 → 파랑으로 순환 |
-| 방향 | 가운데 원에서 상하좌우로 밀었다가 놓으면 한 방향 추가. 아래에 순서대로 표시하며 초기화로 전체 삭제 |
-| 영어 | 자물쇠를 눌러 키보드로 입력. A–Z만 대문자로 5칸에 표시. 키보드 완료는 제출하지 않음 |
-| 숫자 | 4개 다이얼을 위아래로 밀거나 눌러 0–9 순환. 앞자리 0도 유지 |
+| 한 줄 소개 | Escape Room에서 Escape Road로, 도시 전체를 무대로 달리는 스토리 방탈출 여행 패키지 |
+| 핵심 개념 | **차량의 콘텐츠화**: 이동 시간은 이야기, 주행 상태는 진행 신호, 차량 장치는 퍼즐 도구가 됨 |
+| 안전 원칙 | **P단 플레이**: 주행 중에는 음성과 BGM만, 탐색과 풀이는 P단으로 정차했을 때만 |
+| 시연 사건 | 수원 화성 「시역(屍疫)」 · 장소 5곳 · 자물쇠 23개 · 엔딩 3종 · 반나절 코스 |
+| 앱 정보 | 앱 ID `com.team.carescape` · 버전 `0.4.0` (versionCode 4) |
 
-방향 입력의 짧은 움직임·원 밖 시작·취소·멀티터치는 답으로 읽지 않습니다. 방향은 입력이 있을 때, 영어는 5글자를 채웠을 때 제출할 수 있습니다. 입력은 영구 저장하지 않으며 체험을 새로 열면 초기값으로 시작합니다. P·실제 정지·CarUx·foreground 조건이 풀리면 화면과 키보드를 닫고 변경·제출을 거절합니다.
+## 2. 왜 만들었나
 
-영어 입력의 키보드 배열은 차량 키보드 설정에 따르므로 영문 입력 모드로 전환해야 할 수 있습니다. 앱은 입력된 ASCII 영문만 받습니다.
+| 키워드 | 주목한 점 | 이스케이프 로드의 답 |
+| --- | --- | --- |
+| 차와 함께하는 여행 | 국내 여행의 84.5%가 자가용으로 이루어지지만(2025 국민여행조사), 차 안 콘텐츠는 대부분 **재생**에 머문다 | 차의 이동·데이터·장치를 콘텐츠 재료로 쓴다 |
+| 무대의 확장 | 방탈출이 야외로 넓어졌지만 걸어서 하는 방식이라 **한 동네 코스**를 벗어나기 어렵다 | 차로 흩어진 명소를 하나의 **지역 기반 사건**으로 잇는다 |
+| 여행 준비 부담 | 동선을 짜고 주차장·식당을 따로 찾아야 하며, 관광지는 안내판을 읽는 관람형이 많다 | 코스·이야기·주변 정보를 묶은 **사건**과 **여행 도우미** |
+| 몰입형 드라이브 | 운전자는 주행 중 화면 콘텐츠에서 빠지게 된다 | 주행 중에는 **음성**, 정차 뒤에는 **다 함께 풀이** |
 
-이미지 원본은 `docs/img/{color_lock,direction_lock,english_lock,num_lock}.png`이고, 앱은 동일 파일을 `app/src/main/res/drawable-nodpi/`에서 읽습니다. 자물쇠 외형은 원본 PNG이며 창의 값과 터치 영역만 Compose로 겹칩니다. 재사용 컴포넌트는 `ui/locks/DialLocks.kt`, `ui/locks/EnglishDialLock.kt`입니다. 각각 `value`, `onValueChange`, `onSubmit`, `modifier`, `enabled`, 선택적 `feedbackContent`를 받으며 화면 위치와 제출 후 동작은 호출자가 정합니다.
+> "여행지에 가기 위해 차를 탄다"에서 **"여행하기 위해 차를 탄다"**로.
 
-## 빌드와 실행
+## 3. 플레이 흐름
 
-Android Studio에서 저장소 최상위 폴더를 열고 Gradle Sync를 진행합니다. Android SDK Platform 36과 `android.car` 컴파일 라이브러리가 필요합니다. Gradle JDK는 설치한 Android Studio에서 프로젝트 설정에 맞게 선택하고, 개인 SDK 경로는 `local.properties`에 둡니다. Pleos Maven 저장소의 의존성을 받을 수 있어야 합니다.
+```mermaid
+flowchart LR
+    A[사건 선택] --> B[프롤로그]
+    B --> C[출발하기<br/>내비 목적지 설정]
+    C --> D[이동 챕터<br/>D단 · BGM · 음성 안내]
+    D --> E[도착 · 관광<br/>P단 · 15분 가이드]
+    E --> F[탐색 · 단서 풀이<br/>자물쇠 · 차량 장치 퍼즐]
+    F -->|다음 장소| C
+    F -->|마지막 장소| G[진상 추리]
+    G --> H[엔딩 3종<br/>사건 종결 보고서]
+```
 
-Windows PowerShell:
+| 사건 선택 | 사건 기록부 | 사건 종결 보고서 |
+| :---: | :---: | :---: |
+| <img src="docs/img/screenshots/readme/02-case-select.png" width="300" /> | <img src="docs/img/screenshots/readme/casebook.png" width="300" /> | <img src="docs/img/screenshots/case-flow/33-case-report.png" width="300" /> |
+
+> Pleos Connect 에뮬레이터 Debug 빌드에서 찍은 화면입니다. 오른쪽 위 `시연 · SIM` 버튼은 Debug 전용이며 Release에는 없습니다.
+
+📖 사건 「시역(屍疫)」의 전체 이야기와 장면 구성은 [**시역 스토리보드 (PDF)**](docs/story/siyeok-storyboard.pdf)에서 볼 수 있습니다.
+
+## 4. 핵심 기능
+
+### 🚗 P단 플레이 원칙
+
+- 앱이 **기어·속도·운전 중 화면 제한(CarUx) 상태**를 직접 읽습니다. 탐색·자물쇠·여행 도우미는 `P단 + 정지 + CarUx 허용 + 앱 화면 표시` 조건을 모두 만족할 때만 열립니다.
+- 풀이 도중 D단이 들어오면 즉시 차단 화면으로 바뀌고, 입력하던 답안은 초기화됩니다.
+- 도착해도 앱 화면을 강제로 띄우지 않습니다. 중요도가 낮은 알림만 띄우고, 이용자가 정차한 뒤 눌러서 돌아옵니다.
+
+### 🎧 이동 챕터
+
+- **출발하기**를 누르면 NaviHelper로 다음 장소가 내비게이션 목적지로 설정됩니다.
+- D단으로 출발하면 포그라운드 서비스가 **장소별 BGM**과 **진행자 음성**(출발할 때 1회, 도착 약 900m 전 1회)을 재생합니다.
+- 내비 안내·통화·차량 음성이 나오면 앱 소리를 잠시 멈췄다가 이어서 재생합니다. 오른쪽 위 버튼으로 음성을 끌 수 있습니다.
+
+### 🏯 도착 · 관광 · 탐색
+
+- 장소마다 시간대가 다른 **사건 장면**과 **15분 관광 가이드**(꼭 볼 것 3가지·사진 명소)를 제공합니다.
+- 관광을 시작하고 15분이 지나야 탐색이 열립니다. 차 안에서만 문제를 푸는 것을 막는 장치입니다.
+- 탐색 장면에서 사물을 눌러 조사하고 자물쇠를 풉니다. 단서를 찾을수록 새로운 공간이 열립니다.
+
+| ① 화성행궁 · 해 질 녘 | ② 화홍문 · 밤 | ③ 만석거 · 새벽 |
+| :---: | :---: | :---: |
+| <img src="docs/img/screenshots/readme/explore-1-palace.png" width="280" /> | <img src="docs/img/screenshots/readme/explore-2-sluice.png" width="280" /> | <img src="docs/img/screenshots/readme/explore-3-reservoir.png" width="280" /> |
+| **④ 수원광교박물관 · 2026년 수장고** | **⑤ 광교호수공원 · 아랫방죽** | |
+| <img src="docs/img/screenshots/readme/explore-4-museum.png" width="280" /> | <img src="docs/img/screenshots/readme/explore-5-lake.png" width="280" /> | |
+
+### 🔐 차량 장치 퍼즐: 차 안에서만 풀 수 있는 문제
+
+| 장소 | 퍼즐 | 차량 장치 (Vehicle SDK) |
+| --- | --- | --- |
+| 화홍문 | 일곱 칸 판문을 오른쪽(닫기)·왼쪽(열기) 깜빡이로 차례로 정하기. 모두 닫으면 함정 | 방향지시등 (TurnSignal) |
+| 수원광교박물관 | 앞·뒤 좌우 독서등을 켜서 봉화 올리기 | 독서등 4개 영역 (Light) |
+| 광교호수공원 | 운전석 창문을 내려 물소리 듣기 | 창문 (Window) |
+
+앱은 차량 상태를 **읽기만** 하고 차량을 제어하지 않습니다. 차량 장치 입력도 P단에서만 받습니다.
+
+### 🧩 단서 · 힌트 · 엔딩
+
+- **자물쇠:** 숫자·방향·색상·영어·한자 다이얼·시간 다이얼·소지품 사용 등 여러 형태가 있습니다. 화면의 **제출**을 눌렀을 때만 정답을 판정합니다.
+- **소지품 · 사건 기록부:** 획득한 물건은 다른 장소에서 쓰고, 인물 일지와 문서는 사건 기록부의 문서·인물·소지품·단서 탭에서 다시 읽을 수 있습니다.
+- **3단계 힌트 + 각성도:** 1단계는 방향 제시, 2단계는 구체적 단서, 3단계는 결정적 힌트입니다. 힌트 2·3단계와 함정은 각성도(10단계)를 올립니다.
+- **엔딩 분기:** 각성도와 진상 추리 결과에 따라 진 엔딩 「연이의 이름」, 일반 엔딩 「한 장이 비어 있다」, 배드 엔딩 「호숫가의 그림자」로 나뉩니다.
+- **저장 · 재개:** 진행·오답·힌트 기록을 기기에 저장합니다. 앱을 다시 켜면 **수사 재개**로 이어서 할 수 있습니다.
+- **사건 종결 보고서:** 수사 시간·힌트·오답·각성도·장소별 기록을 한 장으로 정리하고 사진으로 저장합니다.
+
+### 🧭 여행 도우미
+
+| 탭 | 내용 |
+| --- | --- |
+| 일정 | 날짜·기간(당일치기~2박 3일)·관심사를 입력하면 사건 코스에 맞춘 일정 제공 |
+| 장소 카드 | 직접 확인해 준비한 카드 40개(주차·맛집·카페·체험·숙소·야경). 주소와 출처 표기 |
+| 15분 가이드 | 장소별 관람 체크리스트. 사건에 쓰이는 항목은 `사건 단서`로 표시하고 정답은 숨김 |
+| 내 차 | Vehicle SDK로 읽은 배터리·연료·주행 가능 거리를 남은 코스와 비교해 충분/빠듯/충전 필요로 판정 |
+
+- 공개 전인 마지막 장소는 스포일러를 막기 위해 가립니다.
+- 길 안내는 **관광지 대표 지점까지** Pleos NaviHelper로 요청합니다. 식당이나 주차장 입구까지 안내하지는 않습니다.
+- **외부 지도·검색 API를 쓰지 않습니다.** 앱(main) 코드에는 외부 서버와 통신하는 코드도 `INTERNET` 권한도 없습니다. 장소 카드의 공식 사이트 주소는 출처를 밝히려고 도메인만 글자로 보여주며, 앱이 접속하지는 않습니다.
+
+## 5. Pleos SDK 활용
+
+| SDK | 쓰는 곳 | 코드 |
+| --- | --- | --- |
+| **Vehicle** (2.3.2) | 주행 중 서비스의 기어 감지(D단 출발 → 이동 챕터 시작) | [DriveSignals.kt](app/src/main/java/com/team/carescape/drive/DriveSignals.kt) |
+|  | 방향지시등 · 창문 · 와이퍼 상태 | [PleosVehiclePuzzleReader.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosVehiclePuzzleReader.kt) |
+|  | 독서등(Light) 봉화 퍼즐 | [PleosInteriorLightReader.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosInteriorLightReader.kt) |
+|  | 배터리 · 연료 · 주행 가능 거리 · 브레이크 | [PleosVehicleAssist.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosVehicleAssist.kt) |
+| **NaviHelper** (3.0.5) | 다음 장소 목적지 설정, 남은 거리 기반 안내 시점, 내비 화면 전환 | [PleosLocationNavigation.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosLocationNavigation.kt) · [DriveSignals.kt](app/src/main/java/com/team/carescape/drive/DriveSignals.kt) |
+| **FusedLocation** (1.1.3) | 장소 도착 판정, 주행 중 도착 감지 | [PleosLocationNavigation.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosLocationNavigation.kt) · [DriveSignals.kt](app/src/main/java/com/team/carescape/drive/DriveSignals.kt) |
+| **TextToSpeech** (3.3.1, ON_DEVICE) | 진행자 음성 (녹음 파일이 없을 때 사용) | [PleosSpeechAdapter.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosSpeechAdapter.kt) · [DriveAudio.kt](app/src/main/java/com/team/carescape/drive/DriveAudio.kt) |
+| **SpeechToText** (3.3.1, ON_DEVICE) | 연결 어댑터만 준비. 현재 사건에는 음성 입력 화면 없음 | [PleosSpeechAdapter.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosSpeechAdapter.kt) |
+| Android Car API | 앱 화면의 P단 · 속도 · CarUx 안전 판정 | [PleosCarSafety.kt](app/src/main/java/com/team/carescape/platform/sdk/PleosCarSafety.kt) |
+
+- 사용하는 의존성은 [app/build.gradle.kts](app/build.gradle.kts), 권한은 [AndroidManifest.xml](app/src/main/AndroidManifest.xml)에서 확인할 수 있습니다.
+- 음성은 기기 안에서만 처리합니다. 차량 마이크나 음성을 외부 서비스로 보내지 않습니다.
+- SDK 연결·권한·제약의 자세한 내용은 [SDK 연결 안내](docs/sdk-ui-integration.md)와 [차량 퍼즐 SDK](docs/vehicle-puzzle-sdk.md)에 있습니다.
+
+## 6. 검증 상태
+
+| 구분 | 결과 |
+| --- | --- |
+| 빌드 | Debug · Release · 기기 테스트 APK 빌드 성공 |
+| 단위 테스트 | **203개 통과** (실패 0) |
+| LIVE SDK 완주 | Pleos 에뮬레이터와 Virtual Console로 실제 SDK 신호를 넣어 **자물쇠 23개를 전부 풀고 진 엔딩·저장·재개까지 확인** (위치 인증·15분 대기는 제외) |
+| 차량 신호 수신 | 방향지시등 · 창문 · 독서등 4개 영역 · 와이퍼 · 기어/속도 값이 앱에 들어오는 것 확인 |
+| 아직 확인하지 않은 것 | 실차 주행, 실제 관광지 방문 인증(위치 정확도 근거 부족으로 보류), 내비 길 안내 완료, 음질·음량 청취 확인, 서명된 Release APK |
+
+자세한 날짜별 기록은 [검증 로그](docs/verification-log.md)에 있습니다.
+
+## 7. 실행 방법
+
+### 📦 APK
+
+| 구분 | 위치 |
+| --- | --- |
+| 바로 설치 | **[GitHub Release v0.4.0](https://github.com/aemizastudy-oss/EscapeRoad/releases/tag/v0.4.0)** › `EscapeRoad-v0.4.0-debug.apk` (약 128MB, 시연 패널 포함 Debug 빌드) |
+| 직접 빌드 | `app/build/outputs/apk/debug/app-debug.apk` (아래 빌드 명령 실행 후 생성) |
+
+> APK가 GitHub 저장소 파일 크기 제한(100MB)을 넘어서 저장소가 아닌 Release에 올립니다.
+
+### 🖥️ 개발·테스트 환경
+
+| 항목 | 내용 |
+| --- | --- |
+| 에뮬레이터 | **Pleos Connect v2.1.0** (AVD `Pleos_Connect_v2.1.0`, x86_64) |
+| OS | Android 14 (API 34), Android Automotive |
+| 화면 규격 | **2560 × 1440** (가로), 160dpi |
+| 개발 PC | Windows 11 · Android Studio (내장 JBR) |
+| 빌드 설정 | compileSdk 36 · targetSdk 34 · minSdk 28 · Java 17 · AGP 9.0.1 |
+| 차량 신호 테스트 | Pleos **Virtual Console** (방향지시등·창문·독서등·기어·속도 입력) |
+
+### ⚙️ 필요한 설정
+
+1. **Android Studio**에서 저장소 최상위 폴더를 열고 Gradle Sync를 합니다.
+2. SDK Manager에서 **Android SDK Platform 36**을 설치합니다. `android.car` 라이브러리는 이 플랫폼에 들어 있습니다.
+3. Pleos SDK는 [Pleos Maven 저장소](https://nexus-playground.pleos.ai/repository/maven-releases/)에서 받습니다. 이미 [settings.gradle.kts](settings.gradle.kts)에 등록돼 있어서 별도 계정 설정은 필요 없습니다.
+4. `local.properties`에는 Android SDK 경로(`sdk.dir`)만 둡니다. Android Studio가 자동으로 만들고, 저장소에는 올리지 않습니다.
+5. Pleos Connect 에뮬레이터(v2.1.0)를 설치하고 실행합니다.
+6. 앱 권한(차량 조명·창문·주행 상태·위치·내비·TTS 등)은 [AndroidManifest.xml](app/src/main/AndroidManifest.xml)에 선언돼 있습니다. 에뮬레이터에서는 설치하면 바로 쓸 수 있습니다.
+
+### ▶️ 빌드 · 설치 · 실행
 
 ```powershell
+# Windows: 단위 테스트 + Debug APK 빌드
 .\gradlew.bat :app:testDebugUnitTest :app:assembleDebug
 ```
 
-Ubuntu:
-
 ```bash
+# macOS / Linux (Ubuntu에서는 아직 실행해 보지 않음)
 chmod +x gradlew
 ./gradlew :app:testDebugUnitTest :app:assembleDebug
 ```
 
-위 명령은 재현용 안내입니다. 이번 실행 환경은 Windows·JBR 25·Pleos API 34이며 Ubuntu 실행은 미확인입니다. Android Studio에서 Gradle Sync 후 `app` 실행 구성을 선택하고 Pleos 에뮬레이터/기기로 Run합니다. 결과 APK 경로는 `app/build/outputs/apk/debug/app-debug.apk`입니다. 일반 Android 기기에서 Pleos 서비스·차량 기능이 제공된다고 가정하지 않습니다.
+```powershell
+# 에뮬레이터에 설치하고 실행 (Pleos 에뮬레이터 사용자는 10번)
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start --user 10 -n com.team.carescape/.MainActivity
+```
 
-## DEBUG 시연과 재개
+- Android Studio에서는 `app` 실행 구성을 고르고 Pleos 에뮬레이터를 대상으로 **Run**하면 됩니다.
+- 일반 Android 휴대폰에서는 Pleos 서비스와 차량 기능이 없어서 정상 동작을 보장하지 않습니다.
 
-1. 오른쪽 위 개발 패널에서 **시연 MOCK**을 선택하고 **P 정차**를 명시적으로 입력합니다. 최초/복귀 상태를 자동 P로 만들지 않습니다.
-2. 시역을 시작하고 **시연 이동 시작** 후 **도착한 것으로 하기 (시연)** 또는 개발 패널의 **현재 장소 위치 시연**을 누릅니다. 실제 위치·길 안내가 아닙니다.
-3. 도착 화면에서 **관광 시작**을 눌러 저장을 완료합니다. 앱을 닫아도 시작 기록·챕터·획득 단서를 복구합니다.
-4. 실제 15분을 기다리거나 DEBUG의 **15분 경과 시연**을 직접 누릅니다. 이 동작은 MOCK 기록에만 표시하며 LIVE에는 적용되지 않습니다.
-5. 현재 챕터의 관광 시작 기록이 저장돼 있다면 앱 재실행·출발 뒤에도 **P 정차**를 다시 확인하고 **차로 돌아왔어요**를 누릅니다. 복귀에는 **현재 장소 위치 시연**을 다시 요구하지 않습니다. 자물쇠에서 답을 맞춰 **제출**해야 단서로 진행합니다. 다음 장소의 관광 시작에는 새 위치·안전 조건을 다시 확인하며 마지막 장소에도 15분·자물쇠 조건이 적용됩니다.
+### 🎮 시연 방법 (Debug 빌드)
 
-MOCK/LIVE 진행은 별도 저장합니다. LIVE 실패 시 자동으로 시연 입력을 섞지 않습니다. release에는 개발 패널·모의 P·시간 생략이 없습니다. 현재 거리 숫자나 지정 주차장을 안내하지 않으며 합법적인 주차 위치는 이용자가 확인합니다.
+실제로 이동하지 않고 전체 흐름을 볼 수 있습니다.
 
-## 실제 SDK 확인
+1. 오른쪽 위 **시연 · SIM** 패널에서 **MOCK**과 **P 정차**를 선택합니다.
+2. 사건 고르기 → 「시역」 → 프롤로그 → **출발하기**를 누르면 약 1분짜리 **시연 자동 주행**이 진행됩니다.
+3. **시연 바로가기**로 도착 1~5, 장면 1~5, 마지막 공개, 엔딩 3종 중 원하는 지점으로 바로 이동할 수 있습니다.
+4. 차량 장치 퍼즐은 SIM 패널 버튼이나 Pleos **Virtual Console**로 조작합니다. 자세한 방법은 [LIVE SDK 콘솔 테스트](docs/live-sdk-console-test.md)에 있습니다.
 
-**SDK 상태 → 권한 확인**으로 플랫폼이 허용하는 런타임 권한을 요청하고 연결 상태를 확인합니다. 정차용 게임·내레이션은 foreground·최신 P·정지·CarUx 허용을 모두 요구합니다. 해당 runtime은 background에서 구독·음성을 멈추며, 아래의 별도 주행 안내 서비스는 예외로 분리돼 있습니다.
+> Release 빌드에는 시연 패널·모의 P단·시간 생략 기능이 들어 있지 않습니다.
 
-현재 음성은 Pleos ON_DEVICE입니다. 원격의 주행 챕터·배경음악을 병합했으며 이동 중에는 별도 서비스가 짧은 목적지 안내와 BGM을 담당합니다. 정차용 스토리·퍼즐 화면의 안전 제한은 유지합니다. [주행 챕터](docs/drive-chapter.md)의 적용 범위와 검증 이력을 참고하세요. Vehicle은 읽기 전용 battery/brake 보조 상태와 좌우 깜빡이·와이퍼·앞왼쪽 창문 입력을 연결했습니다. 디버그에서 관광은 MOCK, 차량 안전·답안은 실제 SDK로 선택해 콘솔 조작을 검증할 수 있습니다. 이 선택은 LIVE 관광 인증을 대체하지 않습니다. SpeechToText 어댑터는 있지만, 현재 시역에는 음성 정답·녹음 시작 UI가 없습니다. 공모전용 실행 경로에는 외부 장소 검색·지도·음성 서비스 클라이언트가 없습니다. SDK 내부 통신과 Debug 로컬 콘솔 통신은 별도입니다.
+## 8. 프로젝트 구조
+
+```text
+app/src/main/java/com/team/carescape/
+├── game/          # 사건 진행 엔진 · 「시역」 콘텐츠 · 자물쇠/퍼즐 판정 · 관광 정책
+├── drive/         # 주행 중 포그라운드 서비스 · BGM/음성 · 도착 감지
+├── platform/sdk/  # Pleos SDK · Android Car API 연결 (5번 표 참고)
+├── travel/        # 여행 도우미 · 장소 카드 · 15분 가이드 · 내 차 계획
+├── data/          # 여행 진행 저장 (DataStore)
+└── ui/            # Compose 화면 · locks/ 재사용 자물쇠 컴포넌트
+```
+
+## 9. 발전 방향: Pleos SDK로 넓히는 퍼즐
+
+지금은 방향지시등·독서등·창문 3가지 장치로 퍼즐을 풉니다. 아래는 **Pleos Connect 공식 문서에서 해당 API가 공개돼 있는 것을 확인한 항목만** 골랐습니다. 모두 아직 구현하지 않은 계획입니다.
+
+- 차량 값은 **읽기만** 합니다. 차량을 제어하는 API(공조 설정, 무드등 색 변경 등)는 Pleos App Market 권한 승인이 필요해서 제외했습니다.
+- 차량 입력은 지금처럼 **P단 정차 중에만** 받습니다.
+- 공모전 [개발 범위 공지](https://appdevchallenge.auto-hmg.io/notice/c0a1a000-2026-4923-8000-000000000008)에서 허용한 SDK(Vehicle · NaviHelper · TextToSpeech · SpeechToText · FusedLocation)와 Gleo Interface만 씁니다.
+
+### 🔐 새로운 차량 장치 퍼즐
+
+| 아이디어 | 퍼즐 예시 | 쓸 API (공식 문서) |
+| --- | --- | --- |
+| 비 내리는 장면 | 와이퍼를 켜야 유리창 너머 단서가 드러남. 와이퍼 신호 수신은 이미 에뮬레이터에서 확인함 | [Vehicle · Wiper](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/Vehicle/vehicle/ai.pleos.playground.vehicle.api/wiper/entry) `getCurrentWiperState` |
+| 봉화 신호 | 전조등을 켜고 끄는 횟수로 신호 보내기 | [Vehicle · Light](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/Vehicle/vehicle/ai.pleos.playground.vehicle.api/light/entry) `getCurrentLowBeamLightState` |
+| 얼음 창고의 온도 | 단서에서 찾은 숫자로 에어컨 설정 온도를 맞추면 상자가 열림. 앱은 설정값을 읽기만 함 | [Vehicle · HVAC](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/Vehicle/vehicle/ai.pleos.playground.vehicle.api/h-v-a-c/get-hvac-temperature) `getHvacTemperature` |
+| 의자의 각도 | 일지에 적힌 각도대로 좌석 등받이를 기울이기 | [Vehicle · Seat](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/Vehicle/vehicle/ai.pleos.playground.vehicle.api/seat/get-current-seat-backrest-angle-position) `getCurrentSeatBackrestAnglePosition` |
+| 돌아온 요원 | 관광 후 문이 열렸다 닫히면 "차로 돌아왔어요"를 자동 인식 | [Vehicle · Door](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/Vehicle/vehicle/ai.pleos.playground.vehicle.api/door/get-current-door-position) `getCurrentDoorPosition` |
+| 탑승 인원별 역할 | 앉은 사람 수에 맞춰 단서와 역할을 나눠 줌 | [Vehicle · Seat](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/Vehicle/vehicle/ai.pleos.playground.vehicle.api/seat/get-current-seat-occupancy) `getCurrentSeatOccupancy` |
+
+### 🗺️ 위치 · 길 안내로 넓히는 퍼즐
+
+| 아이디어 | 퍼즐 예시 | 쓸 API (공식 문서) |
+| --- | --- | --- |
+| 지나가는 길의 해설 | 사건과 관련된 장소 근처를 지나면 진행자가 해설. 예) "지금 정조의 능행차 길을 지나고 있습니다" | [FusedLocation](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/FusedLocation/intro) `addProximityAlert` (구역 진입 알림) |
+| 숨은 경유지 | 단서를 풀면 다음 장소 전에 들를 비밀 경유지가 내비에 추가됨 (최대 2곳) | [NaviHelper · 경유지 설정](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/NaviHelper/waypoint-settings) `addWaypoint` |
+| 달린 거리 봉투 | 사건을 시작하고 일정 거리를 달려야 열리는 봉인 편지. 보고서에 이동 거리 기록 | [Vehicle · Odometer](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/Vehicle/vehicle/ai.pleos.playground.vehicle.api/odometer/get-trip-current-driving-distance) `getTripCurrentDrivingDistance` |
+| 쉬어 가는 챕터 | 배터리가 부족하면 충전하며 차 안에서 푸는 짧은 챕터를 제안 | [Vehicle · EvBattery](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/Vehicle/vehicle/ai.pleos.playground.vehicle.api/ev-battery/get-ev-battery-state-of-charge) `getEvBatteryStateOfCharge` (이미 '내 차' 탭에서 사용 중) |
+
+### 🎙️ 음성으로 함께 푸는 퍼즐
+
+| 아이디어 | 퍼즐 예시 | 쓸 API (공식 문서) |
+| --- | --- | --- |
+| 동승자 암호 | 이동 중 진행자가 들려준 단서를 기억했다가, 정차 후 암호를 말로 말해 입력 | [SpeechToText](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/SpeechToText/intro) ON_DEVICE (어댑터는 이미 연결돼 있음) |
+| 음성 힌트 요청 | "힌트 줘", "사건 기록부 열어" 같은 음성 명령으로 앱 기능 실행 | [Gleo Interface (App Schema)](https://document.pleos.ai/docs/pleos-only/app-integration-guide/guide/app-capability) (공지상 별도 승인 없이 사용 가능) |
+| 차량 반응형 대사 | 와이퍼·전조등이 켜지면 진행자가 비·밤에 맞는 대사를 읽어 줌 | [TextToSpeech](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/TextToSpeech/intro) ON_DEVICE + Wiper · Light |
+
+> 각 Vehicle 기능을 실제 차량이 지원하는지는 [Capability 확인](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/Vehicle/check-capability)으로 먼저 확인하고, 지원하지 않으면 화면 입력으로 대신합니다.
+
+### 🧭 서비스 확장
+
+- **사건 추천:** 유형(추리형·스토리형·가족형)·난이도·장르 필터, 현재 위치(FusedLocation)와 주행 가능 거리(Vehicle) 기반 추천
+- **기록 · 리뷰:** 사건 종료 후 익명 별점 리뷰
+- **지역 확장:** 경주, 공주·부여, 강릉 등. 데이터 파일만 추가하면 새 사건이 생기는 사건 패키지 구조
+
+## 10. 출처·라이선스
+
+| 구분 | 내용 | 출처 · 라이선스 |
+| --- | --- | --- |
+| 그림 | 인물 7 · 장면 배경 9 · 소품 22 · 자물쇠 4 | 팀 제작 (AI 도구 사용) |
+| 음성 | 프롤로그 녹음 17개, 나머지 대사는 Pleos TextToSpeech(ON_DEVICE) | 팀 제작 |
+| BGM | 장소·장면별 20곡 + 기본 주행 BGM 1곡 | 팀 제작 / 기본 주행 BGM은 [make_drive_bgm.py](tools/make_drive_bgm.py)로 직접 합성 |
+| 폰트 | 나눔명조 · Noto Serif KR · Cormorant SC · Playfair Display · Playfair Display SC · Pinyon Script | SIL Open Font License ([원문](docs/licenses)) |
+| 장소 정보 | 여행 도우미 장소 카드 40개 | 지자체·관광 공식 안내 ([장소 출처](docs/curated-places.md)) |
+
+📁 리소스 파일 전체 목록과 미리보기는 **[게임 리소스 문서](docs/assets.md)** 에 있습니다.
+
+> 사건 속 이야기와 인물은 허구입니다. 문제에 쓰인 역사 정보는 공식 자료와 현장 표기로 검수합니다.
+
+**참고 문서**
+
+| 문서 | 내용 |
+| --- | --- |
+| [시역 스토리보드 (PDF)](docs/story/siyeok-storyboard.pdf) | 사건 전체 줄거리와 장면 구성 |
+| [시역 퍼즐판](docs/story-puzzles.md) | 장소별 단계·정답·근거 |
+| [주행 챕터](docs/drive-chapter.md) | 이동 중 BGM·음성 동작 규칙 |
+| [여행 도우미](docs/travel-guide.md) | 장소 카드 사용법 |
+| [공모전 점검](docs/contest-compliance-review.md) | 규정 확인과 남은 확인 사항 |
+| [검증 로그](docs/verification-log.md) | 날짜별 빌드·테스트 기록 |
